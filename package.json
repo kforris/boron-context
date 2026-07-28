@@ -45,7 +45,7 @@
     "url": "https://github.com/kforris/boron-context/issues"
   },
   "engines": {
-    "node": ">=20.18.1"
+    "node": ">=20.19.0"
   },
   "dependencies": {
     "pg": "^8.22.0",

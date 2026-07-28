@@ -99,7 +99,7 @@ change before `1.0`.
 Requirements:
 
 - Apple Silicon macOS;
-- Node.js 20.18.1 or newer;
+- Node.js 20.19.0 or newer;
 - PostgreSQL 15 or newer.
 
 ```bash
