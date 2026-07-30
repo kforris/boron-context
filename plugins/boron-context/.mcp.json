@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "boron-context": {
+      "command": "node",
+      "args": ["./scripts/boron-context-mcp.mjs"],
+      "cwd": ".",
+      "env_vars": ["BORON_URL", "BORON_TOKEN_FILE", "BORON_DAEMON_TOKEN"]
+    }
+  }
+}

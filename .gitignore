@@ -8,3 +8,5 @@ coverage/
 .env.*
 !.env.example
 .boron/
+apps/BoronMenuBar/.build/
+__pycache__/

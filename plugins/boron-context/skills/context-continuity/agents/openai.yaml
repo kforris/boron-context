@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Boron Context Continuity'
+  short_description: 'Read and write durable project context'
+  default_prompt: 'Use Boron Context to continue this project with durable context.'

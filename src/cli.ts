@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { loadConfig } from './config.js'
 import { migrateRuntimeDatabase, startRuntime } from './runtime.js'
 import { launchdDatabaseEnvironment, renderLaunchdPlist } from './platform/launchd.js'
+import { installLaunchdService } from './platform/launchd-service.js'
 import { platformPaths } from './platform/paths.js'
 
 const command = process.argv[2] ?? 'help'
@@ -22,6 +23,9 @@ try {
       break
     case 'print-launchd':
       printLaunchd()
+      break
+    case 'install-launchd':
+      await installLaunchd()
       break
     case 'help':
     case '--help':
@@ -58,25 +62,37 @@ async function health(): Promise<void> {
 }
 
 function printLaunchd(): void {
+  process.stdout.write(launchdDefinition())
+}
+
+async function installLaunchd(): Promise<void> {
+  const paths = platformPaths('darwin')
+  const result = await installLaunchdService({
+    label: 'dev.boroncontext.daemon',
+    plist: launchdDefinition(),
+    logDirectory: paths.logDirectory
+  })
+  console.log(`Installed ${result.label} at ${result.plistPath}`)
+}
+
+function launchdDefinition(): string {
   const paths = platformPaths('darwin')
   const projectRoot = process.cwd()
   const config = loadConfig()
-  process.stdout.write(
-    renderLaunchdPlist({
-      label: 'dev.boroncontext.daemon',
-      nodePath: process.execPath,
-      cliPath: resolve(projectRoot, 'dist', 'cli.js'),
-      workingDirectory: projectRoot,
-      stdoutPath: resolve(paths.logDirectory, 'daemon.stdout.log'),
-      stderrPath: resolve(paths.logDirectory, 'daemon.stderr.log'),
-      environment: {
-        BORON_HOST: config.host,
-        BORON_PORT: String(config.port),
-        BORON_TOKEN_FILE: config.tokenPath,
-        ...launchdDatabaseEnvironment(process.env.BORON_DATABASE_URL)
-      }
-    })
-  )
+  return renderLaunchdPlist({
+    label: 'dev.boroncontext.daemon',
+    nodePath: process.execPath,
+    cliPath: resolve(projectRoot, 'dist', 'cli.js'),
+    workingDirectory: projectRoot,
+    stdoutPath: resolve(paths.logDirectory, 'daemon.stdout.log'),
+    stderrPath: resolve(paths.logDirectory, 'daemon.stderr.log'),
+    environment: {
+      BORON_HOST: config.host,
+      BORON_PORT: String(config.port),
+      BORON_TOKEN_FILE: config.tokenPath,
+      ...launchdDatabaseEnvironment(process.env.BORON_DATABASE_URL)
+    }
+  })
 }
 
 function help(): void {
@@ -87,5 +103,6 @@ Usage:
   boron-context migrate        Apply PostgreSQL migrations
   boron-context health         Read daemon health
   boron-context print-launchd  Print a macOS launchd plist
+  boron-context install-launchd Install and start the macOS background service
 `)
 }

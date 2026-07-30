@@ -19,18 +19,22 @@ export interface ContextResolverOptions {
   readonly projects: ProjectResolver
   readonly now?: () => Date
   readonly perAdapterLimit?: number
+  readonly meterNow?: () => number
 }
 
 export class ContextResolver {
   private readonly now: () => Date
   private readonly perAdapterLimit: number
+  private readonly meterNow: () => number
 
   constructor(private readonly options: ContextResolverOptions) {
     this.now = options.now ?? (() => new Date())
     this.perAdapterLimit = options.perAdapterLimit ?? 40
+    this.meterNow = options.meterNow ?? (() => performance.now())
   }
 
   async resolve(input: unknown, traceId: string = randomUUID()): Promise<ContextCapsule> {
+    const meterStartedAt = this.meterNow()
     const request = resolveContextRequestSchema.parse(input)
     const project = await this.options.projects.resolve(request)
     const selectedAdapters = this.selectAdapters(request.layers)
@@ -46,6 +50,13 @@ export class ContextResolver {
 
     const ranked = rankAndDedupe(results.flat(), request, project)
     const packed = packEvidence(ranked, request.tokenBudget)
+    const meter = buildContextMeter(
+      ranked,
+      packed.evidence,
+      packed.estimatedTokens,
+      request.client,
+      Math.max(0, Math.round(this.meterNow() - meterStartedAt))
+    )
     const unresolved: string[] = []
     if (request.projectHint && !project) {
       unresolved.push(`Project hint could not be resolved: ${request.projectHint}`)
@@ -68,6 +79,7 @@ export class ContextResolver {
       estimatedTokens: packed.estimatedTokens,
       tokenBudget: request.tokenBudget,
       truncated: packed.truncated,
+      meter,
       createdAt: this.now().toISOString()
     }
   }
@@ -76,6 +88,62 @@ export class ContextResolver {
     if (!requested) return this.options.adapters
     const allowed = new Set(requested)
     return this.options.adapters.filter((adapter) => allowed.has(adapter.layer))
+  }
+}
+
+function buildContextMeter(
+  ranked: readonly CapsuleEvidence[],
+  selected: readonly CapsuleEvidence[],
+  capsuleTokens: number,
+  client: string,
+  retrievalLatencyMs: number
+): ContextCapsule['meter'] {
+  const candidateTokens =
+    CAPSULE_BASE_TOKENS + ranked.reduce((total, item) => total + item.estimatedTokens, 0)
+  const filteredTokens = Math.max(0, candidateTokens - capsuleTokens)
+  const recoveredContextTokens = selected
+    .filter(
+      (item) =>
+        typeof item.metadata.activityId === 'string' || item.uri.startsWith('boron://activity/')
+    )
+    .reduce((total, item) => total + item.estimatedTokens, 0)
+  const sourceCovered = selected.filter(
+    (item) =>
+      typeof item.metadata.sourceTokenEstimate === 'number' &&
+      Number.isFinite(item.metadata.sourceTokenEstimate) &&
+      item.metadata.sourceTokenEstimate > 0
+  )
+  const sourceTokens = sourceCovered.reduce(
+    (total, item) => total + Number(item.metadata.sourceTokenEstimate),
+    0
+  )
+  const sourceExcerptTokens = sourceCovered.reduce((total, item) => total + item.estimatedTokens, 0)
+  const sourceCompressionTokens = Math.max(0, sourceTokens - sourceExcerptTokens)
+  return {
+    version: 1,
+    basis: 'deterministic_estimate',
+    client,
+    candidateEvidenceCount: ranked.length,
+    selectedEvidenceCount: selected.length,
+    candidateTokens,
+    capsuleTokens,
+    filteredTokens,
+    selectionReductionRatio: candidateTokens > 0 ? filteredTokens / candidateTokens : 0,
+    recoveredContextTokens,
+    sourceEstimateCoveredEvidence: sourceCovered.length,
+    sourceTokens,
+    sourceExcerptTokens,
+    sourceCompressionTokens,
+    sourceCompressionRatio: sourceTokens > 0 ? sourceCompressionTokens / sourceTokens : null,
+    retrievalLatencyMs,
+    tokenEstimator: 'characters_divided_by_4',
+    boronLlm: {
+      provider: 'none',
+      model: 'none',
+      calls: 0,
+      inputTokens: 0,
+      outputTokens: 0
+    }
   }
 }
 
@@ -123,8 +191,7 @@ function packEvidence(
   readonly estimatedTokens: number
   readonly truncated: boolean
 } {
-  const baseTokens = 180
-  let used = baseTokens
+  let used = CAPSULE_BASE_TOKENS
   const selected: CapsuleEvidence[] = []
   for (const item of ranked) {
     if (used + item.estimatedTokens > tokenBudget) continue
@@ -137,6 +204,8 @@ function packEvidence(
     truncated: selected.length < ranked.length
   }
 }
+
+const CAPSULE_BASE_TOKENS = 180
 
 export function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4))

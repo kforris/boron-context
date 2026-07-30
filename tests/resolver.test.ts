@@ -49,7 +49,8 @@ describe('ContextResolver', () => {
           }
         ])
       ],
-      now: () => new Date('2026-07-28T00:00:00.000Z')
+      now: () => new Date('2026-07-28T00:00:00.000Z'),
+      meterNow: sequence(100, 112)
     })
 
     const capsule = await resolver.resolve({
@@ -64,6 +65,13 @@ describe('ContextResolver', () => {
     expect(capsule.project).toEqual(project)
     expect(capsule.evidence).toHaveLength(1)
     expect(capsule.estimatedTokens).toBeLessThanOrEqual(512)
+    expect(capsule.meter).toMatchObject({
+      basis: 'deterministic_estimate',
+      candidateEvidenceCount: 1,
+      selectedEvidenceCount: 1,
+      retrievalLatencyMs: 12,
+      boronLlm: { provider: 'none', model: 'none', calls: 0 }
+    })
   })
 
   it('deduplicates evidence and keeps the strongest version', async () => {
@@ -118,3 +126,8 @@ describe('estimateTokens', () => {
     expect(estimateTokens('')).toBe(1)
   })
 })
+
+function sequence(...values: number[]): () => number {
+  let index = 0
+  return () => values[Math.min(index++, values.length - 1)]!
+}

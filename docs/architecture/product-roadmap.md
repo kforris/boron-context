@@ -11,19 +11,30 @@
 - macOS and Linux path abstractions
 - `launchd` definition generator
 
-### 0.2 local discovery
+### 0.2 context continuity MVP
+
+- versioned MCP surface
+- durable intention, activity, outcome, and capsule writeback
+- temporal assert/retract relation effects
+- auditable Context Meter and MCP summary
+- native read-only macOS menu-bar meter
+- tested `launchd` installation and restart
+
+### 0.3 local discovery
 
 - local folder and Git repository discovery
 - stable project identity and deduplication
-- Codebase Memory adapter contract
+- live Codebase Memory adapter
+- live OpenWiki adapter
+- setup CLI and temporary local web flow
 - candidate-relation confirmation
 
-### 0.3 integration
+### 0.35 inference and confirmation
 
-- versioned MCP surface
-- durable intention and capsule writeback
-- OpenWiki adapter
-- setup CLI and temporary local web flow
+- configurable activity-to-relation rules
+- derived-state query contracts
+- candidate relation review and correction
+- replay and projection rebuild tests
 
 ### 0.4 macOS lifecycle
 

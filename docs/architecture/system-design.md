@@ -19,11 +19,11 @@ evidence, constraints, provenance, and confirmation state.
 
 ## Three context layers
 
-| Layer           | Authority                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------- |
-| Ontology        | Projects, objects, typed relations, intentions, policy, provenance, revisions, confirmation |
-| Codebase Memory | Repositories, files, symbols, dependencies, routes, call paths, code versions               |
-| OpenWiki        | Explanations, recurring questions, incidents, exceptions, decisions, operational lessons    |
+| Layer           | Authority                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| Ontology        | Projects, objects, activities, typed relations, derived state, policy, provenance, confirmation |
+| Codebase Memory | Repositories, files, symbols, dependencies, routes, call paths, code versions                   |
+| OpenWiki        | Explanations, recurring questions, incidents, exceptions, decisions, operational lessons        |
 
 ## Request lifecycle
 
@@ -58,8 +58,42 @@ flowchart TD
 6. Weak, stale, unauthorized, or redundant evidence is removed.
 7. The resolver returns a capsule within the requested token budget.
 8. The external agent executes with its own tools and permissions.
-9. Selected evidence and decisions can return as candidate facts.
-10. Durable semantic changes require confirmation.
+9. Selected activities, evidence, and decisions return as append-only events.
+10. Event effects assert or retract temporal relations; current state is derived from active links.
+11. Durable model-inferred semantic changes remain candidates until confirmation.
+
+## Context Meter
+
+Each capsule reports deterministic metrics and stores them in PostgreSQL:
+
+| Metric                    | Meaning                                                                |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `capsuleTokens`           | Estimated tokens actually returned by Boron                            |
+| `filteredTokens`          | Candidate excerpt tokens omitted by ranking and budget packing         |
+| `recoveredContextTokens`  | Returned tokens originating from earlier Boron activities              |
+| `sourceCompressionTokens` | Original-source estimate minus selected excerpt, where coverage exists |
+| `retrievalLatencyMs`      | Time spent resolving and packing the capsule                           |
+| `boronLlm.calls`          | LLM calls performed and owned by Boron; currently always zero          |
+
+Token estimates use characters divided by four. Manual re-entry time is presented only as an
+equivalent at a stated typing speed. It is not observed human time. Source-window reduction remains
+unknown unless ingestion provides `sourceTokenEstimate`.
+
+## Activity and derived state
+
+Activity is an Ontology primitive rather than a fourth context layer. An activity records what
+happened, when it happened, who or what participated, and the source evidence. Relation effects
+change the valid-time interval of typed links.
+
+```text
+Activity: A LEFT B
+Effect: retract A OCCUPIES B at t
+Derived query: B is empty when no active OCCUPIES links remain at t
+```
+
+The durable source is the event and relation-effect history. Frequently requested current state may
+be materialized for latency, but it must remain reproducible from that history. Incomplete or
+conflicting evidence yields `unknown`, not an invented Boolean state.
 
 ## Context Capsule
 
@@ -84,6 +118,7 @@ PostgreSQL stores:
 - intentions and confirmation requests;
 - evidence references and hashes;
 - generated Context Capsules;
+- agent sessions, semantic activities, and temporal relation effects;
 - policies and authorization decisions as the system matures.
 
 Code graphs and Wiki bodies remain in their owning systems. PostgreSQL stores stable references and
@@ -115,7 +150,8 @@ src/
   core/       contracts, ranking, capsule construction
   adapters/   Codebase Memory, OpenWiki, future sources
   db/         PostgreSQL migrations and ontology repository
-  gateway/    local HTTP and future MCP transport
+  gateway/    local HTTP transport
+  plugin/     Codex skill and MCP transport
   platform/   macOS and Linux lifecycle and paths
 ```
 

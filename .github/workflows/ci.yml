@@ -28,3 +28,12 @@ jobs:
         run: npm install --no-save --ignore-scripts @rolldown/binding-linux-x64-gnu@1.1.5
       - run: npm run check
       - run: npm audit --omit=dev --audit-level=high
+
+  macos-menu-bar:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test native menu-bar app
+        run: swift test --package-path apps/BoronMenuBar
+      - name: Build native menu-bar app
+        run: swift build -c release --package-path apps/BoronMenuBar

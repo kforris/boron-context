@@ -1,6 +1,11 @@
 import type { Pool } from 'pg'
 import type { ContextAdapter, AdapterSearchInput } from '../core/context-adapter.js'
-import type { Evidence, ResolveContextRequest, ResolvedProject } from '../core/contracts.js'
+import type {
+  ContextLayer,
+  Evidence,
+  ResolveContextRequest,
+  ResolvedProject
+} from '../core/contracts.js'
 import type { ProjectResolver } from '../core/resolver.js'
 
 export class PostgresOntologyRepository implements ContextAdapter, ProjectResolver {
@@ -45,8 +50,13 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
   }
 
   async search(input: AdapterSearchInput): Promise<readonly Evidence[]> {
+    return this.searchLayer('ontology', input)
+  }
+
+  async searchLayer(layer: ContextLayer, input: AdapterSearchInput): Promise<readonly Evidence[]> {
     const result = await this.pool.query<{
       id: string
+      layer: ContextLayer
       title: string
       uri: string
       excerpt: string
@@ -55,10 +65,12 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
       updated_at: Date
       content_hash: string | null
       project_id: string | null
+      metadata: Record<string, unknown>
     }>(
       `
         SELECT
           e.id::text,
+          e.layer,
           e.title,
           e.uri,
           e.excerpt,
@@ -66,12 +78,21 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
           e.authority,
           e.updated_at,
           e.content_hash,
-          e.project_id::text
+          e.project_id::text,
+          e.metadata
         FROM evidence e
-        WHERE ($1::uuid IS NULL OR e.project_id = $1::uuid)
+        WHERE e.layer = $4
           AND (
-            e.search_document @@ websearch_to_tsquery('simple', $2)
-            OR lower(e.title) LIKE '%' || lower($2) || '%'
+            (
+              $1::uuid IS NOT NULL
+              AND e.project_id = $1::uuid
+            ) OR (
+              $1::uuid IS NULL
+              AND (
+                e.search_document @@ websearch_to_tsquery('simple', $2)
+                OR lower(e.title) LIKE '%' || lower($2) || '%'
+              )
+            )
           )
         ORDER BY
           ts_rank_cd(e.search_document, websearch_to_tsquery('simple', $2)) DESC,
@@ -79,11 +100,11 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
           e.updated_at DESC
         LIMIT $3
       `,
-      [input.projectId, input.request.objective, input.limit]
+      [input.projectId, input.request.objective, input.limit, layer]
     )
     return result.rows.map((row) => ({
       id: row.id,
-      layer: 'ontology',
+      layer: row.layer,
       title: row.title,
       uri: row.uri,
       excerpt: row.excerpt,
@@ -92,8 +113,28 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
       updatedAt: row.updated_at.toISOString(),
       ...(row.content_hash ? { contentHash: row.content_hash } : {}),
       ...(row.project_id ? { projectId: row.project_id } : {}),
-      metadata: {}
+      metadata: row.metadata
     }))
+  }
+}
+
+export class PostgresLayerEvidenceAdapter implements ContextAdapter {
+  readonly name: string
+
+  constructor(
+    private readonly repository: PostgresOntologyRepository,
+    readonly layer: ContextLayer
+  ) {
+    this.name =
+      layer === 'ontology' ? 'PostgreSQL ontology' : `PostgreSQL ${layer} evidence snapshots`
+  }
+
+  health(): Promise<{ readonly ok: boolean; readonly detail?: string }> {
+    return this.repository.health()
+  }
+
+  search(input: AdapterSearchInput): Promise<readonly Evidence[]> {
+    return this.repository.searchLayer(this.layer, input)
   }
 }
 

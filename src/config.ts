@@ -15,7 +15,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BoronConfig {
   const paths = platformPaths(process.platform, env)
   return {
     host: env.BORON_HOST ?? '127.0.0.1',
-    port: portSchema.parse(env.BORON_PORT ?? '41634'),
+    port: portSchema.parse(env.BORON_PORT ?? '41635'),
     tokenPath: paths.tokenPath,
     ...(env.BORON_CODEBASE_MEMORY_URL ? { codebaseMemoryUrl: env.BORON_CODEBASE_MEMORY_URL } : {}),
     ...(env.BORON_OPENWIKI_URL ? { openWikiUrl: env.BORON_OPENWIKI_URL } : {})

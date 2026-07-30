@@ -3,7 +3,14 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net'
 import { ZodError } from 'zod'
 import type { ContextAdapter } from '../core/context-adapter.js'
+import {
+  completeSessionRequestSchema,
+  contextMeterSummaryRequestSchema,
+  recordActivityRequestSchema,
+  startSessionRequestSchema
+} from '../core/contracts.js'
 import type { ContextResolver } from '../core/resolver.js'
+import type { PostgresActivityRepository } from '../db/activity-repository.js'
 
 const MAX_BODY_BYTES = 256 * 1024
 
@@ -12,6 +19,7 @@ export interface GatewayOptions {
   readonly port: number
   readonly token: string
   readonly resolver: ContextResolver
+  readonly activity: PostgresActivityRepository
   readonly adapters: readonly ContextAdapter[]
   readonly databaseHealth: () => Promise<{ readonly ok: boolean; readonly detail?: string }>
   readonly version: string
@@ -79,7 +87,43 @@ async function routeRequest(
     if (request.method === 'POST' && request.url === '/v1/context/resolve') {
       const body = await readJson(request)
       const capsule = await options.resolver.resolve(body, traceId)
+      await options.activity.saveMeter(capsule)
       json(response, 200, capsule)
+      return
+    }
+    if (request.method === 'POST' && request.url === '/v1/sessions/start') {
+      const body = startSessionRequestSchema.parse(await readJson(request))
+      const session = await options.activity.startSession(body)
+      const capsule = await options.resolver.resolve(
+        {
+          objective: body.objective,
+          ...(session.project ? { projectHint: session.project.name } : {}),
+          constraints: body.constraints,
+          tokenBudget: body.tokenBudget,
+          client: body.client
+        },
+        session.traceId
+      )
+      await options.activity.saveCapsule({ session, capsule })
+      json(response, 200, { session, capsule })
+      return
+    }
+    if (request.method === 'POST' && request.url === '/v1/activity/record') {
+      const body = recordActivityRequestSchema.parse(await readJson(request))
+      const result = await options.activity.recordActivity(body, 'http')
+      json(response, 200, result)
+      return
+    }
+    if (request.method === 'POST' && request.url === '/v1/sessions/complete') {
+      const body = completeSessionRequestSchema.parse(await readJson(request))
+      const result = await options.activity.completeSession(body, 'http')
+      json(response, 200, result)
+      return
+    }
+    if (request.method === 'POST' && request.url === '/v1/metrics/context') {
+      const body = contextMeterSummaryRequestSchema.parse(await readJson(request))
+      const summary = await options.activity.contextMeterSummary(body)
+      json(response, 200, summary)
       return
     }
     json(response, 404, { error: 'not_found', traceId })
