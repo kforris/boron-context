@@ -30,7 +30,8 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
 
   macos-menu-bar:
-    runs-on: macos-14
+    # Swift 6 builds a macOS 14 deployment target; the macOS 15 image supplies the Swift 6 toolchain.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
       - name: Test native menu-bar app
