@@ -140,7 +140,7 @@ export const recordActivityRequestSchema = z.object({
   summary: z.string().trim().min(1).max(20_000),
   actorUri: z.string().trim().min(1).max(4_000).optional(),
   targetUri: z.string().trim().min(1).max(4_000).optional(),
-  occurredAt: z.string().datetime().optional(),
+  occurredAt: z.string().datetime({ offset: true }).optional(),
   idempotencyKey: z.string().trim().min(1).max(1_000).optional(),
   confidence: z.number().min(0).max(1).default(1),
   metadata: z.record(z.string(), z.unknown()).default({}),
