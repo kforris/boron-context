@@ -30,6 +30,9 @@ describe('gateway', () => {
         saveMeter: async () => {},
         contextMeterSummary: async () => {
           throw new Error('not used')
+        },
+        contextMeterAudit: async () => {
+          throw new Error('not used')
         }
       } as never,
       adapters: [],
@@ -99,6 +102,10 @@ describe('gateway', () => {
           calls.push('meter')
         },
         contextMeterSummary: async () => ({ samples: 1 }),
+        contextMeterAudit: async () => ({
+          summary: { samples: 1 },
+          samples: [{ id: 'audit-sample' }]
+        }),
         recordActivity: async () => {
           calls.push('activity')
           return { id: randomUUID(), relationEffects: 0, evidence: 1, duplicate: false }
@@ -110,7 +117,7 @@ describe('gateway', () => {
       } as never,
       adapters: [],
       databaseHealth: async () => ({ ok: true }),
-      version: '0.2.0'
+      version: '0.3.0'
     })
     const headers = {
       authorization: 'Bearer test-token-with-at-least-thirty-two-characters',
@@ -159,6 +166,17 @@ describe('gateway', () => {
       })
       expect(meter.status).toBe(200)
       expect(await meter.json()).toEqual({ samples: 1 })
+
+      const audit = await fetch(`${gateway.url}/v1/metrics/context/inspect`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ projectHint: 'Boron Context', limit: 5 })
+      })
+      expect(audit.status).toBe(200)
+      expect(await audit.json()).toEqual({
+        summary: { samples: 1 },
+        samples: [{ id: 'audit-sample' }]
+      })
       expect(calls).toEqual(['start', 'capsule', 'activity', 'complete'])
     } finally {
       await gateway.close()

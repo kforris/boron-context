@@ -32,11 +32,13 @@ flowchart TD
     C["Agent client"] --> G["Authenticated loopback gateway"]
     G --> I["Intention capture"]
     I --> R["Project and entity resolver"]
-    R --> O["Ontology service / PostgreSQL"]
-    R --> Q["Context query planner"]
-    Q --> O
-    Q --> M["Codebase Memory adapter"]
-    Q --> W["OpenWiki adapter"]
+    R --> O["Ontology location / PostgreSQL"]
+    O --> H{"High-risk intent?"}
+    H -->|Yes| Y["Confirmed policy stage"]
+    H -->|No| Q["Deterministic Retrieval Plan"]
+    Y --> Q
+    Q -->|Code signal / anchor| M["Codebase adapter"]
+    Q -->|Wiki / continuity signal| W["OpenWiki adapter"]
     O --> F["Evidence ranking and policy filter"]
     M --> F
     W --> F
@@ -54,7 +56,7 @@ flowchart TD
 2. The gateway authenticates the local client and assigns a trace ID.
 3. Stable paths and source identifiers resolve the project before natural-language similarity.
 4. PostgreSQL supplies confirmed ontology and policy.
-5. The planner selects the required context layers.
+5. A deterministic planner records request signals and selects only the required later stages.
 6. Weak, stale, unauthorized, or redundant evidence is removed.
 7. The resolver returns a capsule within the requested token budget.
 8. The external agent executes with its own tools and permissions.
@@ -64,20 +66,42 @@ flowchart TD
 
 ## Context Meter
 
-Each capsule reports deterministic metrics and stores them in PostgreSQL:
+Each capsule reports deterministic metrics and stores both an aggregate sample and candidate-level
+audit rows in PostgreSQL:
 
-| Metric                    | Meaning                                                                |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `capsuleTokens`           | Estimated tokens actually returned by Boron                            |
-| `filteredTokens`          | Candidate excerpt tokens omitted by ranking and budget packing         |
-| `recoveredContextTokens`  | Returned tokens originating from earlier Boron activities              |
-| `sourceCompressionTokens` | Original-source estimate minus selected excerpt, where coverage exists |
-| `retrievalLatencyMs`      | Time spent resolving and packing the capsule                           |
-| `boronLlm.calls`          | LLM calls performed and owned by Boron; currently always zero          |
+| Metric                       | Meaning                                                               |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `capsuleTokens`              | Estimated tokens actually returned by Boron                           |
+| `filteredTokens`             | Candidate excerpt tokens omitted by ranking and budget packing        |
+| `reExplanationAvoidedTokens` | Selected tokens originating from earlier verified Boron activities    |
+| `sourceWindowSavingsTokens`  | Original-source estimate minus capsule excerpt, for covered evidence  |
+| `sourceWindowCoverageRatio`  | Selected evidence with a real source estimate divided by all selected |
+| `retrievalLatencyMs`         | Time spent resolving and packing the capsule                          |
+| `boronLlm.calls`             | LLM calls performed and owned by Boron; currently always zero         |
 
-Token estimates use characters divided by four. Manual re-entry time is presented only as an
-equivalent at a stated typing speed. It is not observed human time. Source-window reduction remains
-unknown unless ingestion provides `sourceTokenEstimate`.
+Token estimates use characters divided by four. `capsuleTokens` covers the serialized capsule,
+including provenance, Retrieval Plan, and Meter fields; evidence-level capsule tokens include their
+serialized provenance wrapper. Manual re-entry time is presented only as an equivalent at a stated
+typing speed. It is not observed human time. Source-window reduction remains `null`/not covered
+unless ingestion provides `sourceTokenEstimate`; partial aggregates exclude uncovered evidence and
+report coverage beside the result.
+
+## Retrieval planning and adapter truth
+
+The planner is ontology-first and source-aware. It does not own an LLM or embedding call. Stable
+paths, source URIs, explicit titles, symbols, project/entity aliases, and risk signals are evaluated
+with deterministic rules. Ontology always runs first; policy runs next for high-risk intent; then
+Codebase and Wiki stages run sequentially only when their signals or explicit layer constraints
+require them.
+
+Adapters report `sourceType`:
+
+- `ontology`: live PostgreSQL Ontology;
+- `snapshot`: selected Codebase/Wiki evidence already stored in PostgreSQL;
+- `live`: a configured external HTTP source queried during that stage.
+
+The current runtime ships PostgreSQL Ontology and snapshot adapters. Codebase Memory and OpenWiki
+are not live integrations unless their respective URLs are configured and healthy.
 
 ## Activity and derived state
 
@@ -118,6 +142,7 @@ PostgreSQL stores:
 - intentions and confirmation requests;
 - evidence references and hashes;
 - generated Context Capsules;
+- Retrieval Plans and evidence-level Context Meter audit samples;
 - agent sessions, semantic activities, and temporal relation effects;
 - policies and authorization decisions as the system matures.
 

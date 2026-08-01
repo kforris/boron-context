@@ -3,6 +3,49 @@ import { z } from 'zod'
 export const contextLayerSchema = z.enum(['ontology', 'codebase', 'wiki'])
 export type ContextLayer = z.infer<typeof contextLayerSchema>
 
+export const adapterSourceTypeSchema = z.enum(['ontology', 'snapshot', 'live'])
+export type AdapterSourceType = z.infer<typeof adapterSourceTypeSchema>
+
+export const retrievalPurposeSchema = z.enum([
+  'locate',
+  'policy',
+  'code',
+  'knowledge',
+  'continuity'
+])
+export type RetrievalPurpose = z.infer<typeof retrievalPurposeSchema>
+
+export const retrievalStageSchema = z.object({
+  id: z.string().min(1),
+  order: z.number().int().positive(),
+  layer: contextLayerSchema,
+  purpose: retrievalPurposeSchema,
+  reason: z.string().min(1),
+  trigger: z.string().min(1),
+  status: z.enum(['executed', 'unavailable', 'failed']),
+  adapters: z.array(
+    z.object({
+      name: z.string().min(1),
+      sourceType: adapterSourceTypeSchema,
+      status: z.enum(['succeeded', 'failed', 'fallback']),
+      detail: z.string().optional()
+    })
+  ),
+  candidateEvidenceCount: z.number().int().nonnegative(),
+  latencyMs: z.number().int().nonnegative()
+})
+export type RetrievalStage = z.infer<typeof retrievalStageSchema>
+
+export const retrievalPlanSchema = z.object({
+  version: z.literal(1),
+  strategy: z.literal('ontology_first'),
+  riskClass: z.enum(['standard', 'high']),
+  signals: z.array(z.string()),
+  sourceAnchors: z.array(z.string()),
+  stages: z.array(retrievalStageSchema)
+})
+export type RetrievalPlan = z.infer<typeof retrievalPlanSchema>
+
 export const evidenceSchema = z.object({
   id: z.string().min(1),
   layer: contextLayerSchema,
@@ -19,7 +62,7 @@ export const evidenceSchema = z.object({
 export type Evidence = z.infer<typeof evidenceSchema>
 
 export const contextMeterSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   basis: z.literal('deterministic_estimate'),
   client: z.string(),
   candidateEvidenceCount: z.number().int().nonnegative(),
@@ -28,12 +71,16 @@ export const contextMeterSchema = z.object({
   capsuleTokens: z.number().int().nonnegative(),
   filteredTokens: z.number().int().nonnegative(),
   selectionReductionRatio: z.number().min(0).max(1),
-  recoveredContextTokens: z.number().int().nonnegative(),
-  sourceEstimateCoveredEvidence: z.number().int().nonnegative(),
-  sourceTokens: z.number().int().nonnegative(),
-  sourceExcerptTokens: z.number().int().nonnegative(),
-  sourceCompressionTokens: z.number().int().nonnegative(),
-  sourceCompressionRatio: z.number().min(0).max(1).nullable(),
+  reExplanationEvidenceCount: z.number().int().nonnegative(),
+  reExplanationAvoidedTokens: z.number().int().nonnegative(),
+  sourceWindowStatus: z.enum(['not_covered', 'measured_partial', 'measured_full']),
+  sourceWindowSelectedEvidenceCount: z.number().int().nonnegative(),
+  sourceWindowCoveredEvidenceCount: z.number().int().nonnegative(),
+  sourceWindowCoverageRatio: z.number().min(0).max(1),
+  sourceWindowOriginalTokens: z.number().int().nonnegative().nullable(),
+  sourceWindowCapsuleTokens: z.number().int().nonnegative().nullable(),
+  sourceWindowSavingsTokens: z.number().int().nonnegative().nullable(),
+  sourceWindowSavingsRatio: z.number().min(0).max(1).nullable(),
   retrievalLatencyMs: z.number().int().nonnegative(),
   tokenEstimator: z.literal('characters_divided_by_4'),
   boronLlm: z.object({
@@ -53,13 +100,19 @@ export const resolveContextRequestSchema = z.object({
   constraints: z.array(z.string().trim().min(1).max(2_000)).max(50).default([]),
   layers: z.array(contextLayerSchema).min(1).max(3).optional(),
   tokenBudget: z.number().int().min(256).max(16_000).default(6_000),
-  client: z.string().trim().min(1).max(200).default('unknown')
+  client: z.string().trim().min(1).max(200).default('unknown'),
+  workflow: z.enum(['read', 'session_start']).default('read')
 })
 export type ResolveContextRequest = z.infer<typeof resolveContextRequestSchema>
 
 export const capsuleEvidenceSchema = evidenceSchema.extend({
   estimatedTokens: z.number().int().nonnegative(),
-  score: z.number().min(0).max(1)
+  score: z.number().min(0).max(1),
+  retrieval: z.object({
+    stageId: z.string().min(1),
+    adapter: z.string().min(1),
+    sourceType: adapterSourceTypeSchema
+  })
 })
 export type CapsuleEvidence = z.infer<typeof capsuleEvidenceSchema>
 
@@ -78,6 +131,7 @@ export const contextCapsuleSchema = z.object({
   evidence: z.array(capsuleEvidenceSchema),
   unresolved: z.array(z.string()),
   layersQueried: z.array(contextLayerSchema),
+  retrievalPlan: retrievalPlanSchema,
   estimatedTokens: z.number().int().nonnegative(),
   tokenBudget: z.number().int().positive(),
   truncated: z.boolean(),
@@ -140,7 +194,7 @@ export const recordActivityRequestSchema = z.object({
   summary: z.string().trim().min(1).max(20_000),
   actorUri: z.string().trim().min(1).max(4_000).optional(),
   targetUri: z.string().trim().min(1).max(4_000).optional(),
-  occurredAt: z.string().datetime().optional(),
+  occurredAt: z.string().datetime({ offset: true }).optional(),
   idempotencyKey: z.string().trim().min(1).max(1_000).optional(),
   confidence: z.number().min(0).max(1).default(1),
   metadata: z.record(z.string(), z.unknown()).default({}),
@@ -166,3 +220,27 @@ export const contextMeterSummaryRequestSchema = z.object({
   typingWordsPerMinute: z.number().min(10).max(200).default(40)
 })
 export type ContextMeterSummaryRequest = z.infer<typeof contextMeterSummaryRequestSchema>
+
+export const contextMeterAuditRequestSchema = contextMeterSummaryRequestSchema.extend({
+  limit: z.number().int().min(1).max(50).default(10)
+})
+export type ContextMeterAuditRequest = z.infer<typeof contextMeterAuditRequestSchema>
+
+export interface ContextMeterEvidenceAudit {
+  readonly evidenceId: string
+  readonly layer: ContextLayer
+  readonly title: string
+  readonly uri: string
+  readonly adapter: string
+  readonly sourceType: AdapterSourceType
+  readonly stageId: string
+  readonly candidateTokens: number
+  readonly selected: boolean
+  readonly score: number
+  readonly sourceTokenEstimate: number | null
+}
+
+export interface ContextResolution {
+  readonly capsule: ContextCapsule
+  readonly evidenceAudit: readonly ContextMeterEvidenceAudit[]
+}

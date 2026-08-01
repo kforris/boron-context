@@ -18,6 +18,7 @@ export interface HttpContextAdapterOptions {
 export class HttpContextAdapter implements ContextAdapter {
   readonly layer: ContextLayer
   readonly name: string
+  readonly sourceType = 'live' as const
   private readonly baseUrl: URL
   private readonly token: string | undefined
   private readonly timeoutMs: number

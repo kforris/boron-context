@@ -23,7 +23,8 @@ struct MeterPanel: View {
                     if let meter = store.meter {
                         hero(meter)
                         tokenChart(meter)
-                        compressionCard(meter)
+                        sourceWindowCard(meter)
+                        auditCard
                         operationalGrid(meter)
                     } else {
                         emptyState
@@ -34,7 +35,7 @@ struct MeterPanel: View {
                 .padding(18)
             }
         }
-        .frame(width: 390, height: 570)
+        .frame(width: 410, height: 690)
         .preferredColorScheme(.dark)
     }
 
@@ -85,24 +86,24 @@ struct MeterPanel: View {
 
     private func hero(_ meter: ContextMeterSummary) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("CONTEXT REDUCTION · \(meter.windowDays) DAYS")
+            Text("RE-EXPLANATION AVOIDED · \(meter.windowDays) DAYS")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(BoronPalette.muted)
                 .tracking(0.9)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(MetricFormatting.percentage(meter.selectionReductionRatio))
+                Text(MetricFormatting.compactTokens(meter.reExplanation.avoidedTokens))
                     .font(.system(size: 46, weight: .bold, design: .rounded))
                     .foregroundStyle(BoronPalette.primary)
-                Text("of ranked candidate context filtered")
+                Text("verified prior-context tokens selected for reuse")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(BoronPalette.muted)
                     .frame(maxWidth: 150, alignment: .leading)
             }
 
             Text(
-                "\(MetricFormatting.compactTokens(meter.recoveredContextTokens)) tokens recovered from prior work · "
-                    + "\(String(format: "%.1f", meter.manualReentryEquivalentMinutes)) min re-entry equivalent"
+                "\(meter.reExplanation.evidenceCount) prior activity excerpts · "
+                    + "\(String(format: "%.1f", meter.reExplanation.manualReentryEquivalentMinutes)) min typing equivalent (estimated)"
             )
             .font(.caption)
             .foregroundStyle(.white.opacity(0.82))
@@ -143,33 +144,88 @@ struct MeterPanel: View {
         .card()
     }
 
-    private func compressionCard(_ meter: ContextMeterSummary) -> some View {
-        let ratio = meter.sourceCompressionRatio ?? 0
+    private func sourceWindowCard(_ meter: ContextMeterSummary) -> some View {
+        let source = meter.sourceWindow
+        let ratio = source.savingsRatio ?? 0
         return VStack(alignment: .leading, spacing: 10) {
             sectionTitle(
-                "SOURCE COMPRESSION",
-                trailing: meter.sourceCompressionRatio.map(MetricFormatting.percentage) ?? "not measured"
+                "SOURCE-WINDOW SAVINGS",
+                trailing: source.savingsRatio.map(MetricFormatting.percentage) ?? "not covered"
             )
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.08))
-                    Capsule()
-                        .fill(BoronPalette.primary)
-                        .frame(width: max(5, proxy.size.width * ratio))
+                    if source.isCovered {
+                        Capsule()
+                            .fill(BoronPalette.primary)
+                            .frame(width: max(5, proxy.size.width * ratio))
+                    }
                 }
             }
             .frame(height: 7)
 
             Text(
-                meter.sourceTokens > 0
-                    ? "\(MetricFormatting.compactTokens(meter.sourceTokens)) source → "
-                        + "\(MetricFormatting.compactTokens(meter.sourceExcerptTokens)) excerpt tokens"
-                    : "Add source-token estimates to measure document-level compression."
+                source.isCovered
+                    ? "\(MetricFormatting.compactTokens(source.originalTokens ?? 0)) original → "
+                        + "\(MetricFormatting.compactTokens(source.capsuleTokens ?? 0)) capsule tokens · "
+                        + "coverage \(source.coveredEvidenceCount)/\(source.selectedEvidenceCount)"
+                    : "Uncovered / not calculable: no selected evidence recorded a sourceTokenEstimate."
             )
             .font(.caption)
             .foregroundStyle(BoronPalette.muted)
         }
         .card()
+    }
+
+    @ViewBuilder
+    private var auditCard: some View {
+        if let sample = store.audit?.samples.first {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionTitle(
+                    "READ-ONLY AUDIT · LATEST",
+                    trailing: sample.createdAt.formatted(date: .omitted, time: .shortened)
+                )
+
+                ForEach(sample.retrievalPlan.stages) { stage in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(stage.order)")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(BoronPalette.primary)
+                        Text("\(stage.layer) · \(stage.purpose)")
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        Spacer()
+                        Text("\(stage.candidateEvidenceCount) candidates")
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(BoronPalette.muted)
+                    }
+                }
+
+                Divider().overlay(BoronPalette.border)
+
+                let selected = sample.evidence.filter(\.selected)
+                Text(
+                    "\(sample.candidateEvidenceCount) candidate / \(sample.selectedEvidenceCount) selected · "
+                        + "\(sample.sourceWindowCoveredEvidenceCount) source estimates covered"
+                )
+                .font(.caption)
+                .foregroundStyle(BoronPalette.muted)
+
+                ForEach(selected.prefix(3)) { item in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title)
+                            .font(.system(size: 10, weight: .medium))
+                            .lineLimit(1)
+                        Text(
+                            "\(item.layer) · \(item.sourceType) · \(item.candidateTokens)t · "
+                                + (item.sourceTokenEstimate.map { "source \($0)t" } ?? "source uncovered")
+                        )
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(BoronPalette.muted)
+                    }
+                }
+            }
+            .card()
+        }
     }
 
     private func operationalGrid(_ meter: ContextMeterSummary) -> some View {
@@ -185,9 +241,9 @@ struct MeterPanel: View {
                 note: "owned calls"
             )
             metricTile(
-                title: "LAYERS",
-                value: "\(store.health?.adapters.filter(\.ok).count ?? 0)/3",
-                note: "healthy"
+                title: "ADAPTERS",
+                value: "\(store.health?.adapters.filter(\.ok).count ?? 0)",
+                note: adapterNote
             )
         }
     }
@@ -223,11 +279,19 @@ struct MeterPanel: View {
                     .buttonStyle(.link)
             }
 
-            Text("Measured retrieval is shown separately from estimated human re-entry time.")
+            Text("Re-explanation reuse and source-window savings are separate; uncovered sources show no savings claim.")
                 .font(.system(size: 9))
                 .foregroundStyle(Color.white.opacity(0.34))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var adapterNote: String {
+        let adapters = store.health?.adapters.filter(\.ok) ?? []
+        let ontology = adapters.filter { $0.sourceType == "ontology" }.count
+        let live = adapters.filter { $0.sourceType == "live" }.count
+        let snapshots = adapters.filter { $0.sourceType == "snapshot" }.count
+        return "O\(ontology) · live\(live) · snap\(snapshots)"
     }
 
     private func sectionTitle(_ title: String, trailing: String) -> some View {

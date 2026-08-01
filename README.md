@@ -9,7 +9,7 @@
 [![CI](https://github.com/kforris/boron-context/actions/workflows/ci.yml/badge.svg)](https://github.com/kforris/boron-context/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-b7ff4a.svg)](#project-status)
-[![Version: 0.2.0](https://img.shields.io/badge/version-0.2.0-6ebb50.svg)](CHANGELOG.md)
+[![Version: 0.3.0](https://img.shields.io/badge/version-0.3.0-6ebb50.svg)](CHANGELOG.md)
 
 </div>
 
@@ -52,10 +52,14 @@ Codex / Cursor / voice / another agent
                     ▼
         Project and entity resolution
                     │
-       ┌────────────┼────────────┐
-       ▼            ▼            ▼
-   Ontology   Codebase Memory   OpenWiki
-       └────────────┼────────────┘
+                    ▼
+   Ontology location + policy check
+                    │
+                    ▼
+    Deterministic Retrieval Plan
+          │ selected stages only
+          ├──▶ Codebase source
+          └──▶ Wiki source
                     ▼
        Evidence ranking + policy filter
                     │
@@ -84,8 +88,10 @@ This independent repository contains a new headless foundation:
 - PostgreSQL migrations for projects, objects, relations, evidence, intentions, confirmations, and
   capsules;
 - append-only agent sessions and semantic activities with temporal assert/retract relation effects;
-- an auditable Context Meter separating measured retrieval, deterministic token estimates, and
-  unobserved counterfactual savings;
+- an ontology-first Retrieval Plan that selects sources sequentially from deterministic request
+  signals and never requires a model or embedding pre-pass;
+- an auditable Context Meter separating re-explanation reuse, measured source-window savings,
+  deterministic token estimates, and uncovered counterfactuals;
 - a PostgreSQL ontology adapter;
 - HTTP adapters for Codebase Memory and OpenWiki-compatible search services;
 - deterministic evidence ranking, deduplication, and token-budget packing;
@@ -104,6 +110,7 @@ The current API is intentionally small:
 - `POST /v1/activity/record`
 - `POST /v1/sessions/complete`
 - `POST /v1/metrics/context`
+- `POST /v1/metrics/context/inspect` (read-only, credential-redacted audit preview)
 
 Source discovery, generic inference rules, confirmation UI, and a setup surface remain next-stage
 work. Interfaces may change before `1.0`.
@@ -170,6 +177,8 @@ The repository includes a local Codex plugin under `plugins/boron-context`. It p
 - `query_context` for read-only context retrieval.
 - `get_context_meter` to inspect context reuse, filtering, source compression, latency, and
   Boron-owned LLM usage.
+- `inspect_context_meter` to inspect recent sample composition, Retrieval Plan stages, adapters,
+  candidate/selected evidence, and source-estimate coverage without exposing credentials.
 
 The companion skill asks Codex to read before substantive project work and write back after
 verification. It deliberately does not capture raw transcripts or every tool call.
@@ -183,19 +192,43 @@ codex plugin add boron-context@boron-context
 
 Start a new Codex task after installation so the MCP tools and skill are loaded.
 
+## Ontology-first Retrieval Plan
+
+Every request starts with a deterministic PostgreSQL Ontology location. This lightweight pass
+resolves project identity and aliases, project scope, entity aliases, current typed relations,
+source anchors, and policy references. Boron does not call an LLM or embedding service before this
+step.
+
+The resolver then creates an auditable Retrieval Plan:
+
+- explicit code paths, symbols, repository URLs, and code-oriented objectives route to the
+  Codebase stage;
+- document URLs, titles, decisions, runbooks, and continuity objectives route to the Wiki stage;
+- high-risk intent inserts a confirmed-policy stage before any external-source expansion;
+- explicit `layers` constrain expansion, but never remove the initial Ontology validation;
+- stages execute sequentially. A live source is preferred when configured; its local PostgreSQL
+  snapshot is used only as a labeled fallback.
+
+There is no default all-layer parallel fan-out. A capsule returns `retrievalPlan` with its signals,
+source anchors, stage order, adapter names/source types, candidate counts, latency, and any failed
+or unavailable stage.
+
 ## Context Meter
 
 Every generated capsule contains a deterministic meter:
 
 - candidate and selected evidence counts;
 - candidate, capsule, and filtered token estimates;
-- context recovered from prior Boron activities;
-- source-to-excerpt compression when the source supplies `sourceTokenEstimate`;
+- re-explanation context avoided by selecting verified excerpts from prior Boron activities;
+- source-window savings only when selected evidence supplies a real `sourceTokenEstimate`;
+- source-estimate coverage across selected evidence;
 - retrieval latency;
 - LLM calls and tokens owned by Boron.
 
-The current token estimator is `characters / 4`. It is deterministic and useful for comparing
-Boron runs, but it is not a provider invoice.
+The current token estimator is `characters / 4`. `capsuleTokens` measures the serialized capsule
+payload (including provenance, Retrieval Plan, and Meter fields); per-evidence tokens include their
+serialized provenance wrapper. The request token budget still controls packed context content. The
+estimator is deterministic and useful for comparing Boron runs, but it is not a provider invoice.
 
 Query a 30-day project summary through MCP with `get_context_meter`, or through HTTP:
 
@@ -206,17 +239,23 @@ curl -sS http://127.0.0.1:41635/v1/metrics/context \
   -d '{"projectHint":"Boron Context","windowDays":30}'
 ```
 
-The meter does not claim a counterfactual it cannot observe. `recoveredContextTokens` approximate
-context the user did not need to retype, but those compact tokens still enter the agent model.
-Actual context-window savings against a repository or document are reported only when the evidence
-has an original source-token estimate.
+The meter does not claim a counterfactual it cannot observe. `reExplanation.avoidedTokens` counts
+verified prior-context excerpts the user or agent did not need to provide again, but those compact
+tokens still enter the agent model. `sourceWindow.savingsTokens` and its ratio are `null` when no
+selected evidence has an original source-token estimate. Partial coverage is calculated only over
+covered evidence and always carries its evidence/sample coverage alongside the number.
+
+Each sample stores an evidence-level audit row with source adapter/type, URI, title, candidate token
+estimate, score, selected state, optional original-source estimate, capsule ID, trace ID, Retrieval
+Plan, and timestamp. Query the sanitized read-only preview through `inspect_context_meter` or
+`POST /v1/metrics/context/inspect`.
 
 ### Current LLM use
 
-Boron Context currently calls **no LLM**. PostgreSQL full-text search, deterministic ranking,
-deduplication, and budget packing build the capsule. Codex or another client writes selected
-semantic summaries during its existing turn, so Boron has no separate model provider, model bill,
-or hidden inference call.
+Boron Context currently calls **no LLM** and performs no embedding lookup. PostgreSQL Ontology
+location, deterministic routing, PostgreSQL full-text search, ranking, deduplication, and budget
+packing build the capsule. Codex or another client writes selected semantic summaries during its
+existing turn, so Boron has no separate model provider, model bill, or hidden inference call.
 
 Future autonomous extraction may use a client-supplied model, a local model, or an explicitly
 configured cloud model. Any such use must appear separately in the meter.
@@ -226,12 +265,13 @@ configured cloud model. Any such use must appear separately in the meter.
 `Boron Meter` is an optional native SwiftUI companion. It stays beside utilities such as Stats,
 GPT, or MTMR in the macOS menu bar while the headless daemon remains the source of truth.
 
-The compact menu item shows the current candidate-context reduction. Clicking it opens a local
-panel with:
+The compact menu item shows `R` (re-explanation tokens avoided) and `S` (measured source-window
+savings, or `—` when uncovered). Clicking it opens a local panel with:
 
 - candidate, capsule, and filtered token estimates;
-- recovered context and estimated manual re-entry equivalent;
-- source-to-excerpt compression where source estimates exist;
+- verified re-explanation context and estimated manual re-entry equivalent;
+- source-window savings and evidence coverage, or an explicit not-calculable state;
+- the latest read-only audit sample, Retrieval Plan stage order, and selected evidence provenance;
 - retrieval latency, healthy layers, and Boron-owned LLM calls;
 - daemon and PostgreSQL health.
 
@@ -241,10 +281,14 @@ telemetry and adds no LLM calls or cloud cost.
 Build, install to `~/Applications/Boron Meter.app`, and keep it available at login:
 
 ```bash
+npm run db:migrate
+npm run build
+npm run service:install
 python3 scripts/install_menubar.py
 ```
 
-The app requires macOS 14 or newer and a running Boron Context daemon.
+The installer starts the menu-bar item automatically; click `B R… · S…` to open the read-only
+preview. The app requires macOS 14 or newer and the migrated Boron Context daemon.
 
 ## Context Capsule budget
 
@@ -275,6 +319,18 @@ The target is to reduce repeated broad repository reads, not to make the prompt 
 | `BORON_OPENWIKI_URL`          | unset                                  | OpenWiki search adapter           |
 | `BORON_OPENWIKI_TOKEN`        | unset                                  | OpenWiki bearer token             |
 
+Adapter truth is explicit in `/health`, every Retrieval Plan, and the menu bar:
+
+| Reported source type | Meaning                                                                  |
+| -------------------- | ------------------------------------------------------------------------ |
+| `ontology`           | Live PostgreSQL Ontology used for deterministic location and policy      |
+| `snapshot`           | Selected evidence already stored in PostgreSQL; external source not live |
+| `live`               | Configured HTTP source adapter was actually selected and queried         |
+
+The current default installation has PostgreSQL Ontology plus local Codebase/Wiki evidence
+snapshots. Codebase Memory is live only when `BORON_CODEBASE_MEMORY_URL` is configured and healthy;
+OpenWiki is live only when `BORON_OPENWIKI_URL` is configured and healthy.
+
 The gateway refuses non-loopback bindings unless `BORON_ALLOW_REMOTE=true`. That override is not a
 complete remote security design; use it only behind an independently authenticated boundary.
 
@@ -290,6 +346,9 @@ npm audit --omit=dev --audit-level=high
 
 See:
 
+- [Operating manual](docs/operating-manual.md) / [简体中文](docs/operating-manual.zh-CN.md)
+- [Context-engineering methodology](docs/context-engineering-methodology.md) /
+  [简体中文](docs/context-engineering-methodology.zh-CN.md)
 - [System design](docs/architecture/system-design.md)
 - [Product roadmap](docs/architecture/product-roadmap.md)
 - [Contributing](CONTRIBUTING.md)
@@ -305,10 +364,12 @@ and confirmation on a MacBook without requiring a permanent GUI.
 
 Linux follows with `systemd` and XDG paths while preserving the same ontology and API contracts.
 
-### Stage 2 — optional independent application
+### Stage 2 — evaluate an optional independent application at 1.0
 
-A later application may provide setup, ontology inspection, relationship confirmation, policy
-control, and diagnostics. The headless daemon remains independently usable and authoritative.
+No independent product UI is planned before the 1.0 evaluation. A later application may provide
+setup, ontology inspection, relationship confirmation, policy control, and diagnostics. The
+headless daemon remains independently usable and authoritative; the current menu-bar meter stays a
+read-only operational companion.
 
 ## Project status
 

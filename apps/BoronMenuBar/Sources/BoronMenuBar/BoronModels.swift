@@ -16,10 +16,11 @@ struct ComponentHealth: Decodable, Sendable {
 struct AdapterHealth: Decodable, Identifiable, Sendable {
     let name: String
     let layer: String
+    let sourceType: String
     let ok: Bool
     let detail: String?
 
-    var id: String { layer }
+    var id: String { "\(layer):\(name)" }
 }
 
 struct ContextMeterSummary: Decodable, Sendable {
@@ -30,17 +31,106 @@ struct ContextMeterSummary: Decodable, Sendable {
     let capsuleTokens: Int
     let filteredTokens: Int
     let selectionReductionRatio: Double
-    let recoveredContextTokens: Int
-    let manualReentryEquivalentMinutes: Double
-    let typingWordsPerMinute: Double
-    let sourceEstimateCoveredEvidence: Int
-    let sourceTokens: Int
-    let sourceExcerptTokens: Int
-    let sourceCompressionTokens: Int
-    let sourceCompressionRatio: Double?
+    let reExplanation: ReExplanationMetric
+    let sourceWindow: SourceWindowMetric
     let averageRetrievalLatencyMs: Double
     let boronLlm: BoronLLMUsage
     let caveats: [String]
+}
+
+struct ReExplanationMetric: Decodable, Sendable {
+    let evidenceCount: Int
+    let avoidedTokens: Int
+    let manualReentryEquivalentMinutes: Double
+    let typingWordsPerMinute: Double
+    let basis: String
+}
+
+struct SourceWindowMetric: Decodable, Sendable {
+    let status: String
+    let measuredSamples: Int
+    let selectedEvidenceCount: Int
+    let coveredEvidenceCount: Int
+    let coverageRatio: Double
+    let originalTokens: Int?
+    let capsuleTokens: Int?
+    let savingsTokens: Int?
+    let savingsRatio: Double?
+
+    var isCovered: Bool { status != "not_covered" }
+}
+
+struct ContextMeterAudit: Decodable, Sendable {
+    let summary: ContextMeterSummary
+    let samples: [ContextMeterAuditSample]
+}
+
+struct ContextMeterAuditSample: Decodable, Identifiable, Sendable {
+    let id: String
+    let capsuleId: String
+    let traceId: String
+    let project: String?
+    let client: String
+    let createdAt: Date
+    let retrievalPlan: RetrievalPlanPreview
+    let candidateEvidenceCount: Int
+    let selectedEvidenceCount: Int
+    let candidateTokens: Int
+    let capsuleTokens: Int
+    let filteredTokens: Int
+    let reExplanationAvoidedTokens: Int
+    let sourceWindowStatus: String
+    let sourceWindowCoveredEvidenceCount: Int
+    let sourceWindowOriginalTokens: Int?
+    let sourceWindowCapsuleTokens: Int?
+    let sourceWindowSavingsTokens: Int?
+    let retrievalLatencyMs: Int
+    let evidence: [EvidenceAuditPreview]
+}
+
+struct RetrievalPlanPreview: Decodable, Sendable {
+    let version: Int
+    let strategy: String
+    let riskClass: String
+    let signals: [String]
+    let sourceAnchors: [String]
+    let stages: [RetrievalStagePreview]
+}
+
+struct RetrievalStagePreview: Decodable, Identifiable, Sendable {
+    let id: String
+    let order: Int
+    let layer: String
+    let purpose: String
+    let reason: String
+    let trigger: String
+    let status: String
+    let adapters: [RetrievalAdapterPreview]
+    let candidateEvidenceCount: Int
+    let latencyMs: Int
+}
+
+struct RetrievalAdapterPreview: Decodable, Sendable {
+    let name: String
+    let sourceType: String
+    let status: String
+    let detail: String?
+}
+
+struct EvidenceAuditPreview: Decodable, Identifiable, Sendable {
+    let evidenceId: String
+    let layer: String
+    let title: String
+    let uri: String
+    let adapter: String
+    let sourceType: String
+    let stageId: String
+    let candidateTokens: Int
+    let selected: Bool
+    let score: Double
+    let sourceTokenEstimate: Int?
+
+    var id: String { "\(evidenceId):\(stageId):\(adapter)" }
 }
 
 struct BoronLLMUsage: Decodable, Sendable {
@@ -55,6 +145,13 @@ struct MeterRequest: Encodable, Sendable {
     let projectHint: String
     let windowDays: Int
     let typingWordsPerMinute: Double
+}
+
+struct MeterAuditRequest: Encodable, Sendable {
+    let projectHint: String
+    let windowDays: Int
+    let typingWordsPerMinute: Double
+    let limit: Int
 }
 
 struct TokenBar: Identifiable, Sendable {

@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.3.0] - 2026-08-01
+
+This is a pre-alpha local-use release.
+
+### Added
+
+- ontology-first, deterministic Retrieval Plans with sequential policy/codebase/wiki routing;
+- project/entity aliases and confirmed retrieval-policy storage;
+- evidence-level Context Meter audit samples and a credential-redacted read-only Inspector API;
+- separate re-explanation and source-window metrics with explicit source-estimate coverage.
+
+### Changed
+
+- source adapters now report `ontology`, `snapshot`, or `live` truth instead of implying that
+  PostgreSQL evidence snapshots are live Codebase Memory/OpenWiki connections;
+- the macOS menu-bar meter now exposes both metric families and the latest Retrieval Plan audit.
+
+### Fixed
+
+- `record_activity.occurredAt` now accepts valid ISO 8601 timestamps with explicit timezone
+  offsets as well as UTC `Z` timestamps.
+
+### Documentation
+
+- added a bilingual operating manual and a reusable context-engineering methodology derived from
+  verified Boron Content operations;
+- documented source-truth inspection, high-risk unresolved-state handling, local upgrade, Codex
+  plugin reinstall, and installed-runtime verification.
+
+### Upgrade note
+
+- migration `004_retrieval_plan_meter_audit.sql` is additive, but Context Meter HTTP/MCP consumers
+  must adopt the version-2 field names; reinstall the Codex plugin and start a new task after the
+  daemon upgrade.
+
 All notable changes to Boron Context are documented here.
 
 ## [0.2.0] - 2026-07-30

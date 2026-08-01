@@ -126,7 +126,7 @@ const tools = [
   {
     name: 'get_context_meter',
     description:
-      'Report auditable Boron context metrics: capsule tokens, filtered candidate tokens, recovered context, source-compression coverage, retrieval latency, and Boron-owned LLM usage. Counterfactual time savings are explicitly labeled as estimates.',
+      'Report auditable Boron context metrics: re-explanation avoided context, source-window coverage and savings only where sourceTokenEstimate exists, candidate filtering, retrieval latency, and Boron-owned LLM usage.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -139,6 +139,26 @@ const tools = [
           maximum: 200,
           default: 40
         }
+      }
+    }
+  },
+  {
+    name: 'inspect_context_meter',
+    description:
+      'Read a credential-redacted audit preview of recent Context Meter samples, retrieval plans, adapters, candidate/selected evidence, token estimates, and source coverage. This is read-only.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        projectHint: { type: 'string' },
+        windowDays: { type: 'integer', minimum: 1, maximum: 365, default: 30 },
+        typingWordsPerMinute: {
+          type: 'number',
+          minimum: 10,
+          maximum: 200,
+          default: 40
+        },
+        limit: { type: 'integer', minimum: 1, maximum: 50, default: 10 }
       }
     }
   },
@@ -184,6 +204,8 @@ async function callTool(name, args) {
       return request('/v1/activity/record', { method: 'POST', body: args })
     case 'get_context_meter':
       return request('/v1/metrics/context', { method: 'POST', body: args })
+    case 'inspect_context_meter':
+      return request('/v1/metrics/context/inspect', { method: 'POST', body: args })
     case 'complete_context_session':
       return request('/v1/sessions/complete', { method: 'POST', body: args })
     default:
@@ -251,9 +273,9 @@ async function handle(message) {
       result: {
         protocolVersion: params.protocolVersion ?? '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'boron-context', version: '0.2.0' },
+        serverInfo: { name: 'boron-context', version: '0.3.0' },
         instructions:
-          'Use Boron as a local context substrate: read a sourced capsule before project work, record only semantic milestones, and close the session with verified outcomes. Never store secrets or raw transcripts.'
+          'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule before project work, record only verified semantic milestones, and close the session with verified outcomes. Never store secrets or raw transcripts.'
       }
     })
     return

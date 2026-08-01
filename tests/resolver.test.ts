@@ -10,6 +10,7 @@ function adapter(
   return {
     layer,
     name: layer,
+    sourceType: layer === 'ontology' ? 'ontology' : 'snapshot',
     health: async () => ({ ok: true }),
     search: async () => evidence
   }
@@ -66,12 +67,15 @@ describe('ContextResolver', () => {
     expect(capsule.evidence).toHaveLength(1)
     expect(capsule.estimatedTokens).toBeLessThanOrEqual(512)
     expect(capsule.meter).toMatchObject({
+      version: 2,
       basis: 'deterministic_estimate',
       candidateEvidenceCount: 1,
       selectedEvidenceCount: 1,
       retrievalLatencyMs: 12,
       boronLlm: { provider: 'none', model: 'none', calls: 0 }
     })
+    expect(capsule.retrievalPlan.strategy).toBe('ontology_first')
+    expect(capsule.meter.capsuleTokens).toBe(estimateTokens(JSON.stringify(capsule)))
   })
 
   it('deduplicates evidence and keeps the strongest version', async () => {
@@ -101,7 +105,179 @@ describe('ContextResolver', () => {
     })
 
     expect(capsule.project).toBeNull()
-    expect(capsule.unresolved[0]).toContain('Ambiguous project')
+    expect(capsule.unresolved.some((item) => item.includes('Ambiguous project'))).toBe(true)
+  })
+
+  it('executes ontology before deterministically routed codebase retrieval', async () => {
+    const calls: string[] = []
+    const trackingAdapter = (layer: 'ontology' | 'codebase' | 'wiki'): ContextAdapter => ({
+      layer,
+      name: layer,
+      sourceType: layer === 'ontology' ? 'ontology' : 'snapshot',
+      health: async () => ({ ok: true }),
+      search: async () => {
+        calls.push(layer)
+        return []
+      }
+    })
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [trackingAdapter('wiki'), trackingAdapter('codebase'), trackingAdapter('ontology')]
+    })
+
+    const capsule = await resolver.resolve({
+      objective: 'Implement src/core/resolver.ts and run tests',
+      projectHint: 'Boron Context'
+    })
+
+    expect(calls).toEqual(['ontology', 'codebase'])
+    expect(capsule.retrievalPlan.stages.map((stage) => stage.id)).toEqual([
+      'ontology-locate',
+      'codebase-source'
+    ])
+    expect(capsule.layersQueried).toEqual(['ontology', 'codebase'])
+  })
+
+  it('puts confirmed-policy lookup before high-risk source expansion', async () => {
+    const calls: string[] = []
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [
+        {
+          ...adapter('ontology', []),
+          search: async (input) => {
+            calls.push(input.stageId)
+            return input.purpose === 'policy'
+              ? [
+                  {
+                    id: 'policy-1',
+                    layer: 'ontology',
+                    title: 'Release policy',
+                    uri: 'boron://policy/release',
+                    excerpt: 'Require explicit approval.',
+                    confidence: 1,
+                    authority: 1,
+                    projectId: project.id,
+                    metadata: { ontologyKind: 'policy' }
+                  }
+                ]
+              : []
+          }
+        },
+        {
+          ...adapter('codebase', []),
+          search: async (input) => {
+            calls.push(input.stageId)
+            return []
+          }
+        }
+      ]
+    })
+
+    const capsule = await resolver.resolve({
+      objective: 'Deploy and publish the TypeScript release',
+      projectHint: 'Boron Context'
+    })
+
+    expect(calls).toEqual(['ontology-locate', 'ontology-policy', 'codebase-source'])
+    expect(capsule.retrievalPlan.riskClass).toBe('high')
+    expect(capsule.unresolved).not.toContain(
+      'High-risk intent detected, but no matching confirmed policy evidence was found.'
+    )
+  })
+
+  it('keeps source-window savings unavailable without recorded source coverage', async () => {
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [adapter('ontology', [evidence('activity', 1)])]
+    })
+
+    const resolution = await resolver.resolveWithAudit({
+      objective: 'Continue the previous work',
+      projectHint: 'Boron Context',
+      layers: ['ontology']
+    })
+
+    expect(resolution.capsule.meter).toMatchObject({
+      reExplanationAvoidedTokens: expect.any(Number),
+      sourceWindowStatus: 'not_covered',
+      sourceWindowOriginalTokens: null,
+      sourceWindowSavingsTokens: null,
+      sourceWindowSavingsRatio: null
+    })
+    expect(resolution.evidenceAudit[0]).toMatchObject({
+      selected: true,
+      sourceTokenEstimate: null,
+      adapter: 'ontology'
+    })
+  })
+
+  it('measures only evidence with a real sourceTokenEstimate', async () => {
+    const covered = {
+      ...evidence('covered', 1),
+      metadata: { activityId: 'verified-activity', sourceTokenEstimate: 1_000 }
+    }
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [adapter('ontology', [covered])]
+    })
+
+    const capsule = await resolver.resolve({
+      objective: 'Inspect context',
+      projectHint: 'Boron Context'
+    })
+
+    expect(capsule.meter.sourceWindowStatus).toBe('measured_full')
+    expect(capsule.meter.sourceWindowOriginalTokens).toBe(1_000)
+    expect(capsule.meter.sourceWindowSavingsTokens).toBeGreaterThan(0)
+    expect(capsule.meter.sourceWindowCoverageRatio).toBe(1)
+  })
+
+  it('labels a PostgreSQL snapshot as fallback when the live source fails', async () => {
+    const live: ContextAdapter = {
+      ...adapter('codebase', []),
+      name: 'Live Codebase Memory',
+      sourceType: 'live',
+      search: async () => {
+        throw new Error('unavailable')
+      }
+    }
+    const snapshot: ContextAdapter = {
+      ...adapter('codebase', [
+        {
+          ...evidence('snapshot', 1),
+          layer: 'codebase',
+          uri: 'file:///project/src/resolver.ts'
+        }
+      ]),
+      name: 'PostgreSQL codebase snapshot',
+      sourceType: 'snapshot'
+    }
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [adapter('ontology', []), live, snapshot]
+    })
+
+    const capsule = await resolver.resolve({
+      objective: 'Inspect the resolver TypeScript code',
+      projectHint: 'Boron Context'
+    })
+
+    const stage = capsule.retrievalPlan.stages.find((item) => item.id === 'codebase-source')
+    expect(stage?.adapters).toEqual([
+      {
+        name: 'Live Codebase Memory',
+        sourceType: 'live',
+        status: 'failed',
+        detail: 'search failed'
+      },
+      {
+        name: 'PostgreSQL codebase snapshot',
+        sourceType: 'snapshot',
+        status: 'fallback'
+      }
+    ])
+    expect(capsule.evidence[0]?.retrieval.sourceType).toBe('snapshot')
   })
 })
 
@@ -116,7 +292,7 @@ function evidence(id: string, confidence: number): Evidence {
     authority: confidence,
     contentHash: 'same',
     projectId: project.id,
-    metadata: {}
+    metadata: { activityId: id }
   }
 }
 

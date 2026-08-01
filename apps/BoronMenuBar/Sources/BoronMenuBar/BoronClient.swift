@@ -37,17 +37,13 @@ struct BoronClient: Sendable {
         let request = URLRequest(url: baseURL.appendingPathComponent("health"))
         let (data, response) = try await session.data(for: request)
         try validate(response)
-        return try JSONDecoder().decode(BoronHealth.self, from: data)
+        return try decoder().decode(BoronHealth.self, from: data)
     }
 
     func meter(project: String = "Boron Context", windowDays: Int = 30) async throws
         -> ContextMeterSummary
     {
-        let token = try String(contentsOf: tokenURL, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else {
-            throw BoronClientError.missingToken
-        }
+        let token = try daemonToken()
 
         var request = URLRequest(url: baseURL.appendingPathComponent("v1/metrics/context"))
         request.httpMethod = "POST"
@@ -59,7 +55,32 @@ struct BoronClient: Sendable {
 
         let (data, response) = try await session.data(for: request)
         try validate(response)
-        return try JSONDecoder().decode(ContextMeterSummary.self, from: data)
+        return try decoder().decode(ContextMeterSummary.self, from: data)
+    }
+
+    func audit(project: String = "Boron Context", windowDays: Int = 30, limit: Int = 5) async throws
+        -> ContextMeterAudit
+    {
+        let token = try daemonToken()
+
+        var request = URLRequest(
+            url: baseURL.appendingPathComponent("v1/metrics/context/inspect")
+        )
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            MeterAuditRequest(
+                projectHint: project,
+                windowDays: windowDays,
+                typingWordsPerMinute: 40,
+                limit: limit
+            )
+        )
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response)
+        return try decoder().decode(ContextMeterAudit.self, from: data)
     }
 
     private func validate(_ response: URLResponse) throws {
@@ -69,5 +90,20 @@ struct BoronClient: Sendable {
         guard 200 ..< 300 ~= http.statusCode else {
             throw BoronClientError.serverStatus(http.statusCode)
         }
+    }
+
+    private func daemonToken() throws -> String {
+        let token = try String(contentsOf: tokenURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            throw BoronClientError.missingToken
+        }
+        return token
+    }
+
+    private func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }

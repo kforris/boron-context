@@ -22,7 +22,7 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
   const ontology = new PostgresOntologyRepository(pool)
   const activity = new PostgresActivityRepository(pool)
   const adapters = [
-    new PostgresLayerEvidenceAdapter(ontology, 'ontology'),
+    ontology,
     new PostgresLayerEvidenceAdapter(ontology, 'codebase'),
     new PostgresLayerEvidenceAdapter(ontology, 'wiki'),
     ...(config.codebaseMemoryUrl

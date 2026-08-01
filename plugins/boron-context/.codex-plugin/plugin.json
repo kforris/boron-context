@@ -1,6 +1,6 @@
 {
   "name": "boron-context",
-  "version": "0.2.0+codex.20260730234902",
+  "version": "0.3.0+codex.20260801192247",
   "description": "Read and write durable, project-scoped context through a local Boron Context runtime.",
   "author": {
     "name": "Boron Context contributors",
@@ -9,26 +9,15 @@
   "homepage": "https://github.com/kforris/boron-context",
   "repository": "https://github.com/kforris/boron-context",
   "license": "MIT",
-  "keywords": [
-    "agents",
-    "context",
-    "ontology",
-    "memory",
-    "mcp"
-  ],
+  "keywords": ["agents", "context", "ontology", "memory", "mcp"],
   "skills": "./skills/",
   "interface": {
     "displayName": "Boron Context",
     "shortDescription": "Durable context continuity for project work",
-    "longDescription": "Boron Context gives Codex a local, sourced context substrate. It resolves a bounded Context Capsule before work and records selected activities, decisions, evidence, and candidate relations after work.",
+    "longDescription": "Boron Context gives Codex a zero-owned-model, ontology-first context substrate. It resolves a bounded sourced Context Capsule before work, exposes an auditable Retrieval Plan and Meter, and records only verified activities, decisions, evidence, and candidate relations after work.",
     "developerName": "Boron Context contributors",
     "category": "Developer Tools",
-    "capabilities": [
-      "Interactive",
-      "Read",
-      "Write",
-      "Local"
-    ],
+    "capabilities": ["Interactive", "Read", "Write", "Local"],
     "defaultPrompt": [
       "Continue this project using its Boron context.",
       "Record this decision in the project ontology.",

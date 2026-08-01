@@ -18,6 +18,8 @@ mitigation. Never include real credentials or private user data.
 - Request bodies are capped at 256 KiB.
 - Token comparison is constant-time after hashing.
 - PostgreSQL and adapter credentials come from environment or OS-protected configuration.
+- The read-only Meter Inspector requires the same bearer token, omits excerpts, and strips URL
+  user-info/query values before returning source URIs. It never returns the daemon token.
 - Inferred semantic relationships must not become confirmed facts without an explicit decision.
 - Remote access is not part of the current supported threat model.
 

@@ -5,6 +5,7 @@ import { ZodError } from 'zod'
 import type { ContextAdapter } from '../core/context-adapter.js'
 import {
   completeSessionRequestSchema,
+  contextMeterAuditRequestSchema,
   contextMeterSummaryRequestSchema,
   recordActivityRequestSchema,
   startSessionRequestSchema
@@ -75,6 +76,7 @@ async function routeRequest(
         adapters: options.adapters.map((adapter, index) => ({
           name: adapter.name,
           layer: adapter.layer,
+          sourceType: adapter.sourceType,
           ...(adapters[index] ?? { ok: false, detail: 'No health result' })
         }))
       })
@@ -86,26 +88,31 @@ async function routeRequest(
     }
     if (request.method === 'POST' && request.url === '/v1/context/resolve') {
       const body = await readJson(request)
-      const capsule = await options.resolver.resolve(body, traceId)
-      await options.activity.saveMeter(capsule)
-      json(response, 200, capsule)
+      const resolution = await options.resolver.resolveWithAudit(body, traceId)
+      await options.activity.saveMeter(resolution.capsule, resolution.evidenceAudit)
+      json(response, 200, resolution.capsule)
       return
     }
     if (request.method === 'POST' && request.url === '/v1/sessions/start') {
       const body = startSessionRequestSchema.parse(await readJson(request))
       const session = await options.activity.startSession(body)
-      const capsule = await options.resolver.resolve(
+      const resolution = await options.resolver.resolveWithAudit(
         {
           objective: body.objective,
           ...(session.project ? { projectHint: session.project.name } : {}),
           constraints: body.constraints,
           tokenBudget: body.tokenBudget,
-          client: body.client
+          client: body.client,
+          workflow: 'session_start'
         },
         session.traceId
       )
-      await options.activity.saveCapsule({ session, capsule })
-      json(response, 200, { session, capsule })
+      await options.activity.saveCapsule({
+        session,
+        capsule: resolution.capsule,
+        evidenceAudit: resolution.evidenceAudit
+      })
+      json(response, 200, { session, capsule: resolution.capsule })
       return
     }
     if (request.method === 'POST' && request.url === '/v1/activity/record') {
@@ -124,6 +131,12 @@ async function routeRequest(
       const body = contextMeterSummaryRequestSchema.parse(await readJson(request))
       const summary = await options.activity.contextMeterSummary(body)
       json(response, 200, summary)
+      return
+    }
+    if (request.method === 'POST' && request.url === '/v1/metrics/context/inspect') {
+      const body = contextMeterAuditRequestSchema.parse(await readJson(request))
+      const audit = await options.activity.contextMeterAudit(body)
+      json(response, 200, audit)
       return
     }
     json(response, 404, { error: 'not_found', traceId })

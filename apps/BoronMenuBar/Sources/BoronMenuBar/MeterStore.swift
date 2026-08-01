@@ -5,6 +5,7 @@ import Foundation
 final class MeterStore: ObservableObject {
     @Published private(set) var health: BoronHealth?
     @Published private(set) var meter: ContextMeterSummary?
+    @Published private(set) var audit: ContextMeterAudit?
     @Published private(set) var isRefreshing = false
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var errorMessage: String?
@@ -27,7 +28,9 @@ final class MeterStore: ObservableObject {
     var menuTitle: String {
         guard isHealthy else { return "B !" }
         guard let meter else { return "B ·" }
-        return "B \(MetricFormatting.percentage(meter.selectionReductionRatio))"
+        let reuse = MetricFormatting.compactTokens(meter.reExplanation.avoidedTokens)
+        let source = meter.sourceWindow.savingsRatio.map(MetricFormatting.percentage) ?? "—"
+        return "B R\(reuse) · S\(source)"
     }
 
     var tokenBars: [TokenBar] {
@@ -60,6 +63,7 @@ final class MeterStore: ObservableObject {
             let (health, meter) = try await (healthRequest, meterRequest)
             self.health = health
             self.meter = meter
+            audit = try? await client.audit()
             lastUpdated = Date()
             errorMessage = nil
         } catch {
