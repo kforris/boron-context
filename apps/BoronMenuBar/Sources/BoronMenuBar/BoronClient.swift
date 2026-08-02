@@ -119,8 +119,6 @@ struct BoronClient: Sendable {
     }
 
     private func decoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
+        BoronJSONDecoder.make()
     }
 }

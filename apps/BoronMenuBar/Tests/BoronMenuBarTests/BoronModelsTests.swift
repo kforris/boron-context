@@ -91,9 +91,7 @@ import Testing
         }
         """.utf8
     )
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
-    let ticket = try decoder.decode(InspectorTicket.self, from: data)
+    let ticket = try BoronJSONDecoder.make().decode(InspectorTicket.self, from: data)
     #expect(ticket.url.hasPrefix("/inspector?launch="))
 }
 
