@@ -28,6 +28,10 @@ reasoning, permissions, execution, and presentation.
 7. Inspect `capsule.retrievalPlan` and `capsule.unresolved` before a mutation. If high-risk intent
    has no matching confirmed policy evidence, stop the mutation and obtain policy or human
    authorization. Boron supplies context; it does not grant action permission.
+8. Call `list_manual_corrections` with the resolved project and `status=pending`. These are explicit
+   human review requests from Boron Content. Treat them as high-priority evidence to investigate,
+   not as automatically verified facts. Compare each request with current ontology, code, wiki, and
+   live sources before changing relationships or content.
 
 ## During work
 
@@ -69,6 +73,10 @@ relations.
 
 Leave model-inferred relations as `candidate`. Use `confirmed` only when the user directly stated or
 approved the relation, or when a deterministic authoritative source establishes it.
+
+After applying or rejecting a requested semantic repair, call `resolve_manual_correction` with a
+short evidence-backed summary. Do not resolve an item merely because it was read. If the task does
+not cover the correction, leave it pending for a later agent.
 
 ## Finish
 

@@ -126,7 +126,14 @@ codex plugin add boron-context@boron-context
 - `filteredTokens`：确定性排序和打包所省略的候选 capsule 内容。
 - `boronLlm.calls`：Boron 自己拥有的调用数，目前为 0。
 
-Inspector 只读、需要 daemon token、不会返回 excerpt，并会去掉 URL 用户信息和 query 值。
+菜单栏通过一次性 ticket 打开 Boron Content。bearer token 不会进入 URL；浏览器把 ticket
+交换成 HttpOnly、same-site session，写入 correction 还需要 CSRF token。Ontology entity 与
+relation、Codebase Memory 搜索结果和 OpenWiki 页面都可以点击。人工填写的字段与备注会创建
+pending correction，而不是覆盖原始数据。
+
+下一个项目 session 开始时调用 `list_manual_corrections`。针对本次任务相关的请求，先与当前
+source 对照，再修复或拒绝语义关系，最后用 `resolve_manual_correction` 记录有证据的结果。仅仅读到
+请求不能作为 resolve 的理由。Boron Content 自身仍然不调用 LLM。
 
 ## 7. Fail-closed 矩阵
 

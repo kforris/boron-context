@@ -71,24 +71,27 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
       this.searchOntologyStructure(input),
       this.searchPolicies(input, false)
     ])
-    return [...structure, ...policies, ...stored].slice(0, input.limit)
+    const corrections = stored.filter((item) => item.metadata.manualCorrection === true)
+    const remainingStored = stored.filter((item) => item.metadata.manualCorrection !== true)
+    return [...corrections, ...structure, ...policies, ...remainingStored].slice(0, input.limit)
   }
 
   async searchLayer(layer: ContextLayer, input: AdapterSearchInput): Promise<readonly Evidence[]> {
-    const result = await this.pool.query<{
-      id: string
-      layer: ContextLayer
-      title: string
-      uri: string
-      excerpt: string
-      confidence: number
-      authority: number
-      updated_at: Date
-      content_hash: string | null
-      project_id: string | null
-      metadata: Record<string, unknown>
-    }>(
-      `
+    const [result, corrections] = await Promise.all([
+      this.pool.query<{
+        id: string
+        layer: ContextLayer
+        title: string
+        uri: string
+        excerpt: string
+        confidence: number
+        authority: number
+        updated_at: Date
+        content_hash: string | null
+        project_id: string | null
+        metadata: Record<string, unknown>
+      }>(
+        `
         SELECT
           e.id::text,
           e.layer,
@@ -121,10 +124,12 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
           e.confidence DESC,
           e.updated_at DESC
         LIMIT $3
-      `,
-      [input.projectId, searchText(input), input.limit, layer, input.sourceAnchors]
-    )
-    return result.rows.map((row) => ({
+        `,
+        [input.projectId, searchText(input), input.limit, layer, input.sourceAnchors]
+      ),
+      this.searchManualCorrections(layer, input)
+    ])
+    const stored = result.rows.map((row) => ({
       id: row.id,
       layer: row.layer,
       title: row.title,
@@ -137,6 +142,83 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
       ...(row.project_id ? { projectId: row.project_id } : {}),
       metadata: row.metadata
     }))
+    return [...corrections, ...stored].slice(0, input.limit)
+  }
+
+  private async searchManualCorrections(
+    layer: ContextLayer,
+    input: AdapterSearchInput
+  ): Promise<readonly Evidence[]> {
+    const result = await this.pool.query<{
+      id: string
+      project_id: string | null
+      subject_kind: string
+      subject_id: string | null
+      subject_uri: string
+      fields: Record<string, string>
+      note: string
+      revision: number
+      updated_at: Date
+    }>(
+      `
+        SELECT
+          id::text,
+          project_id::text,
+          subject_kind,
+          subject_id,
+          subject_uri,
+          fields,
+          note,
+          revision,
+          updated_at
+        FROM manual_corrections
+        WHERE status = 'pending'
+          AND layer = $1
+          AND (
+            ($2::uuid IS NOT NULL AND project_id = $2::uuid)
+            OR (
+              $2::uuid IS NULL
+              AND (
+                lower(subject_uri) LIKE '%' || lower($3) || '%'
+                OR lower(note) LIKE '%' || lower($3) || '%'
+                OR fields::text ILIKE '%' || $3 || '%'
+              )
+            )
+          )
+        ORDER BY updated_at DESC
+        LIMIT $4
+      `,
+      [layer, input.projectId, searchText(input), input.limit]
+    )
+    return result.rows.map((row) => {
+      const fields = Object.entries(row.fields)
+        .map(([name, value]) => `${name}=${value}`)
+        .join('; ')
+      const detail = [fields ? `fields: ${fields}` : '', row.note ? `note: ${row.note}` : '']
+        .filter(Boolean)
+        .join('. ')
+      return {
+        id: `manual-correction-${row.id}`,
+        layer,
+        title: `Human correction pending: ${row.subject_uri}`,
+        uri: `boron://manual-correction/${row.id}`,
+        excerpt: `A human reviewer requested a correction for ${row.subject_uri}. ${detail}`,
+        confidence: 1,
+        authority: 1,
+        updatedAt: row.updated_at.toISOString(),
+        ...(row.project_id ? { projectId: row.project_id } : {}),
+        metadata: {
+          manualCorrection: true,
+          correctionId: row.id,
+          status: 'pending',
+          revision: row.revision,
+          subjectKind: row.subject_kind,
+          subjectId: row.subject_id,
+          subjectUri: row.subject_uri,
+          fields: row.fields
+        }
+      }
+    })
   }
 
   private async searchOntologyStructure(input: AdapterSearchInput): Promise<readonly Evidence[]> {

@@ -1,5 +1,33 @@
 import Foundation
 
+enum BoronJSONDecoder {
+    static func make() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: value) {
+                return date
+            }
+
+            let standard = ISO8601DateFormatter()
+            standard.formatOptions = [.withInternetDateTime]
+            if let date = standard.date(from: value) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Expected an ISO 8601 date with optional fractional seconds."
+            )
+        }
+        return decoder
+    }
+}
+
 struct BoronHealth: Decodable, Sendable {
     let ok: Bool
     let service: String
@@ -152,6 +180,12 @@ struct MeterAuditRequest: Encodable, Sendable {
     let windowDays: Int
     let typingWordsPerMinute: Double
     let limit: Int
+}
+
+struct InspectorTicket: Decodable, Sendable {
+    let ticket: String
+    let url: String
+    let expiresAt: Date
 }
 
 struct TokenBar: Identifiable, Sendable {

@@ -163,6 +163,41 @@ const tools = [
     }
   },
   {
+    name: 'list_manual_corrections',
+    description:
+      'List human-authored pending, resolved, or dismissed corrections from Boron Content. At session start, inspect pending corrections for the resolved project and treat them as high-priority review requests, not automatically verified facts.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        projectHint: { type: 'string' },
+        layer: { type: 'string', enum: ['ontology', 'codebase', 'wiki'] },
+        status: {
+          type: 'string',
+          enum: ['pending', 'resolved', 'dismissed'],
+          default: 'pending'
+        },
+        limit: { type: 'integer', minimum: 1, maximum: 200, default: 100 }
+      }
+    }
+  },
+  {
+    name: 'resolve_manual_correction',
+    description:
+      'Resolve or dismiss one pending Boron Content correction only after checking current sources and applying or rejecting the semantic repair. Record a concise evidence-backed outcome.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['correctionId', 'outcome', 'summary'],
+      properties: {
+        correctionId: { type: 'string', format: 'uuid' },
+        outcome: { type: 'string', enum: ['resolved', 'dismissed'] },
+        summary: { type: 'string' },
+        resolvedBy: { type: 'string', default: 'agent' }
+      }
+    }
+  },
+  {
     name: 'complete_context_session',
     description:
       'Close a Boron session with its verified outcome, durable decisions, selected evidence, and candidate relation effects. Call after verification and before the final handoff.',
@@ -206,6 +241,10 @@ async function callTool(name, args) {
       return request('/v1/metrics/context', { method: 'POST', body: args })
     case 'inspect_context_meter':
       return request('/v1/metrics/context/inspect', { method: 'POST', body: args })
+    case 'list_manual_corrections':
+      return request('/v1/inspector/corrections/list', { method: 'POST', body: args })
+    case 'resolve_manual_correction':
+      return request('/v1/inspector/corrections/resolve', { method: 'POST', body: args })
     case 'complete_context_session':
       return request('/v1/sessions/complete', { method: 'POST', body: args })
     default:
@@ -273,9 +312,9 @@ async function handle(message) {
       result: {
         protocolVersion: params.protocolVersion ?? '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'boron-context', version: '0.3.0' },
+        serverInfo: { name: 'boron-context', version: '0.4.0' },
         instructions:
-          'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule before project work, record only verified semantic milestones, and close the session with verified outcomes. Never store secrets or raw transcripts.'
+          'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule and pending human corrections before project work, record only verified semantic milestones, resolve corrections only after evidence-backed repair, and close the session with verified outcomes. Never store secrets or raw transcripts.'
       }
     })
     return

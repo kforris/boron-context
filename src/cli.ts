@@ -90,6 +90,9 @@ function launchdDefinition(): string {
       BORON_HOST: config.host,
       BORON_PORT: String(config.port),
       BORON_TOKEN_FILE: config.tokenPath,
+      BORON_OPENWIKI_ROOT: config.openWikiRoot,
+      BORON_CODEBASE_MEMORY_GRAPH_URL: config.codebaseMemoryGraphUrl,
+      BORON_CODEBASE_MEMORY_COMMAND: config.codebaseMemoryCommand,
       ...launchdDatabaseEnvironment(process.env.BORON_DATABASE_URL)
     }
   })

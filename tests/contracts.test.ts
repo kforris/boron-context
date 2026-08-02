@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { recordActivityRequestSchema } from '../src/core/contracts.js'
+import { manualCorrectionSchema, recordActivityRequestSchema } from '../src/core/contracts.js'
 
 const activity = {
   sessionId: '00000000-0000-4000-8000-000000000000',
@@ -21,5 +21,19 @@ describe('recordActivityRequestSchema', () => {
     expect(
       recordActivityRequestSchema.safeParse({ ...activity, occurredAt: 'not-a-date' }).success
     ).toBe(false)
+  })
+})
+
+describe('manualCorrectionSchema', () => {
+  it('requires a human field edit or instruction', () => {
+    const base = {
+      layer: 'ontology',
+      subjectKind: 'entity',
+      subjectUri: 'boron://entity/test'
+    }
+    expect(manualCorrectionSchema.safeParse(base).success).toBe(false)
+    expect(
+      manualCorrectionSchema.safeParse({ ...base, note: 'Verify the relation owner.' }).success
+    ).toBe(true)
   })
 })

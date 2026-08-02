@@ -9,7 +9,7 @@
 [![CI](https://github.com/kforris/boron-context/actions/workflows/ci.yml/badge.svg)](https://github.com/kforris/boron-context/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-b7ff4a.svg)](#project-status)
-[![Version: 0.3.0](https://img.shields.io/badge/version-0.3.0-6ebb50.svg)](CHANGELOG.md)
+[![Version: 0.4.0](https://img.shields.io/badge/version-0.4.0-6ebb50.svg)](CHANGELOG.md)
 
 </div>
 
@@ -96,6 +96,8 @@ This independent repository contains a new headless foundation:
 - HTTP adapters for Codebase Memory and OpenWiki-compatible search services;
 - deterministic evidence ranking, deduplication, and token-budget packing;
 - a loopback-only authenticated HTTP gateway;
+- a human-review Boron Content Inspector for Ontology, Codebase Memory, OpenWiki, and pending
+  corrections, launched with a one-time browser ticket;
 - platform-neutral state paths with macOS and Linux mappings;
 - a versioned local MCP surface and Codex plugin;
 - a macOS `launchd` service-definition generator;
@@ -111,9 +113,42 @@ The current API is intentionally small:
 - `POST /v1/sessions/complete`
 - `POST /v1/metrics/context`
 - `POST /v1/metrics/context/inspect` (read-only, credential-redacted audit preview)
+- `GET /inspector` (browser shell; data requires a one-time menu-bar session)
+- `POST /v1/inspector/ontology`, `/wiki`, and `/corrections/list`
+- `POST /v1/inspector/corrections/create` and `/resolve`
 
-Source discovery, generic inference rules, confirmation UI, and a setup surface remain next-stage
-work. Interfaces may change before `1.0`.
+Generic inference rules and a setup surface remain next-stage work. Interfaces may change before
+`1.0`.
+
+## Boron Content v0.4.0 visual tour
+
+The native menu panel is now content-driven instead of a fixed-height `ScrollView`. `Command-plus`
+and `Command-minus` scale the text and window together, while `Command-0` restores the default.
+The maximum size is calculated from 70% of the current screen's visible height, so the complete
+meter, audit, runtime tiles, and footer remain in one window with no internal scrollbar. On the
+tested desktop the maximum was `118%` at `482 × 714 pt`, exactly 70% of the `1020 pt` visible
+height.
+
+<img src="docs/assets/screenshots/v0.4.0/boron-menu-panel.png" alt="Full-height Boron Content menu panel without an internal scrollbar" width="430" />
+
+The `Content` button opens the authenticated, loopback-only Inspector. PostgreSQL Ontology uses a
+clickable relation graph; node and relation edits become pending human corrections instead of
+overwriting source facts.
+
+![Boron Content PostgreSQL ontology graph](docs/assets/screenshots/v0.4.0/ontology-graph.png)
+
+Codebase Memory remains the owner of the maintained 3D symbol and dependency graph. Boron embeds
+that viewer and adds project-scoped correction targeting beside it.
+
+![Maintained Codebase Memory graph used by Boron Content](docs/assets/screenshots/v0.4.0/codebase-graph.png)
+
+OpenWiki presents Markdown as a documentation site with navigation and a correction panel. Local
+home-directory paths are compacted to `~` in the UI while canonical source URIs remain unchanged.
+
+![OpenWiki documentation reader in Boron Content](docs/assets/screenshots/v0.4.0/openwiki.png)
+
+See the [v0.4.0 release notes](docs/releases/v0.4.0.md) for behavior, security boundaries, and the
+human-correction lifecycle.
 
 ## Quick start on macOS
 
@@ -179,6 +214,8 @@ The repository includes a local Codex plugin under `plugins/boron-context`. It p
   Boron-owned LLM usage.
 - `inspect_context_meter` to inspect recent sample composition, Retrieval Plan stages, adapters,
   candidate/selected evidence, and source-estimate coverage without exposing credentials.
+- `list_manual_corrections` to read human review requests recorded in Boron Content.
+- `resolve_manual_correction` to close a request only after evidence-backed repair or rejection.
 
 The companion skill asks Codex to read before substantive project work and write back after
 verification. It deliberately does not capture raw transcripts or every tool call.
@@ -287,8 +324,14 @@ npm run service:install
 python3 scripts/install_menubar.py
 ```
 
-The installer starts the menu-bar item automatically; click `B R… · S…` to open the read-only
-preview. The app requires macOS 14 or newer and the migrated Boron Context daemon.
+The installer starts the menu-bar item automatically; click `B R… · S…`, then use the `Content`
+button in the top toolbar to open the authenticated Inspector. The app requires macOS 14 or newer
+and the migrated Boron Context daemon.
+
+Manual fields and notes are stored as pending corrections, not applied directly to Ontology,
+Codebase Memory, or Markdown. At the next Boron-backed project session, the Agent receives those
+requests as high-authority review evidence, checks current sources, repairs or rejects the semantic
+relationship, and resolves the correction. The Inspector itself performs no LLM calls.
 
 ## Context Capsule budget
 
@@ -307,17 +350,20 @@ The target is to reduce repeated broad repository reads, not to make the prompt 
 
 ## Configuration
 
-| Variable                      | Default                                | Purpose                           |
-| ----------------------------- | -------------------------------------- | --------------------------------- |
-| `BORON_DATABASE_URL`          | `postgresql://127.0.0.1/boron_context` | PostgreSQL connection             |
-| `BORON_HOST`                  | `127.0.0.1`                            | Gateway bind host                 |
-| `BORON_PORT`                  | `41635`                                | Gateway port                      |
-| `BORON_DAEMON_TOKEN`          | generated file                         | Explicit in-memory token override |
-| `BORON_TOKEN_FILE`            | platform state path                    | Token file override               |
-| `BORON_CODEBASE_MEMORY_URL`   | unset                                  | Codebase Memory search adapter    |
-| `BORON_CODEBASE_MEMORY_TOKEN` | unset                                  | Codebase Memory bearer token      |
-| `BORON_OPENWIKI_URL`          | unset                                  | OpenWiki search adapter           |
-| `BORON_OPENWIKI_TOKEN`        | unset                                  | OpenWiki bearer token             |
+| Variable                          | Default                                | Purpose                           |
+| --------------------------------- | -------------------------------------- | --------------------------------- |
+| `BORON_DATABASE_URL`              | `postgresql://127.0.0.1/boron_context` | PostgreSQL connection             |
+| `BORON_HOST`                      | `127.0.0.1`                            | Gateway bind host                 |
+| `BORON_PORT`                      | `41635`                                | Gateway port                      |
+| `BORON_DAEMON_TOKEN`              | generated file                         | Explicit in-memory token override |
+| `BORON_TOKEN_FILE`                | platform state path                    | Token file override               |
+| `BORON_OPENWIKI_ROOT`             | `~/.openwiki/wiki`                     | Inspector Markdown root           |
+| `BORON_CODEBASE_MEMORY_GRAPH_URL` | `http://127.0.0.1:9749`                | Inspector graph UI/RPC endpoint   |
+| `BORON_CODEBASE_MEMORY_COMMAND`   | `~/.local/bin/codebase-memory-mcp`     | Optional graph UI sidecar command |
+| `BORON_CODEBASE_MEMORY_URL`       | unset                                  | Codebase Memory search adapter    |
+| `BORON_CODEBASE_MEMORY_TOKEN`     | unset                                  | Codebase Memory bearer token      |
+| `BORON_OPENWIKI_URL`              | unset                                  | OpenWiki search adapter           |
+| `BORON_OPENWIKI_TOKEN`            | unset                                  | OpenWiki bearer token             |
 
 Adapter truth is explicit in `/health`, every Retrieval Plan, and the menu bar:
 

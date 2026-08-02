@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+## [0.4.0] - 2026-08-02
+
+This is a pre-alpha local-use release.
+
+### Added
+
+- authenticated Boron Content Inspector with a PostgreSQL ontology knowledge graph, the maintained
+  Codebase Memory graph, a documentation-style OpenWiki reader, and a human review queue;
+- auditable manual corrections that remain separate from source facts, enter the next project
+  Context Capsule at highest authority, and can be resolved by a Boron-enabled agent after repair;
+- one-time Inspector launch tickets and cookie/CSRF protection without placing the daemon bearer
+  token in a browser URL;
+- a lifecycle-scoped Codebase Memory graph sidecar that reuses an existing local UI when available
+  and otherwise keeps the maintained graph endpoint online with the Boron daemon;
+- migration `005_manual_corrections.sql` and MCP tools for listing and resolving human corrections.
+
+### Changed
+
+- the menu-bar meter now uses explicit high-contrast text colors and opens Boron Content directly
+  from its top toolbar;
+- the menu-bar panel now uses content-driven full height instead of a fixed-height `ScrollView`;
+  `Command-plus` / `Command-minus` scale text and window together, `Command-0` resets the zoom, and
+  the maximum height is dynamically capped at 70% of the current screen's visible height;
+- the Inspector reuses the configurable loopback Codebase Memory graph rather than copying its
+  graph into PostgreSQL; Boron still owns zero LLM calls;
+- local home-directory paths and Codebase Memory project labels are compacted in the display layer
+  without changing canonical identifiers used for retrieval or corrections.
+
+### Documentation
+
+- added a screenshot-backed visual tour and public OpenWiki example describing the three review
+  layers and the Agent-mediated manual-correction lifecycle.
+
 ## [0.3.0] - 2026-08-01
 
 This is a pre-alpha local-use release.

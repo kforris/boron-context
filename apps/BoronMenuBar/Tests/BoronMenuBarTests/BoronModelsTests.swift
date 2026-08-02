@@ -80,3 +80,28 @@ import Testing
     #expect(MetricFormatting.percentage(0.2795) == "28%")
     #expect(MetricFormatting.duration(16.67) == "17 ms")
 }
+
+@Test func decodesInspectorTicket() throws {
+    let data = Data(
+        """
+        {
+          "ticket": "00000000-0000-4000-8000-000000000000",
+          "url": "/inspector?launch=11111111-1111-4111-8111-111111111111#ticket=00000000-0000-4000-8000-000000000000",
+          "expiresAt": "2026-08-02T06:00:00.000Z"
+        }
+        """.utf8
+    )
+    let ticket = try BoronJSONDecoder.make().decode(InspectorTicket.self, from: data)
+    #expect(ticket.url.hasPrefix("/inspector?launch="))
+}
+
+@Test func capsPanelZoomAtSeventyPercentOfVisibleHeight() {
+    let maximum = PanelZoomPolicy.maximumZoom(visibleHeight: 1_020, contentHeight: 607)
+    #expect(abs(maximum - 1.176_276_771) < 0.000_001)
+    #expect(abs((607 * maximum) - 714) < 0.001)
+    #expect(PanelZoomPolicy.clampedZoom(2, maximumZoom: maximum) == maximum)
+    #expect(
+        PanelZoomPolicy.clampedZoom(0.5, maximumZoom: maximum)
+            == PanelZoomPolicy.minimumZoom
+    )
+}
