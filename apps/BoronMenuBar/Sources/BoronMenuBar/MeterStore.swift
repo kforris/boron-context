@@ -7,6 +7,7 @@ final class MeterStore: ObservableObject {
     @Published private(set) var meter: ContextMeterSummary?
     @Published private(set) var audit: ContextMeterAudit?
     @Published private(set) var isRefreshing = false
+    @Published private(set) var isOpeningInspector = false
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var errorMessage: String?
 
@@ -77,6 +78,18 @@ final class MeterStore: ObservableObject {
     func openRepository() {
         guard let url = URL(string: "https://github.com/kforris/boron-context") else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    func openInspector() async {
+        guard !isOpeningInspector else { return }
+        isOpeningInspector = true
+        defer { isOpeningInspector = false }
+        do {
+            NSWorkspace.shared.open(try await client.inspectorURL())
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
 }

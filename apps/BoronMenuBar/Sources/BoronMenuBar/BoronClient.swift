@@ -83,6 +83,23 @@ struct BoronClient: Sendable {
         return try decoder().decode(ContextMeterAudit.self, from: data)
     }
 
+    func inspectorURL() async throws -> URL {
+        let token = try daemonToken()
+        var request = URLRequest(url: baseURL.appendingPathComponent("v1/inspector/ticket"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data("{}".utf8)
+
+        let (data, response) = try await session.data(for: request)
+        try validate(response)
+        let ticket = try decoder().decode(InspectorTicket.self, from: data)
+        guard let url = URL(string: ticket.url, relativeTo: baseURL)?.absoluteURL else {
+            throw BoronClientError.invalidResponse
+        }
+        return url
+    }
+
     private func validate(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else {
             throw BoronClientError.invalidResponse

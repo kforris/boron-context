@@ -5,6 +5,7 @@ import { ContextResolver } from './core/resolver.js'
 import { loadConfig } from './config.js'
 import { migrateDatabase } from './db/migrate.js'
 import { PostgresActivityRepository } from './db/activity-repository.js'
+import { PostgresInspectorRepository } from './db/inspector-repository.js'
 import {
   PostgresLayerEvidenceAdapter,
   PostgresOntologyRepository
@@ -12,6 +13,7 @@ import {
 import { createPool, loadDatabaseConfig } from './db/pool.js'
 import { startGateway, type RunningGateway } from './gateway/server.js'
 import { loadOrCreateToken } from './platform/token.js'
+import { startCodebaseMemoryGraph } from './platform/codebase-memory-sidecar.js'
 
 export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promise<{
   readonly gateway: RunningGateway
@@ -19,8 +21,13 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
 }> {
   const config = loadConfig(env)
   const pool = createPool(loadDatabaseConfig(env))
+  const codebaseMemoryGraph = await startCodebaseMemoryGraph({
+    command: config.codebaseMemoryCommand,
+    url: config.codebaseMemoryGraphUrl
+  })
   const ontology = new PostgresOntologyRepository(pool)
   const activity = new PostgresActivityRepository(pool)
+  const inspector = new PostgresInspectorRepository(pool, config.openWikiRoot)
   const adapters = [
     ontology,
     new PostgresLayerEvidenceAdapter(ontology, 'codebase'),
@@ -54,6 +61,8 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
     token,
     resolver,
     activity,
+    inspector,
+    codebaseMemoryGraphUrl: config.codebaseMemoryGraphUrl,
     adapters,
     databaseHealth: () => ontology.health(),
     version: await packageVersion()
@@ -62,6 +71,7 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
     gateway,
     close: async () => {
       await gateway.close()
+      await codebaseMemoryGraph.close()
       await pool.end()
     }
   }

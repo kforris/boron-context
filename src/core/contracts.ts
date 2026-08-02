@@ -3,6 +3,45 @@ import { z } from 'zod'
 export const contextLayerSchema = z.enum(['ontology', 'codebase', 'wiki'])
 export type ContextLayer = z.infer<typeof contextLayerSchema>
 
+export const inspectorScopeSchema = z.object({
+  projectHint: z.string().trim().min(1).max(1_000).optional()
+})
+export type InspectorScope = z.infer<typeof inspectorScopeSchema>
+
+export const manualCorrectionSchema = z
+  .object({
+    projectHint: z.string().trim().min(1).max(1_000).optional(),
+    layer: contextLayerSchema,
+    subjectKind: z.string().trim().min(1).max(200),
+    subjectId: z.string().trim().min(1).max(2_000).optional(),
+    subjectUri: z.string().trim().min(1).max(4_000),
+    fields: z
+      .record(z.string().trim().min(1).max(200), z.string().trim().max(20_000))
+      .refine((fields) => Object.keys(fields).length <= 30, 'At most 30 fields may be corrected')
+      .default({}),
+    note: z.string().trim().max(20_000).default('')
+  })
+  .refine(
+    (input) => Object.keys(input.fields).length > 0 || input.note.length > 0,
+    'A manual correction requires at least one changed field or a note'
+  )
+export type ManualCorrectionInput = z.infer<typeof manualCorrectionSchema>
+
+export const listManualCorrectionsSchema = inspectorScopeSchema.extend({
+  layer: contextLayerSchema.optional(),
+  status: z.enum(['pending', 'resolved', 'dismissed']).default('pending'),
+  limit: z.number().int().min(1).max(200).default(100)
+})
+export type ListManualCorrectionsInput = z.infer<typeof listManualCorrectionsSchema>
+
+export const resolveManualCorrectionSchema = z.object({
+  correctionId: z.string().uuid(),
+  outcome: z.enum(['resolved', 'dismissed']),
+  summary: z.string().trim().min(1).max(20_000),
+  resolvedBy: z.string().trim().min(1).max(200).default('agent')
+})
+export type ResolveManualCorrectionInput = z.infer<typeof resolveManualCorrectionSchema>
+
 export const adapterSourceTypeSchema = z.enum(['ontology', 'snapshot', 'live'])
 export type AdapterSourceType = z.infer<typeof adapterSourceTypeSchema>
 

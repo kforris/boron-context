@@ -154,6 +154,12 @@ struct MeterAuditRequest: Encodable, Sendable {
     let limit: Int
 }
 
+struct InspectorTicket: Decodable, Sendable {
+    let ticket: String
+    let url: String
+    let expiresAt: Date
+}
+
 struct TokenBar: Identifiable, Sendable {
     let label: String
     let value: Int

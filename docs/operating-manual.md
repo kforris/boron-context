@@ -128,8 +128,15 @@ Interpret the metrics separately:
 - `filteredTokens`: candidate capsule content omitted by deterministic ranking and packing.
 - `boronLlm.calls`: calls owned by Boron, currently zero.
 
-The Inspector is read-only, requires the daemon token, removes excerpts, and redacts URL user-info
-and query values.
+The menu bar opens Boron Content through a one-time ticket. The bearer token never enters the URL;
+the browser exchanges the ticket for an HttpOnly same-site session, and correction writes require a
+CSRF token. Ontology entities and relations, Codebase Memory search results, and OpenWiki pages are
+clickable. Human fields and notes create pending corrections rather than overwriting their source.
+
+At the next project session, call `list_manual_corrections`. Verify each applicable request against
+current sources, make the semantic repair or reject it, then call `resolve_manual_correction` with
+the evidence-backed result. Reading a request is not sufficient reason to resolve it. Boron Content
+owns no LLM calls.
 
 ## 7. Fail-closed matrix
 
