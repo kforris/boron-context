@@ -233,7 +233,9 @@ describe('gateway', () => {
       const shell = await fetch(`${gateway.url}/inspector`)
       expect(shell.status).toBe(200)
       expect(shell.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
-      expect(await shell.text()).toContain('Boron Content Inspector')
+      const shellHtml = await shell.text()
+      expect(shellHtml).toContain('Boron Content Inspector')
+      expect(shellHtml).toContain('loadOntology(project.sourceUri)')
 
       const ticketResponse = await fetch(`${gateway.url}/v1/inspector/ticket`, {
         method: 'POST',

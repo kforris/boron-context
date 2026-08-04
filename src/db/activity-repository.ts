@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
 import { basename, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Pool, PoolClient } from 'pg'
@@ -15,6 +16,7 @@ import type {
   ResolvedProject,
   StartSessionRequest
 } from '../core/contracts.js'
+import { resolveProjectIdentity } from './project-identity.js'
 
 export interface StartedSession {
   readonly id: string
@@ -673,29 +675,32 @@ export class PostgresActivityRepository {
   }
 }
 
-async function ensureProject(
+export async function ensureProject(
   client: PoolClient,
   input: StartSessionRequest
 ): Promise<ResolvedProject | null> {
+  const hintedProject = await resolveProjectIdentity(client, input.projectHint)
+  if (hintedProject) return hintedProject
   if (!input.projectRoot) return null
   const root = resolve(input.projectRoot)
   const sourceUri = pathToFileURL(root).href
+  const rootedProject = await resolveProjectIdentity(client, sourceUri)
+  if (rootedProject) return rootedProject
+  if (root === resolve(homedir())) return null
   const name = input.projectHint ?? basename(root)
   const result = await client.query<{ id: string; name: string }>(
     `
       INSERT INTO projects (name, source_uri, status, metadata)
       VALUES ($1, $2, 'confirmed', $3::jsonb)
-      ON CONFLICT (source_uri)
-      DO UPDATE SET
-        name = EXCLUDED.name,
-        status = 'confirmed',
-        metadata = projects.metadata || EXCLUDED.metadata,
-        updated_at = now()
+      ON CONFLICT (source_uri) DO NOTHING
       RETURNING id::text, name
     `,
     [name, sourceUri, JSON.stringify({ localRoot: root, selectedByClient: input.client })]
   )
-  const projectId = result.rows[0]!.id
+  const inserted = result.rows[0]
+  const project = inserted ?? (await resolveProjectIdentity(client, sourceUri))
+  if (!project) return null
+  const projectId = project.id
   for (const alias of new Set([name, basename(root)])) {
     await client.query(
       `
@@ -713,7 +718,7 @@ async function ensureProject(
       [projectId, alias, sourceUri]
     )
   }
-  return { id: projectId, name: result.rows[0]!.name, confidence: 1 }
+  return { id: projectId, name: project.name, confidence: 1 }
 }
 
 async function loadSession(

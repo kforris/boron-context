@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
-import { resolve } from 'node:path'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { loadConfig } from './config.js'
+import { createPool, loadDatabaseConfig } from './db/pool.js'
+import { loadCodexRegistry, reconcileCodexRegistry } from './db/project-registry.js'
 import { migrateRuntimeDatabase, startRuntime } from './runtime.js'
 import { launchdDatabaseEnvironment, renderLaunchdPlist } from './platform/launchd.js'
 import { installLaunchdService } from './platform/launchd-service.js'
@@ -20,6 +23,9 @@ try {
       break
     case 'health':
       await health()
+      break
+    case 'reconcile-codex-projects':
+      await reconcileProjects()
       break
     case 'print-launchd':
       printLaunchd()
@@ -59,6 +65,33 @@ async function health(): Promise<void> {
   const body = await response.text()
   console.log(body)
   if (!response.ok) process.exitCode = 1
+}
+
+async function reconcileProjects(): Promise<void> {
+  const manifestPath = optionValue('--manifest')
+  if (!manifestPath) {
+    throw new Error('reconcile-codex-projects requires --manifest <path>')
+  }
+  const statePath = optionValue('--state') ?? join(homedir(), '.codex', '.codex-global-state.json')
+  const registry = await loadCodexRegistry({
+    statePath: resolve(statePath),
+    manifestPath: resolve(manifestPath)
+  })
+  const pool = createPool(loadDatabaseConfig())
+  try {
+    const result = await reconcileCodexRegistry(pool, registry, process.argv.includes('--apply'))
+    console.log(JSON.stringify(result, null, 2))
+  } finally {
+    await pool.end()
+  }
+}
+
+function optionValue(name: string): string | undefined {
+  const index = process.argv.indexOf(name)
+  if (index < 0) return undefined
+  const value = process.argv[index + 1]
+  if (!value || value.startsWith('--')) throw new Error(`${name} requires a value`)
+  return value
 }
 
 function printLaunchd(): void {
@@ -105,6 +138,8 @@ Usage:
   boron-context serve          Start the headless local daemon
   boron-context migrate        Apply PostgreSQL migrations
   boron-context health         Read daemon health
+  boron-context reconcile-codex-projects --manifest <path> [--state <path>] [--apply]
+                               Preview or apply authoritative Codex project identities
   boron-context print-launchd  Print a macOS launchd plist
   boron-context install-launchd Install and start the macOS background service
 `)

@@ -229,6 +229,10 @@ codex plugin add boron-context@boron-context
 
 Start a new Codex task after installation so the MCP tools and skill are loaded.
 
+For deterministic import of Codex desktop project groups, collision-safe canonical identities,
+candidate-only workspace discovery, and the operator verification sequence, see
+[Project identity discovery and repair](docs/project-identity-repair.md).
+
 ## Ontology-first Retrieval Plan
 
 Every request starts with a deterministic PostgreSQL Ontology location. This lightweight pass

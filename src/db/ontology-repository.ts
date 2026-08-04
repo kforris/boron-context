@@ -7,6 +7,7 @@ import type {
   ResolvedProject
 } from '../core/contracts.js'
 import type { ProjectResolver } from '../core/resolver.js'
+import { resolveProjectIdentity } from './project-identity.js'
 
 export class PostgresOntologyRepository implements ContextAdapter, ProjectResolver {
   readonly layer = 'ontology' as const
@@ -25,43 +26,7 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
   }
 
   async resolve(request: ResolveContextRequest): Promise<ResolvedProject | null> {
-    if (!request.projectHint) return null
-    const result = await this.pool.query<{ id: string; name: string; similarity: number }>(
-      `
-        WITH candidates AS (
-          SELECT
-            p.id,
-            p.name,
-            max(
-              CASE
-                WHEN p.source_uri = $1 THEN 1.0
-                WHEN lower(p.name) = lower($1) THEN 0.99
-                WHEN lower(a.alias) = lower($1) THEN 0.97
-                WHEN lower(p.name) LIKE '%' || lower($1) || '%' THEN 0.75
-                WHEN lower(a.alias) LIKE '%' || lower($1) || '%' THEN 0.72
-                ELSE 0.5
-              END
-            ) AS similarity
-          FROM projects p
-          LEFT JOIN project_aliases a ON a.project_id = p.id
-          WHERE p.source_uri = $1
-             OR lower(p.name) = lower($1)
-             OR lower(a.alias) = lower($1)
-             OR lower(p.name) LIKE '%' || lower($1) || '%'
-             OR lower(a.alias) LIKE '%' || lower($1) || '%'
-          GROUP BY p.id, p.name
-        )
-        SELECT id::text, name, similarity
-        FROM candidates
-        ORDER BY similarity DESC, name ASC
-        LIMIT 2
-      `,
-      [request.projectHint]
-    )
-    const first = result.rows[0]
-    const second = result.rows[1]
-    if (!first || (second && first.similarity - second.similarity < 0.1)) return null
-    return { id: first.id, name: first.name, confidence: Number(first.similarity) }
+    return resolveProjectIdentity(this.pool, request.projectHint)
   }
 
   async search(input: AdapterSearchInput): Promise<readonly Evidence[]> {
@@ -240,7 +205,9 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
             p.name,
             p.source_uri,
             p.status,
-            coalesce(array_agg(a.alias ORDER BY a.alias) FILTER (WHERE a.alias IS NOT NULL), '{}')
+            coalesce(array_agg(a.alias ORDER BY a.alias) FILTER (
+              WHERE a.alias IS NOT NULL AND a.confirmation_state <> 'rejected'
+            ), '{}')
               AS aliases,
             p.updated_at
           FROM projects p
@@ -268,7 +235,9 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
             o.canonical_uri,
             o.confirmation_state,
             o.version,
-            coalesce(array_agg(a.alias ORDER BY a.alias) FILTER (WHERE a.alias IS NOT NULL), '{}')
+            coalesce(array_agg(a.alias ORDER BY a.alias) FILTER (
+              WHERE a.alias IS NOT NULL AND a.confirmation_state <> 'rejected'
+            ), '{}')
               AS aliases,
             o.updated_at
           FROM objects o
