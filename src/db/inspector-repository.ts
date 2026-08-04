@@ -1,6 +1,6 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { basename, relative, resolve, sep } from 'node:path'
-import type { Pool, PoolClient } from 'pg'
+import type { Pool } from 'pg'
 import type {
   ContextLayer,
   InspectorScope,
@@ -8,6 +8,7 @@ import type {
   ManualCorrectionInput,
   ResolveManualCorrectionInput
 } from '../core/contracts.js'
+import { resolveProjectIdentity } from './project-identity.js'
 
 const MAX_GRAPH_NODES = 500
 const MAX_GRAPH_EDGES = 1_000
@@ -69,7 +70,7 @@ export class PostgresInspectorRepository {
     }[]
     readonly pendingCorrections: readonly ManualCorrectionRecord[]
   }> {
-    const project = await resolveProject(this.pool, input.projectHint)
+    const project = await resolveProjectIdentity(this.pool, input.projectHint)
     const projectId = project?.id ?? null
     const projectScopeRequested = input.projectHint !== undefined
     const [projects, nodes, edges, pendingCorrections] = await Promise.all([
@@ -110,7 +111,21 @@ export class PostgresInspectorRepository {
             updated_at
           FROM objects
           WHERE confirmation_state <> 'rejected'
-            AND (NOT $3::boolean OR project_id = $1::uuid)
+            AND (
+              NOT $3::boolean
+              OR project_id = $1::uuid
+              OR id IN (
+                SELECT r.target_object_id
+                FROM current_relations r
+                JOIN objects source ON source.id = r.source_object_id
+                WHERE source.project_id = $1::uuid
+                UNION
+                SELECT r.source_object_id
+                FROM current_relations r
+                JOIN objects target ON target.id = r.target_object_id
+                WHERE target.project_id = $1::uuid
+              )
+            )
           ORDER BY confirmation_state, kind, name
           LIMIT $2
         `,
@@ -185,7 +200,7 @@ export class PostgresInspectorRepository {
   async listCorrections(
     input: ListManualCorrectionsInput
   ): Promise<readonly ManualCorrectionRecord[]> {
-    const project = await resolveProject(this.pool, input.projectHint)
+    const project = await resolveProjectIdentity(this.pool, input.projectHint)
     const projectScopeRequested = input.projectHint !== undefined
     const result = await this.pool.query<ManualCorrectionRow>(
       `
@@ -223,7 +238,7 @@ export class PostgresInspectorRepository {
     if (Object.keys(input.fields).length === 0 && input.note.length === 0) {
       throw new Error('A manual correction requires at least one changed field or a note')
     }
-    const project = await resolveProject(this.pool, input.projectHint)
+    const project = await resolveProjectIdentity(this.pool, input.projectHint)
     if (input.projectHint && !project) {
       throw new Error(`Project could not be resolved: ${input.projectHint}`)
     }
@@ -412,33 +427,6 @@ interface ManualCorrectionRow {
   readonly created_at: Date
   readonly updated_at: Date
   readonly resolved_at: Date | null
-}
-
-async function resolveProject(
-  pool: Pool | PoolClient,
-  hint: string | undefined
-): Promise<{ readonly id: string; readonly name: string } | null> {
-  if (!hint) return null
-  const result = await pool.query<{ id: string; name: string }>(
-    `
-      SELECT p.id::text, p.name
-      FROM projects p
-      LEFT JOIN project_aliases a ON a.project_id = p.id
-      WHERE p.source_uri = $1
-         OR lower(p.name) = lower($1)
-         OR lower(a.alias) = lower($1)
-      ORDER BY
-        CASE
-          WHEN p.source_uri = $1 THEN 0
-          WHEN lower(p.name) = lower($1) THEN 1
-          ELSE 2
-        END,
-        p.name
-      LIMIT 1
-    `,
-    [hint]
-  )
-  return result.rows[0] ?? null
 }
 
 function mapCorrection(row: ManualCorrectionRow): ManualCorrectionRecord {
