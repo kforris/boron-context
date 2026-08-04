@@ -4,7 +4,7 @@
 
 # Boron Context
 
-**A macOS-first, headless intention and context layer for agentic work**
+**Durable, local project context for coding agents**
 
 [![CI](https://github.com/kforris/boron-context/actions/workflows/ci.yml/badge.svg)](https://github.com/kforris/boron-context/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
@@ -13,20 +13,61 @@
 
 </div>
 
-AI agents are effective when a task is local and explicit. They waste tokens and human time when
-they must reconstruct the whole situation from chat history, scattered repositories, Markdown
-files, support answers, and decisions that were never formalized.
+Boron Context gives Codex and other coding agents a shared, sourced view of your projects across
+sessions. Before work starts, it resolves the exact project and returns only the relevant context.
+After the work is verified, it preserves the decisions, evidence, and relationship changes that the
+next agent should know.
 
-Boron Context runs behind Codex, Cursor, voice interfaces, or another agent client. It captures the
-user's intention, resolves the relevant project and constraints, queries the right context sources,
-and returns a small, sourced **Context Capsule** before execution.
+**Boron is not an agent, a chat logger, or a model-training system.** It does not capture raw
+transcripts, write back every tool call, or call an LLM by default. It is a local context substrate
+that agent clients use through MCP or authenticated HTTP.
 
-It is not another chat interface and it is not another agent runner.
+[Quick start](#quick-start) · [Codex plugin](#codex-plugin) · [How it works](#how-it-works) ·
+[Security](SECURITY.md) · [Project status](#project-status)
 
-## Why Boron?
+## What it does
 
-Boron has three valence electrons. The product uses that as a structural metaphor for three
-independent context layers:
+| When        | Boron Context                                                                                    |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| Before work | Resolves an exact project identity and builds a bounded, sourced **Context Capsule**.            |
+| During work | Surfaces confirmed constraints, decisions, relationships, code evidence, and documentation.      |
+| After work  | Stores selected, verified milestones and relation changes—not the full conversation.             |
+| Next time   | Gives an integrated agent the durable project state without reconstructing it from chat history. |
+
+Confirmed meaning lives in PostgreSQL. Uncertain discoveries remain `candidate` until an
+authoritative source or a person confirms them. Ambiguous project names fail closed instead of
+silently selecting the wrong workspace.
+
+## Quick start
+
+Requirements: Apple Silicon macOS, Node.js 20.19.0 or newer, and PostgreSQL 15 or newer.
+
+```bash
+git clone https://github.com/kforris/boron-context.git
+cd boron-context
+npm install
+
+createdb boron_context
+export BORON_DATABASE_URL='postgresql://127.0.0.1/boron_context'
+npm run db:migrate
+
+npm run build
+npm run service:install
+```
+
+Install the bundled Codex plugin:
+
+```bash
+codex plugin marketplace add .
+codex plugin add boron-context@boron-context
+```
+
+Start a new Codex task so the MCP tools and context-continuity skill are loaded. Other agent clients
+can integrate through the authenticated HTTP API or configure the same local MCP surface.
+
+## Context sources
+
+Boron keeps context ownership explicit across three independent sources:
 
 1. **Ontology** — projects, objects, typed relationships, intentions, constraints, policies,
    semantic activities, derived state, provenance, and confirmation state.
@@ -35,10 +76,11 @@ independent context layers:
 3. **OpenWiki** — recurring questions, operational problems, support knowledge, exceptions,
    decisions, and lessons learned.
 
+The name refers to boron's three valence electrons: three inputs, one bounded context layer.
 Each layer remains authoritative for the facts it understands. Boron Context resolves them into a
 bounded capsule instead of copying everything into one undifferentiated knowledge base.
 
-## Runtime model
+## How it works
 
 ```text
 Codex / Cursor / voice / another agent
@@ -87,6 +129,8 @@ This independent repository contains a new headless foundation:
 - strict TypeScript contracts for intentions, evidence, and Context Capsules;
 - PostgreSQL migrations for projects, objects, relations, evidence, intentions, confirmations, and
   capsules;
+- collision-safe project identities and deterministic Codex project-registry reconciliation that
+  confirms exact roots while leaving name-only matches as candidates;
 - append-only agent sessions and semantic activities with temporal assert/retract relation effects;
 - an ontology-first Retrieval Plan that selects sources sequentially from deterministic request
   signals and never requires a model or embedding pre-pass;
@@ -150,26 +194,7 @@ home-directory paths are compacted to `~` in the UI while canonical source URIs 
 See the [v0.4.0 release notes](docs/releases/v0.4.0.md) for behavior, security boundaries, and the
 human-correction lifecycle.
 
-## Quick start on macOS
-
-Requirements:
-
-- Apple Silicon macOS;
-- Node.js 20.19.0 or newer;
-- PostgreSQL 15 or newer.
-
-```bash
-git clone https://github.com/kforris/boron-context.git
-cd boron-context
-npm install
-
-createdb boron_context
-export BORON_DATABASE_URL='postgresql://127.0.0.1/boron_context'
-npm run db:migrate
-
-npm run build
-npm start
-```
+## Verify the HTTP API
 
 On first start, Boron Context creates a local authentication token at:
 
@@ -193,16 +218,10 @@ curl -sS http://127.0.0.1:41635/v1/context/resolve \
   }'
 ```
 
-Install and start the macOS background service:
+The `service:install` command creates a LaunchAgent that keeps the Boron daemon alive across logins
+and process failures.
 
-```bash
-npm run service:install
-```
-
-The generated LaunchAgent is independent from Machina and keeps the Boron daemon alive across
-logins and process failures.
-
-## Codex plugin MVP
+## Codex plugin
 
 The repository includes a local Codex plugin under `plugins/boron-context`. It provides:
 
@@ -220,14 +239,8 @@ The repository includes a local Codex plugin under `plugins/boron-context`. It p
 The companion skill asks Codex to read before substantive project work and write back after
 verification. It deliberately does not capture raw transcripts or every tool call.
 
-Install the repository marketplace and plugin:
-
-```bash
-codex plugin marketplace add .
-codex plugin add boron-context@boron-context
-```
-
-Start a new Codex task after installation so the MCP tools and skill are loaded.
+The [quick start](#quick-start) installs the repository marketplace and plugin. Start a new Codex
+task after installation so the MCP tools and skill are loaded.
 
 For deterministic import of Codex desktop project groups, collision-safe canonical identities,
 candidate-only workspace discovery, and the operator verification sequence, see
