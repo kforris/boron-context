@@ -1,6 +1,31 @@
 # Changelog
 
-## Unreleased
+## [0.5.0] - 2026-08-05
+
+### Added
+
+- resumable `CODEX_THREAD_ID` sessions with renewable leases and auditable automatic partial
+  closure for abandoned work;
+- MCP-initialization adoption observations plus `get_adoption_health` and HTTP metrics;
+- live local Codebase Memory `/rpc` and OpenWiki Markdown adapters with real source-size coverage;
+- credential-free Git remote project identity and explicit non-destructive project supersession;
+- migration `007_agent_continuity_health.sql` for leases, coverage, and confirmed-endpoint repair.
+
+### Changed
+
+- confirmed relations now promote non-rejected endpoint entities and their exact name aliases to
+  confirmed, while candidate relations remain candidate;
+- noncanonical aliases remain candidate; migration `008_object_alias_confirmation_boundary.sql`
+  auditably corrects any broader local `007` backfill without deleting its provenance;
+- the context-continuity skill now applies by default to every non-trivial project task and states
+  the observable-coverage boundary explicitly.
+
+### Fixed
+
+- live OpenWiki retrieval now requires the resolved project identity to appear in a page or path,
+  preventing unrelated project documentation from entering a scoped Context Capsule.
+- content-free adoption observations fail open after 500 ms, so telemetry cannot indefinitely
+  delay Agent initialization or a context tool result when the local daemon is unresponsive.
 
 ## [0.4.0] - 2026-08-02
 

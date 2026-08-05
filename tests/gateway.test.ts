@@ -54,7 +54,9 @@ describe('gateway', () => {
         },
         contextMeterAudit: async () => {
           throw new Error('not used')
-        }
+        },
+        observeAgentClient: async () => {},
+        adoptionHealth: async () => ({ observedAgentThreads: 0 })
       } as never,
       inspector: inspectorStub(),
       codebaseMemoryGraphUrl: 'http://127.0.0.1:9749',
@@ -136,7 +138,15 @@ describe('gateway', () => {
         completeSession: async () => {
           calls.push('complete')
           return { id: randomUUID(), relationEffects: 0, evidence: 2, duplicate: false }
-        }
+        },
+        observeAgentClient: async () => {
+          calls.push('observe')
+        },
+        adoptionHealth: async () => ({
+          windowDays: 7,
+          observedAgentThreads: 1,
+          contextThreads: 1
+        })
       } as never,
       inspector: inspectorStub(),
       codebaseMemoryGraphUrl: 'http://127.0.0.1:9749',
@@ -161,6 +171,18 @@ describe('gateway', () => {
       })
       expect(started.status).toBe(200)
       expect(await started.json()).toMatchObject({ session: { id: session.id } })
+
+      const observed = await fetch(`${gateway.url}/v1/clients/observe`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          clientInstanceId: 'thread-1',
+          client: 'codex',
+          event: 'session_started',
+          sessionId: session.id
+        })
+      })
+      expect(observed.status).toBe(200)
 
       const activity = await fetch(`${gateway.url}/v1/activity/record`, {
         method: 'POST',
@@ -202,7 +224,14 @@ describe('gateway', () => {
         summary: { samples: 1 },
         samples: [{ id: 'audit-sample' }]
       })
-      expect(calls).toEqual(['start', 'capsule', 'activity', 'complete'])
+      const adoption = await fetch(`${gateway.url}/v1/metrics/adoption`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ windowDays: 7 })
+      })
+      expect(adoption.status).toBe(200)
+      expect(await adoption.json()).toMatchObject({ observedAgentThreads: 1 })
+      expect(calls).toEqual(['start', 'capsule', 'observe', 'activity', 'complete'])
     } finally {
       await gateway.close()
     }

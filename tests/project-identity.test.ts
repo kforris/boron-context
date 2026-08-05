@@ -43,7 +43,7 @@ describe('project identity resolution', () => {
     })
 
     expect(project).toBeNull()
-    expect(queries).toHaveLength(2)
+    expect(queries).toHaveLength(1)
     expect(queries.some((sql) => sql.includes('INSERT INTO projects'))).toBe(false)
   })
 

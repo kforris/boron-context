@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 
 import { readFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import readline from 'node:readline'
 
 const baseUrl = (process.env.BORON_URL ?? 'http://127.0.0.1:41635').replace(/\/+$/, '')
+const clientInstanceId = process.env.CODEX_THREAD_ID ?? randomUUID()
+let observedClient = 'unknown'
+let observedClientVersion
+let observedProtocolVersion
 
 const entitySchema = {
   type: 'object',
@@ -72,6 +77,7 @@ const tools = [
         client: { type: 'string', default: 'codex' },
         constraints: { type: 'array', items: { type: 'string' }, maxItems: 50 },
         tokenBudget: { type: 'integer', minimum: 256, maximum: 16000, default: 4000 },
+        leaseMinutes: { type: 'integer', minimum: 15, maximum: 1440, default: 720 },
         metadata: { type: 'object' }
       }
     }
@@ -163,6 +169,18 @@ const tools = [
     }
   },
   {
+    name: 'get_adoption_health',
+    description:
+      'Report observable Boron coverage across MCP-initialized agent threads, session closure, and stale leased sessions. Agents that never load this plugin remain outside the denominator.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        windowDays: { type: 'integer', minimum: 1, maximum: 365, default: 30 }
+      }
+    }
+  },
+  {
     name: 'list_manual_corrections',
     description:
       'List human-authored pending, resolved, or dismissed corrections from Boron Content. At session start, inspect pending corrections for the resolved project and treat them as high-priority review requests, not automatically verified facts.',
@@ -228,12 +246,22 @@ async function callTool(name, args) {
     case 'begin_context_session':
       return request('/v1/sessions/start', {
         method: 'POST',
-        body: { ...args, client: args.client ?? 'codex' }
+        body: {
+          ...args,
+          client: args.client ?? 'codex',
+          externalSessionId: args.externalSessionId ?? process.env.CODEX_THREAD_ID
+        }
+      }).then(async (result) => {
+        await observe('session_started', result?.session?.id)
+        return result
       })
     case 'query_context':
       return request('/v1/context/resolve', {
         method: 'POST',
         body: { ...args, client: args.client ?? 'codex' }
+      }).then(async (result) => {
+        await observe('context_read')
+        return result
       })
     case 'record_activity':
       return request('/v1/activity/record', { method: 'POST', body: args })
@@ -241,12 +269,19 @@ async function callTool(name, args) {
       return request('/v1/metrics/context', { method: 'POST', body: args })
     case 'inspect_context_meter':
       return request('/v1/metrics/context/inspect', { method: 'POST', body: args })
+    case 'get_adoption_health':
+      return request('/v1/metrics/adoption', { method: 'POST', body: args })
     case 'list_manual_corrections':
       return request('/v1/inspector/corrections/list', { method: 'POST', body: args })
     case 'resolve_manual_correction':
       return request('/v1/inspector/corrections/resolve', { method: 'POST', body: args })
     case 'complete_context_session':
-      return request('/v1/sessions/complete', { method: 'POST', body: args })
+      return request('/v1/sessions/complete', { method: 'POST', body: args }).then(
+        async (result) => {
+          await observe('session_completed', args.sessionId)
+          return result
+        }
+      )
     default:
       throw new Error(`Unknown tool: ${name}`)
   }
@@ -262,6 +297,7 @@ async function request(path, options = {}) {
     response = await fetch(`${baseUrl}${path}`, {
       method: options.method ?? 'GET',
       headers,
+      ...(options.timeoutMs ? { signal: AbortSignal.timeout(options.timeoutMs) } : {}),
       ...(options.body ? { body: JSON.stringify(options.body) } : {})
     })
   } catch (error) {
@@ -298,6 +334,28 @@ async function daemonToken() {
   }
 }
 
+async function observe(event, sessionId) {
+  try {
+    await request('/v1/clients/observe', {
+      method: 'POST',
+      timeoutMs: 500,
+      body: {
+        clientInstanceId,
+        client: observedClient,
+        ...(observedClientVersion ? { clientVersion: observedClientVersion } : {}),
+        ...(observedProtocolVersion ? { protocolVersion: observedProtocolVersion } : {}),
+        event,
+        ...(sessionId ? { sessionId } : {}),
+        metadata: {
+          threadIdentitySource: process.env.CODEX_THREAD_ID ? 'codex_thread_id' : 'process'
+        }
+      }
+    })
+  } catch {
+    // Observability is fail-open so a temporary Boron outage never prevents MCP initialization.
+  }
+}
+
 function send(payload) {
   process.stdout.write(`${JSON.stringify(payload)}\n`)
 }
@@ -306,13 +364,17 @@ async function handle(message) {
   const { id, method, params = {} } = message
   if (method === 'notifications/initialized' || method === 'notifications/cancelled') return
   if (method === 'initialize') {
+    observedClient = params.clientInfo?.name ?? 'unknown'
+    observedClientVersion = params.clientInfo?.version
+    observedProtocolVersion = params.protocolVersion
+    await observe('initialized')
     send({
       jsonrpc: '2.0',
       id,
       result: {
         protocolVersion: params.protocolVersion ?? '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'boron-context', version: '0.4.0' },
+        serverInfo: { name: 'boron-context', version: '0.5.0' },
         instructions:
           'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule and pending human corrections before project work, record only verified semantic milestones, resolve corrections only after evidence-backed repair, and close the session with verified outcomes. Never store secrets or raw transcripts.'
       }

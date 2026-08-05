@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { platformPaths } from './platform/paths.js'
 
 const portSchema = z.coerce.number().int().min(1).max(65_535)
+const sessionSweepIntervalSchema = z.coerce.number().int().min(10_000).max(3_600_000)
 
 export interface BoronConfig {
   readonly host: string
@@ -14,6 +15,7 @@ export interface BoronConfig {
   readonly codebaseMemoryCommand: string
   readonly codebaseMemoryUrl?: string
   readonly openWikiUrl?: string
+  readonly sessionSweepIntervalMs: number
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BoronConfig {
@@ -28,6 +30,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BoronConfig {
     ),
     codebaseMemoryCommand:
       env.BORON_CODEBASE_MEMORY_COMMAND ?? join(homedir(), '.local', 'bin', 'codebase-memory-mcp'),
+    sessionSweepIntervalMs: sessionSweepIntervalSchema.parse(
+      env.BORON_SESSION_SWEEP_INTERVAL_MS ?? '300000'
+    ),
     ...(env.BORON_CODEBASE_MEMORY_URL ? { codebaseMemoryUrl: env.BORON_CODEBASE_MEMORY_URL } : {}),
     ...(env.BORON_OPENWIKI_URL ? { openWikiUrl: env.BORON_OPENWIKI_URL } : {})
   }

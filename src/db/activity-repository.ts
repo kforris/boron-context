@@ -5,6 +5,8 @@ import { pathToFileURL } from 'node:url'
 import type { Pool, PoolClient } from 'pg'
 import type {
   ActivityEvidenceInput,
+  AdoptionHealthRequest,
+  AgentClientObservation,
   CompleteSessionRequest,
   ContextCapsule,
   ContextMeterAuditRequest,
@@ -17,12 +19,15 @@ import type {
   StartSessionRequest
 } from '../core/contracts.js'
 import { resolveProjectIdentity } from './project-identity.js'
+import { discoverProjectRoot } from '../platform/project-root.js'
 
 export interface StartedSession {
   readonly id: string
   readonly traceId: string
   readonly intentionId: string
   readonly project: ResolvedProject | null
+  readonly leaseExpiresAt: string
+  readonly resumed: boolean
 }
 
 export interface RecordedActivity {
@@ -30,6 +35,20 @@ export interface RecordedActivity {
   readonly relationEffects: number
   readonly evidence: number
   readonly duplicate: boolean
+}
+
+export interface AdoptionHealthSummary {
+  readonly windowDays: number
+  readonly observedAgentThreads: number
+  readonly contextThreads: number
+  readonly sessionThreads: number
+  readonly readThreads: number
+  readonly uncoveredThreads: number
+  readonly observableCoverageRatio: number
+  readonly completedSessionThreads: number
+  readonly activeSessionThreads: number
+  readonly staleActiveSessions: number
+  readonly caveats: readonly string[]
 }
 
 export interface ContextMeterSummary {
@@ -111,10 +130,77 @@ export class PostgresActivityRepository {
   constructor(private readonly pool: Pool) {}
 
   async startSession(input: StartSessionRequest): Promise<StartedSession> {
+    await this.expireStaleSessions()
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
       const project = await ensureProject(client, input)
+      if (input.externalSessionId) {
+        const existing = await client.query<{
+          id: string
+          intention_id: string
+          trace_id: string
+          lease_expires_at: Date
+          project_id: string | null
+          project_name: string | null
+        }>(
+          `
+            SELECT
+              s.id::text,
+              s.intention_id::text,
+              i.trace_id::text,
+              s.lease_expires_at,
+              s.project_id::text,
+              p.name AS project_name
+            FROM agent_sessions s
+            JOIN intentions i ON i.id = s.intention_id
+            LEFT JOIN projects p ON p.id = s.project_id
+            WHERE s.client = $1
+              AND s.external_session_id = $2
+              AND s.status = 'active'
+            FOR UPDATE OF s
+            LIMIT 1
+          `,
+          [input.client, input.externalSessionId]
+        )
+        const active = existing.rows[0]
+        if (active) {
+          const lease = await client.query<{ lease_expires_at: Date }>(
+            `
+              UPDATE agent_sessions
+              SET
+                project_id = coalesce(project_id, $2::uuid),
+                objective = $3,
+                metadata = metadata || $4::jsonb,
+                last_seen_at = now(),
+                lease_duration_minutes = $5,
+                lease_expires_at = now() + make_interval(mins => $5)
+              WHERE id = $1::uuid
+              RETURNING lease_expires_at
+            `,
+            [
+              active.id,
+              project?.id ?? null,
+              input.objective,
+              JSON.stringify(input.metadata),
+              input.leaseMinutes
+            ]
+          )
+          await client.query('COMMIT')
+          return {
+            id: active.id,
+            traceId: active.trace_id,
+            intentionId: active.intention_id,
+            project:
+              project ??
+              (active.project_id && active.project_name
+                ? { id: active.project_id, name: active.project_name, confidence: 1 }
+                : null),
+            leaseExpiresAt: lease.rows[0]!.lease_expires_at.toISOString(),
+            resumed: true
+          }
+        }
+      }
       const traceId = randomUUID()
       const intention = await client.query<{ id: string }>(
         `
@@ -131,18 +217,17 @@ export class PostgresActivityRepository {
         ]
       )
       const intentionId = intention.rows[0]!.id
-      const session = await client.query<{ id: string }>(
+      const session = await client.query<{ id: string; lease_expires_at: Date }>(
         `
           INSERT INTO agent_sessions (
-            external_session_id, client, project_id, intention_id, objective, metadata
+            external_session_id, client, project_id, intention_id, objective, metadata,
+            last_seen_at, lease_duration_minutes, lease_expires_at
           )
-          VALUES ($1, $2, $3::uuid, $4::uuid, $5, $6::jsonb)
-          ON CONFLICT (client, external_session_id)
-          DO UPDATE SET
-            objective = EXCLUDED.objective,
-            project_id = COALESCE(agent_sessions.project_id, EXCLUDED.project_id),
-            metadata = agent_sessions.metadata || EXCLUDED.metadata
-          RETURNING id::text
+          VALUES (
+            $1, $2, $3::uuid, $4::uuid, $5, $6::jsonb,
+            now(), $7, now() + make_interval(mins => $7)
+          )
+          RETURNING id::text, lease_expires_at
         `,
         [
           input.externalSessionId ?? null,
@@ -150,7 +235,8 @@ export class PostgresActivityRepository {
           project?.id ?? null,
           intentionId,
           input.objective,
-          JSON.stringify(input.metadata)
+          JSON.stringify(input.metadata),
+          input.leaseMinutes
         ]
       )
       const sessionId = session.rows[0]!.id
@@ -165,7 +251,14 @@ export class PostgresActivityRepository {
         occurredAt: new Date().toISOString()
       })
       await client.query('COMMIT')
-      return { id: sessionId, traceId, intentionId, project }
+      return {
+        id: sessionId,
+        traceId,
+        intentionId,
+        project,
+        leaseExpiresAt: session.rows[0]!.lease_expires_at.toISOString(),
+        resumed: false
+      }
     } catch (error) {
       await client.query('ROLLBACK')
       throw error
@@ -197,6 +290,7 @@ export class PostgresActivityRepository {
         occurredAt
       })
       if (activity.duplicate) {
+        await renewSessionLease(client, input.sessionId, session.leaseDurationMinutes)
         await client.query('COMMIT')
         return { id: activity.id, relationEffects: 0, evidence: 0, duplicate: true }
       }
@@ -223,6 +317,7 @@ export class PostgresActivityRepository {
         await insertEvidence(client, activity.id, session.projectId, item)
         evidenceCount += 1
       }
+      await renewSessionLease(client, input.sessionId, session.leaseDurationMinutes)
       await client.query('COMMIT')
       return {
         id: activity.id,
@@ -273,8 +368,13 @@ export class PostgresActivityRepository {
     await this.pool.query(
       `
         UPDATE agent_sessions
-        SET status = $2, ended_at = now(), metadata = metadata || $3::jsonb
-        WHERE id = $1::uuid
+        SET
+          status = $2,
+          ended_at = now(),
+          last_seen_at = now(),
+          closure_reason = 'explicit_completion',
+          metadata = metadata || $3::jsonb
+        WHERE id = $1::uuid AND status = 'active'
       `,
       [input.sessionId, input.outcome, JSON.stringify(input.metadata)]
     )
@@ -423,6 +523,9 @@ export class PostgresActivityRepository {
   }
 
   async contextMeterSummary(input: ContextMeterSummaryRequest): Promise<ContextMeterSummary> {
+    const project = input.projectHint
+      ? await resolveProjectIdentity(this.pool, input.projectHint)
+      : null
     const result = await this.pool.query<{
       samples: string
       candidate_tokens: string
@@ -465,13 +568,11 @@ export class PostgresActivityRepository {
         LEFT JOIN projects p ON p.id = m.project_id
         WHERE m.created_at >= now() - make_interval(days => $1)
           AND (
-            $2::text IS NULL
-            OR lower(p.name) = lower($2)
-            OR p.source_uri = $2
-            OR lower(p.name) LIKE '%' || lower($2) || '%'
+            $3::text IS NULL
+            OR ($2::uuid IS NOT NULL AND m.project_id = $2::uuid)
           )
       `,
-      [input.windowDays, input.projectHint ?? null]
+      [input.windowDays, project?.id ?? null, input.projectHint ?? null]
     )
     const row = result.rows[0]!
     const candidateTokens = Number(row.candidate_tokens)
@@ -484,7 +585,7 @@ export class PostgresActivityRepository {
     const sourceSavings = Number(row.source_window_savings_tokens)
     return {
       windowDays: input.windowDays,
-      project: input.projectHint ?? null,
+      project: project?.name ?? input.projectHint ?? null,
       samples: Number(row.samples),
       candidateTokens,
       capsuleTokens,
@@ -538,6 +639,9 @@ export class PostgresActivityRepository {
     readonly samples: readonly ContextMeterAuditSample[]
   }> {
     const summary = await this.contextMeterSummary(input)
+    const project = input.projectHint
+      ? await resolveProjectIdentity(this.pool, input.projectHint)
+      : null
     const samples = await this.pool.query<{
       id: string
       capsule_id: string
@@ -584,15 +688,13 @@ export class PostgresActivityRepository {
         LEFT JOIN projects p ON p.id = m.project_id
         WHERE m.created_at >= now() - make_interval(days => $1)
           AND (
-            $2::text IS NULL
-            OR lower(p.name) = lower($2)
-            OR p.source_uri = $2
-            OR lower(p.name) LIKE '%' || lower($2) || '%'
+            $4::text IS NULL
+            OR ($2::uuid IS NOT NULL AND m.project_id = $2::uuid)
           )
         ORDER BY m.created_at DESC
         LIMIT $3
       `,
-      [input.windowDays, input.projectHint ?? null, input.limit]
+      [input.windowDays, project?.id ?? null, input.limit, input.projectHint ?? null]
     )
     const sampleIds = samples.rows.map((row) => row.id)
     const evidence =
@@ -673,6 +775,197 @@ export class PostgresActivityRepository {
       }))
     }
   }
+
+  async observeAgentClient(input: AgentClientObservation): Promise<void> {
+    const mode =
+      input.event === 'session_started' || input.event === 'session_completed'
+        ? 'session'
+        : input.event === 'context_read'
+          ? 'read'
+          : 'none'
+    await this.pool.query(
+      `
+        INSERT INTO agent_client_observations (
+          client_instance_id, client, client_version, protocol_version, context_mode,
+          session_id, first_context_at, completed_at, metadata
+        )
+        VALUES (
+          $1, $2, $3, $4, $5,
+          $6::uuid,
+          CASE WHEN $5 = 'none' THEN NULL ELSE now() END,
+          CASE WHEN $7 = 'session_completed' THEN now() ELSE NULL END,
+          $8::jsonb
+        )
+        ON CONFLICT (client_instance_id)
+        DO UPDATE SET
+          client = EXCLUDED.client,
+          client_version = coalesce(EXCLUDED.client_version, agent_client_observations.client_version),
+          protocol_version = coalesce(
+            EXCLUDED.protocol_version,
+            agent_client_observations.protocol_version
+          ),
+          context_mode = CASE
+            WHEN agent_client_observations.context_mode = 'session' OR EXCLUDED.context_mode = 'session'
+              THEN 'session'
+            WHEN agent_client_observations.context_mode = 'read' OR EXCLUDED.context_mode = 'read'
+              THEN 'read'
+            ELSE 'none'
+          END,
+          session_id = coalesce(EXCLUDED.session_id, agent_client_observations.session_id),
+          first_context_at = coalesce(
+            agent_client_observations.first_context_at,
+            EXCLUDED.first_context_at
+          ),
+          completed_at = coalesce(EXCLUDED.completed_at, agent_client_observations.completed_at),
+          last_seen_at = now(),
+          metadata = agent_client_observations.metadata || EXCLUDED.metadata
+      `,
+      [
+        input.clientInstanceId,
+        input.client,
+        input.clientVersion ?? null,
+        input.protocolVersion ?? null,
+        mode,
+        input.sessionId ?? null,
+        input.event,
+        JSON.stringify(input.metadata)
+      ]
+    )
+  }
+
+  async adoptionHealth(input: AdoptionHealthRequest): Promise<AdoptionHealthSummary> {
+    const result = await this.pool.query<{
+      observed: string
+      context_threads: string
+      session_threads: string
+      read_threads: string
+      uncovered_threads: string
+      completed_session_threads: string
+      active_session_threads: string
+      stale_active_sessions: string
+    }>(
+      `
+        SELECT
+          count(*)::text AS observed,
+          count(*) FILTER (WHERE o.context_mode <> 'none')::text AS context_threads,
+          count(*) FILTER (WHERE o.context_mode = 'session')::text AS session_threads,
+          count(*) FILTER (WHERE o.context_mode = 'read')::text AS read_threads,
+          count(*) FILTER (WHERE o.context_mode = 'none')::text AS uncovered_threads,
+          count(*) FILTER (WHERE s.status IN ('completed', 'partial', 'failed', 'cancelled'))::text
+            AS completed_session_threads,
+          count(*) FILTER (WHERE s.status = 'active')::text AS active_session_threads,
+          (
+            SELECT count(*)::text
+            FROM agent_sessions stale
+            WHERE stale.status = 'active' AND stale.lease_expires_at <= now()
+          ) AS stale_active_sessions
+        FROM agent_client_observations o
+        LEFT JOIN agent_sessions s ON s.id = o.session_id
+        WHERE o.initialized_at >= now() - make_interval(days => $1)
+      `,
+      [input.windowDays]
+    )
+    const row = result.rows[0]!
+    const observed = Number(row.observed)
+    const contextThreads = Number(row.context_threads)
+    return {
+      windowDays: input.windowDays,
+      observedAgentThreads: observed,
+      contextThreads,
+      sessionThreads: Number(row.session_threads),
+      readThreads: Number(row.read_threads),
+      uncoveredThreads: Number(row.uncovered_threads),
+      observableCoverageRatio: observed > 0 ? contextThreads / observed : 0,
+      completedSessionThreads: Number(row.completed_session_threads),
+      activeSessionThreads: Number(row.active_session_threads),
+      staleActiveSessions: Number(row.stale_active_sessions),
+      caveats: [
+        'Coverage uses Boron MCP client initializations as the observable denominator; agents that never load the plugin remain outside the denominator.',
+        'One MCP client instance normally maps to one Codex thread when CODEX_THREAD_ID is available, but other clients may use a different process lifecycle.',
+        'Read-only context queries count as covered without creating a durable writeback session.'
+      ]
+    }
+  }
+
+  async expireStaleSessions(limit = 100): Promise<number> {
+    const client = await this.pool.connect()
+    try {
+      await client.query('BEGIN')
+      const stale = await client.query<{
+        id: string
+        project_id: string | null
+        lease_expires_at: Date
+      }>(
+        `
+          SELECT id::text, project_id::text, lease_expires_at
+          FROM agent_sessions
+          WHERE status = 'active' AND lease_expires_at <= now()
+          ORDER BY lease_expires_at
+          FOR UPDATE SKIP LOCKED
+          LIMIT $1
+        `,
+        [limit]
+      )
+      for (const session of stale.rows) {
+        const summary = 'Session lease expired without an explicit completion call.'
+        const activity = await insertActivity(client, {
+          sessionId: session.id,
+          projectId: session.project_id,
+          activityType: 'session.partial',
+          summary,
+          source: 'boron-session-sweeper',
+          idempotencyKey: `lease-expired:${session.id}`,
+          confidence: 1,
+          payload: {
+            closureReason: 'lease_expired',
+            leaseExpiredAt: session.lease_expires_at.toISOString()
+          },
+          occurredAt: new Date().toISOString()
+        })
+        if (!activity.duplicate) {
+          await insertEvidence(client, activity.id, session.project_id, {
+            layer: 'ontology',
+            title: 'Activity: session.partial',
+            excerpt: summary,
+            confidence: 1,
+            authority: 1,
+            metadata: {
+              activityId: activity.id,
+              closureReason: 'lease_expired',
+              leaseExpiredAt: session.lease_expires_at.toISOString()
+            }
+          })
+        }
+        await client.query(
+          `
+            UPDATE agent_sessions
+            SET
+              status = 'partial',
+              ended_at = now(),
+              last_seen_at = now(),
+              closure_reason = 'lease_expired',
+              metadata = metadata || $2::jsonb
+            WHERE id = $1::uuid AND status = 'active'
+          `,
+          [
+            session.id,
+            JSON.stringify({
+              autoClosed: true,
+              closureReason: 'lease_expired',
+              leaseExpiredAt: session.lease_expires_at.toISOString()
+            })
+          ]
+        )
+      }
+      await client.query('COMMIT')
+      return stale.rows.length
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }
 }
 
 export async function ensureProject(
@@ -682,12 +975,39 @@ export async function ensureProject(
   const hintedProject = await resolveProjectIdentity(client, input.projectHint)
   if (hintedProject) return hintedProject
   if (!input.projectRoot) return null
-  const root = resolve(input.projectRoot)
+  const requestedRoot = resolve(input.projectRoot)
+  if (requestedRoot === resolve(homedir())) return null
+  const discovered = await discoverProjectRoot(requestedRoot)
+  const root = discovered.root
   const sourceUri = pathToFileURL(root).href
   const rootedProject = await resolveProjectIdentity(client, sourceUri)
   if (rootedProject) return rootedProject
-  if (root === resolve(homedir())) return null
+  const repositoryProject = discovered.repositoryUri
+    ? await resolveProjectIdentity(client, discovered.repositoryUri)
+    : null
+  if (repositoryProject) {
+    await client.query(
+      `
+        UPDATE projects
+        SET
+          metadata = metadata || jsonb_build_object(
+            'repositoryUri', $2::text,
+            'observedRoots', (
+              SELECT jsonb_agg(DISTINCT value)
+              FROM jsonb_array_elements_text(
+                coalesce(metadata->'observedRoots', '[]'::jsonb) || to_jsonb($3::text)
+              ) value
+            )
+          ),
+          updated_at = now()
+        WHERE id = $1::uuid
+      `,
+      [repositoryProject.id, discovered.repositoryUri, root]
+    )
+    return repositoryProject
+  }
   const name = input.projectHint ?? basename(root)
+  const canonicalSourceUri = discovered.repositoryUri ?? sourceUri
   const result = await client.query<{ id: string; name: string }>(
     `
       INSERT INTO projects (name, source_uri, status, metadata)
@@ -695,10 +1015,19 @@ export async function ensureProject(
       ON CONFLICT (source_uri) DO NOTHING
       RETURNING id::text, name
     `,
-    [name, sourceUri, JSON.stringify({ localRoot: root, selectedByClient: input.client })]
+    [
+      name,
+      canonicalSourceUri,
+      JSON.stringify({
+        localRoot: discovered.repositoryRoot ?? root,
+        observedRoots: [root],
+        ...(discovered.repositoryUri ? { repositoryUri: discovered.repositoryUri } : {}),
+        selectedByClient: input.client
+      })
+    ]
   )
   const inserted = result.rows[0]
-  const project = inserted ?? (await resolveProjectIdentity(client, sourceUri))
+  const project = inserted ?? (await resolveProjectIdentity(client, canonicalSourceUri))
   if (!project) return null
   const projectId = project.id
   for (const alias of new Set([name, basename(root)])) {
@@ -715,7 +1044,7 @@ export async function ensureProject(
           confirmation_state = 'confirmed',
           updated_at = now()
       `,
-      [projectId, alias, sourceUri]
+      [projectId, alias, canonicalSourceUri]
     )
   }
   return { id: projectId, name: project.name, confidence: 1 }
@@ -724,13 +1053,45 @@ export async function ensureProject(
 async function loadSession(
   client: PoolClient,
   sessionId: string
-): Promise<{ readonly projectId: string | null }> {
-  const result = await client.query<{ project_id: string | null }>(
-    'SELECT project_id::text FROM agent_sessions WHERE id = $1::uuid',
+): Promise<{ readonly projectId: string | null; readonly leaseDurationMinutes: number }> {
+  const result = await client.query<{
+    project_id: string | null
+    status: string
+    lease_duration_minutes: number
+  }>(
+    `
+      SELECT project_id::text, status, lease_duration_minutes
+      FROM agent_sessions
+      WHERE id = $1::uuid
+      FOR UPDATE
+    `,
     [sessionId]
   )
   if (!result.rows[0]) throw new Error(`Unknown Boron session: ${sessionId}`)
-  return { projectId: result.rows[0].project_id }
+  if (result.rows[0].status !== 'active') {
+    throw new Error(`Boron session is already ${result.rows[0].status}: ${sessionId}`)
+  }
+  return {
+    projectId: result.rows[0].project_id,
+    leaseDurationMinutes: result.rows[0].lease_duration_minutes
+  }
+}
+
+async function renewSessionLease(
+  client: PoolClient,
+  sessionId: string,
+  leaseDurationMinutes: number
+): Promise<void> {
+  await client.query(
+    `
+      UPDATE agent_sessions
+      SET
+        last_seen_at = now(),
+        lease_expires_at = now() + make_interval(mins => $2)
+      WHERE id = $1::uuid AND status = 'active'
+    `,
+    [sessionId, leaseDurationMinutes]
+  )
 }
 
 async function insertActivity(
@@ -791,8 +1152,20 @@ async function applyRelationEffect(
   effectiveAt: string,
   effect: RelationEffect
 ): Promise<void> {
-  const subjectId = await ensureObject(client, projectId, effect.subject)
-  const targetId = await ensureObject(client, projectId, effect.target)
+  const subjectId = await ensureObject(
+    client,
+    projectId,
+    effect.subject,
+    effect.confirmationState,
+    activityId
+  )
+  const targetId = await ensureObject(
+    client,
+    projectId,
+    effect.target,
+    effect.confirmationState,
+    activityId
+  )
   const provenance = {
     activityId,
     rationale: effect.rationale,
@@ -905,33 +1278,68 @@ async function applyRelationEffect(
 async function ensureObject(
   client: PoolClient,
   projectId: string | null,
-  entity: EntityReference
+  entity: EntityReference,
+  confirmationState: 'candidate' | 'confirmed',
+  activityId: string
 ): Promise<string> {
-  const result = await client.query<{ id: string }>(
+  const metadata =
+    confirmationState === 'confirmed'
+      ? {
+          confirmationAuthority: 'confirmed_relation_endpoint',
+          confirmedByActivityId: activityId
+        }
+      : {}
+  const result = await client.query<{ id: string; confirmation_state: string }>(
     `
-      INSERT INTO objects (project_id, kind, name, canonical_uri, confirmation_state)
-      VALUES ($1::uuid, $2, $3, $4, 'candidate')
+      INSERT INTO objects (project_id, kind, name, canonical_uri, confirmation_state, metadata)
+      VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)
       ON CONFLICT (canonical_uri)
       DO UPDATE SET
         project_id = COALESCE(objects.project_id, EXCLUDED.project_id),
         name = EXCLUDED.name,
         kind = EXCLUDED.kind,
+        confirmation_state = CASE
+          WHEN objects.confirmation_state = 'rejected' THEN 'rejected'
+          WHEN EXCLUDED.confirmation_state = 'confirmed' THEN 'confirmed'
+          ELSE objects.confirmation_state
+        END,
+        metadata = objects.metadata || EXCLUDED.metadata,
         updated_at = now()
-      RETURNING id::text
+      RETURNING id::text, confirmation_state
     `,
-    [projectId, entity.kind, entity.name, entity.canonicalUri]
+    [
+      projectId,
+      entity.kind,
+      entity.name,
+      entity.canonicalUri,
+      confirmationState,
+      JSON.stringify(metadata)
+    ]
   )
-  const objectId = result.rows[0]!.id
+  const object = result.rows[0]!
+  if (object.confirmation_state === 'rejected') {
+    throw new Error(`Cannot assert a relation with rejected entity: ${entity.canonicalUri}`)
+  }
+  const objectId = object.id
   await client.query(
     `
       INSERT INTO object_aliases (
-        object_id, alias, normalized_alias, source_uri, confirmation_state
+        object_id, alias, normalized_alias, source_uri, confirmation_state, metadata
       )
-      VALUES ($1::uuid, $2, lower(trim($2)), $3, 'candidate')
+      VALUES ($1::uuid, $2, lower(trim($2)), $3, $4, $5::jsonb)
       ON CONFLICT (object_id, normalized_alias)
-      DO UPDATE SET alias = EXCLUDED.alias, source_uri = EXCLUDED.source_uri, updated_at = now()
+      DO UPDATE SET
+        alias = EXCLUDED.alias,
+        source_uri = EXCLUDED.source_uri,
+        confirmation_state = CASE
+          WHEN object_aliases.confirmation_state = 'rejected' THEN 'rejected'
+          WHEN EXCLUDED.confirmation_state = 'confirmed' THEN 'confirmed'
+          ELSE object_aliases.confirmation_state
+        END,
+        metadata = object_aliases.metadata || EXCLUDED.metadata,
+        updated_at = now()
     `,
-    [objectId, entity.name, entity.canonicalUri]
+    [objectId, entity.name, entity.canonicalUri, confirmationState, JSON.stringify(metadata)]
   )
   return objectId
 }

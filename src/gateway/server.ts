@@ -4,6 +4,8 @@ import type { AddressInfo } from 'node:net'
 import { z, ZodError } from 'zod'
 import type { ContextAdapter } from '../core/context-adapter.js'
 import {
+  adoptionHealthRequestSchema,
+  agentClientObservationSchema,
   completeSessionRequestSchema,
   contextMeterAuditRequestSchema,
   contextMeterSummaryRequestSchema,
@@ -185,6 +187,12 @@ async function routeRequest(
       json(response, 200, resolution.capsule)
       return
     }
+    if (request.method === 'POST' && pathname === '/v1/clients/observe') {
+      const body = agentClientObservationSchema.parse(await readJson(request))
+      await options.activity.observeAgentClient(body)
+      json(response, 200, { observed: true })
+      return
+    }
     if (request.method === 'POST' && pathname === '/v1/sessions/start') {
       const body = startSessionRequestSchema.parse(await readJson(request))
       const session = await options.activity.startSession(body)
@@ -229,6 +237,11 @@ async function routeRequest(
       const body = contextMeterAuditRequestSchema.parse(await readJson(request))
       const audit = await options.activity.contextMeterAudit(body)
       json(response, 200, audit)
+      return
+    }
+    if (request.method === 'POST' && pathname === '/v1/metrics/adoption') {
+      const body = adoptionHealthRequestSchema.parse(await readJson(request))
+      json(response, 200, await options.activity.adoptionHealth(body))
       return
     }
     json(response, 404, { error: 'not_found', traceId })

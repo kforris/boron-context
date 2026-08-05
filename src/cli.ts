@@ -5,6 +5,10 @@ import { join, resolve } from 'node:path'
 import { loadConfig } from './config.js'
 import { createPool, loadDatabaseConfig } from './db/pool.js'
 import { loadCodexRegistry, reconcileCodexRegistry } from './db/project-registry.js'
+import {
+  loadProjectSupersessionManifest,
+  reconcileProjectSupersessions
+} from './db/project-supersession.js'
 import { migrateRuntimeDatabase, startRuntime } from './runtime.js'
 import { launchdDatabaseEnvironment, renderLaunchdPlist } from './platform/launchd.js'
 import { installLaunchdService } from './platform/launchd-service.js'
@@ -26,6 +30,9 @@ try {
       break
     case 'reconcile-codex-projects':
       await reconcileProjects()
+      break
+    case 'repair-project-identities':
+      await repairProjectIdentities()
       break
     case 'print-launchd':
       printLaunchd()
@@ -86,6 +93,25 @@ async function reconcileProjects(): Promise<void> {
   }
 }
 
+async function repairProjectIdentities(): Promise<void> {
+  const manifestPath = optionValue('--manifest')
+  if (!manifestPath) {
+    throw new Error('repair-project-identities requires --manifest <path>')
+  }
+  const loaded = await loadProjectSupersessionManifest(resolve(manifestPath))
+  const pool = createPool(loadDatabaseConfig())
+  try {
+    const result = await reconcileProjectSupersessions(
+      pool,
+      { manifest: loaded.manifest, manifestUri: loaded.uri },
+      process.argv.includes('--apply')
+    )
+    console.log(JSON.stringify(result, null, 2))
+  } finally {
+    await pool.end()
+  }
+}
+
 function optionValue(name: string): string | undefined {
   const index = process.argv.indexOf(name)
   if (index < 0) return undefined
@@ -132,7 +158,7 @@ function launchdDefinition(): string {
 }
 
 function help(): void {
-  console.log(`Boron Context 0.1
+  console.log(`Boron Context 0.5
 
 Usage:
   boron-context serve          Start the headless local daemon
@@ -140,6 +166,8 @@ Usage:
   boron-context health         Read daemon health
   boron-context reconcile-codex-projects --manifest <path> [--state <path>] [--apply]
                                Preview or apply authoritative Codex project identities
+  boron-context repair-project-identities --manifest <path> [--apply]
+                               Preview or apply explicit non-destructive identity supersessions
   boron-context print-launchd  Print a macOS launchd plist
   boron-context install-launchd Install and start the macOS background service
 `)

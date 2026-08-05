@@ -40,7 +40,8 @@ python3 scripts/install_menubar.py
 ```
 
 安装或升级插件后要新建一个 Codex task。Codex 只会在 task 启动时加载 plugin 的 tools 和
-skills。
+skills。MCP server 会自动记录一次不含对话内容的初始化观测；当 Codex 提供
+`CODEX_THREAD_ID` 时，它会被用作稳定 session identity。
 
 ## 3. 升级现有本地安装
 
@@ -87,6 +88,10 @@ codex plugin add boron-context@boron-context
 7. 只调用一次 `complete_context_session`，结果使用 `completed`、`partial`、`failed` 或
    `cancelled`。
 
+默认 session lease 为 12 小时，并在记录语义 activity 时续租。客户端消失且没有完成
+session 时，daemon 会写入可审计的 `session.partial` 并设置
+`closure_reason=lease_expired`。同一个活跃 Codex task 重复 begin 会续接现有 session。
+
 可能重试的 activity 要使用 idempotency key。`occurredAt` 支持 UTC `Z` 和显式 ISO 8601
 时区偏移；保留事件真实发生时间，不要用记录时间静默替换。
 
@@ -114,6 +119,9 @@ codex plugin add boron-context@boron-context
 
 需要有边界的汇总时调用 `get_context_meter`；需要审计数字或来源选择如何组成时调用
 `inspect_context_meter`。
+
+需要检查自动接入程度时调用 `get_adoption_health`。它的分母是已初始化 Boron MCP 的 Agent
+task；从未加载 plugin 的 Agent 不在可观测范围内，结果会明确保留这个边界。
 
 指标要分开解释：
 
@@ -148,7 +156,27 @@ source 对照，再修复或拒绝语义关系，最后用 `resolve_manual_corre
 | Session 结果混合        | 使用 `partial`，准确列出剩余项                          |
 | 拟写入秘密或原始对话    | 写回前拒绝或脱敏                                        |
 
-## 8. 应用到业务流程
+## 8. 项目身份 supersession
+
+未知 Git worktree 使用去凭据、规范化的 remote URI 作为 identity，所以同一 repository 的
+临时 clone 会汇聚到同一 project。非 Git 文件夹仍要求精确 root 或用户明确批准的映射。
+
+先预览，再应用明确授权的身份修复：
+
+```bash
+node dist/cli.js repair-project-identities \
+  --manifest "/path/to/project-supersession-v1.json"
+
+node dist/cli.js repair-project-identities \
+  --manifest "/path/to/project-supersession-v1.json" \
+  --apply
+```
+
+merge 会把 project-scoped 历史重新归属到 canonical record，用 provenance 拒绝旧 alias，并
+归档被 supersede 的 project row。archive-only 会保留历史但阻止已退休 identity 继续参与
+解析。两者都不会删除 session、activity、evidence、object、alias 或 project row。
+
+## 9. 应用到业务流程
 
 Boron Content 运营手册验证了一条可以复用的模式：
 
@@ -158,7 +186,7 @@ Boron Content 运营手册验证了一条可以复用的模式：
 来源引用，以及 `no_material_change` / `inconclusive` 等 fail-closed 结果。产品内容、私有资产、
 凭据和完整审核消息留在各自的 source of truth 中，不进入 Boron。
 
-## 9. 升级后验证
+## 10. 升级后验证
 
 源代码、runtime 和已安装 artifact 必须分开验证：
 
@@ -174,7 +202,10 @@ codex plugin list
 预期行为：
 
 - `/health` 报告当前 daemon 版本和 adapter source type；
-- Codex plugin 暴露 7 个工具，包括 `inspect_context_meter`；
+- Codex plugin 暴露 continuity、Meter、correction 和 `get_adoption_health` 工具；
 - 代码类请求的 `retrievalPlan` 中 Ontology 位于 Codebase 之前；
 - continuity 请求中 Ontology 位于 Wiki 之前；
+- `/health` 在实时查询可用时把 Codebase Memory 和 OpenWiki 标成 `live`，并保留
+  PostgreSQL snapshot fallback；
+- adoption health 明确报告可观测分母，且 stale active session 为 0；
 - 菜单栏分别显示 `R` 与 `S`，无来源覆盖时显示 `S—`。

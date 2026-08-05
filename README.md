@@ -9,7 +9,7 @@
 [![CI](https://github.com/kforris/boron-context/actions/workflows/ci.yml/badge.svg)](https://github.com/kforris/boron-context/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-b7ff4a.svg)](#project-status)
-[![Version: 0.4.0](https://img.shields.io/badge/version-0.4.0-6ebb50.svg)](CHANGELOG.md)
+[![Version: 0.5.0](https://img.shields.io/badge/version-0.5.0-6ebb50.svg)](CHANGELOG.md)
 
 </div>
 
@@ -33,6 +33,11 @@ that agent clients use through MCP or authenticated HTTP.
 | During work | Surfaces confirmed constraints, decisions, relationships, code evidence, and documentation.      |
 | After work  | Stores selected, verified milestones and relation changes—not the full conversation.             |
 | Next time   | Gives an integrated agent the durable project state without reconstructing it from chat history. |
+
+The bundled MCP client uses `CODEX_THREAD_ID` when available, so a non-trivial Codex task resumes
+one leased Boron session instead of silently creating duplicates. Boron measures coverage among
+MCP-initialized agent threads while stating the boundary clearly: an agent that never loads the
+plugin is not observable.
 
 Confirmed meaning lives in PostgreSQL. Uncertain discoveries remain `candidate` until an
 authoritative source or a person confirms them. Ambiguous project names fail closed instead of
@@ -131,13 +136,18 @@ This independent repository contains a new headless foundation:
   capsules;
 - collision-safe project identities and deterministic Codex project-registry reconciliation that
   confirms exact roots while leaving name-only matches as candidates;
-- append-only agent sessions and semantic activities with temporal assert/retract relation effects;
+- leased, resumable agent sessions with auditable automatic partial closure for abandoned work;
+- MCP-initialization coverage metrics that distinguish context reads, durable sessions, and
+  initialized threads that never used context;
+- append-only semantic activities with temporal assert/retract relation effects;
 - an ontology-first Retrieval Plan that selects sources sequentially from deterministic request
   signals and never requires a model or embedding pre-pass;
 - an auditable Context Meter separating re-explanation reuse, measured source-window savings,
   deterministic token estimates, and uncovered counterfactuals;
 - a PostgreSQL ontology adapter;
-- HTTP adapters for Codebase Memory and OpenWiki-compatible search services;
+- live local adapters for the maintained Codebase Memory graph and OpenWiki Markdown, with labeled
+  PostgreSQL snapshot fallback;
+- stable Git-remote project identity plus explicit non-destructive project supersession manifests;
 - deterministic evidence ranking, deduplication, and token-budget packing;
 - a loopback-only authenticated HTTP gateway;
 - a human-review Boron Content Inspector for Ontology, Codebase Memory, OpenWiki, and pending
@@ -155,14 +165,34 @@ The current API is intentionally small:
 - `POST /v1/sessions/start`
 - `POST /v1/activity/record`
 - `POST /v1/sessions/complete`
+- `POST /v1/clients/observe`
 - `POST /v1/metrics/context`
 - `POST /v1/metrics/context/inspect` (read-only, credential-redacted audit preview)
+- `POST /v1/metrics/adoption`
 - `GET /inspector` (browser shell; data requires a one-time menu-bar session)
 - `POST /v1/inspector/ontology`, `/wiki`, and `/corrections/list`
 - `POST /v1/inspector/corrections/create` and `/resolve`
 
 Generic inference rules and a setup surface remain next-stage work. Interfaces may change before
 `1.0`.
+
+## Continuity health in v0.5.0
+
+- `CODEX_THREAD_ID` is used automatically as the external session identity.
+- Sessions carry a renewable 12-hour lease; an abandoned session becomes `partial` with
+  `closure_reason=lease_expired` instead of remaining active forever.
+- `get_adoption_health` reports coverage over observable MCP-initialized threads and never claims
+  visibility into agents that did not load Boron.
+- A confirmed relation confirms the existence of its two endpoint entities. Candidate relations
+  still leave uncertain endpoints candidate.
+- Unknown Git worktrees use a normalized, credential-free remote URI such as
+  `github://owner/repository`, so temporary clones converge on one project.
+- Explicit user-approved identity supersession manifests merge or archive historical project
+  records without deleting activities, evidence, sessions, objects, aliases, or project rows.
+- Codebase Memory `/rpc` and local OpenWiki Markdown are queried live by default; PostgreSQL
+  snapshots remain visible as fallback and source labels remain auditable.
+
+See the [v0.5.0 release notes](docs/releases/v0.5.0.md) for the upgrade and verification contract.
 
 ## Boron Content v0.4.0 visual tour
 
@@ -228,11 +258,13 @@ The repository includes a local Codex plugin under `plugins/boron-context`. It p
 - `begin_context_session` to retrieve a project capsule and open an episode;
 - `record_activity` to store selected semantic milestones and relation effects;
 - `complete_context_session` to preserve verified outcomes and decisions;
-- `query_context` for read-only context retrieval.
+- `query_context` for read-only context retrieval;
 - `get_context_meter` to inspect context reuse, filtering, source compression, latency, and
   Boron-owned LLM usage.
 - `inspect_context_meter` to inspect recent sample composition, Retrieval Plan stages, adapters,
   candidate/selected evidence, and source-estimate coverage without exposing credentials.
+- `get_adoption_health` to inspect observable MCP-thread coverage, session closure, and expired
+  leases without pretending to see agents that never loaded the plugin.
 - `list_manual_corrections` to read human review requests recorded in Boron Content.
 - `resolve_manual_correction` to close a request only after evidence-backed repair or rejection.
 
@@ -377,6 +409,7 @@ The target is to reduce repeated broad repository reads, not to make the prompt 
 | `BORON_OPENWIKI_ROOT`             | `~/.openwiki/wiki`                     | Inspector Markdown root           |
 | `BORON_CODEBASE_MEMORY_GRAPH_URL` | `http://127.0.0.1:9749`                | Inspector graph UI/RPC endpoint   |
 | `BORON_CODEBASE_MEMORY_COMMAND`   | `~/.local/bin/codebase-memory-mcp`     | Optional graph UI sidecar command |
+| `BORON_SESSION_SWEEP_INTERVAL_MS` | `300000`                               | Expired-session sweep interval    |
 | `BORON_CODEBASE_MEMORY_URL`       | unset                                  | Codebase Memory search adapter    |
 | `BORON_CODEBASE_MEMORY_TOKEN`     | unset                                  | Codebase Memory bearer token      |
 | `BORON_OPENWIKI_URL`              | unset                                  | OpenWiki search adapter           |
@@ -384,15 +417,16 @@ The target is to reduce repeated broad repository reads, not to make the prompt 
 
 Adapter truth is explicit in `/health`, every Retrieval Plan, and the menu bar:
 
-| Reported source type | Meaning                                                                  |
-| -------------------- | ------------------------------------------------------------------------ |
-| `ontology`           | Live PostgreSQL Ontology used for deterministic location and policy      |
-| `snapshot`           | Selected evidence already stored in PostgreSQL; external source not live |
-| `live`               | Configured HTTP source adapter was actually selected and queried         |
+| Reported source type | Meaning                                                                     |
+| -------------------- | --------------------------------------------------------------------------- |
+| `ontology`           | Live PostgreSQL Ontology used for deterministic location and policy         |
+| `snapshot`           | Selected evidence already stored in PostgreSQL; external source not live    |
+| `live`               | A current local or configured HTTP source was actually selected and queried |
 
-The current default installation has PostgreSQL Ontology plus local Codebase/Wiki evidence
-snapshots. Codebase Memory is live only when `BORON_CODEBASE_MEMORY_URL` is configured and healthy;
-OpenWiki is live only when `BORON_OPENWIKI_URL` is configured and healthy.
+The current default installation queries the maintained Codebase Memory `/rpc` endpoint and the
+configured OpenWiki Markdown directory live, then falls back to PostgreSQL evidence snapshots if a
+live search fails. Optional `BORON_CODEBASE_MEMORY_URL` and `BORON_OPENWIKI_URL` values can replace
+those local live sources with compatible authenticated HTTP search services.
 
 The gateway refuses non-loopback bindings unless `BORON_ALLOW_REMOTE=true`. That override is not a
 complete remote security design; use it only behind an independently authenticated boundary.
@@ -414,6 +448,7 @@ See:
   [简体中文](docs/context-engineering-methodology.zh-CN.md)
 - [System design](docs/architecture/system-design.md)
 - [Product roadmap](docs/architecture/product-roadmap.md)
+- [v0.5 continuity health plan](docs/architecture/v0.5-continuity-health-plan.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)

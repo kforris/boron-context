@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { HttpContextAdapter } from './adapters/http-adapter.js'
+import { CodebaseMemoryAdapter } from './adapters/codebase-memory-adapter.js'
+import { LocalWikiAdapter } from './adapters/local-wiki-adapter.js'
 import { ContextResolver } from './core/resolver.js'
 import { loadConfig } from './config.js'
 import { migrateDatabase } from './db/migrate.js'
@@ -30,7 +32,9 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
   const inspector = new PostgresInspectorRepository(pool, config.openWikiRoot)
   const adapters = [
     ontology,
+    new CodebaseMemoryAdapter(config.codebaseMemoryGraphUrl),
     new PostgresLayerEvidenceAdapter(ontology, 'codebase'),
+    new LocalWikiAdapter(config.openWikiRoot),
     new PostgresLayerEvidenceAdapter(ontology, 'wiki'),
     ...(config.codebaseMemoryUrl
       ? [
@@ -67,9 +71,16 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
     databaseHealth: () => ontology.health(),
     version: await packageVersion()
   })
+  await activity.expireStaleSessions()
+  const sessionSweep = setInterval(
+    () => void activity.expireStaleSessions().catch(() => {}),
+    config.sessionSweepIntervalMs
+  )
+  sessionSweep.unref()
   return {
     gateway,
     close: async () => {
+      clearInterval(sessionSweep)
       await gateway.close()
       await codebaseMemoryGraph.close()
       await pool.end()
