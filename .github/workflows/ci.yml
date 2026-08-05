@@ -38,3 +38,33 @@ jobs:
         run: swift test --package-path apps/BoronMenuBar
       - name: Build native menu-bar app
         run: swift build -c release --package-path apps/BoronMenuBar
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: boron_context_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d boron_context_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      BORON_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/boron_context_test
+      BORON_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/boron_context_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --ignore-scripts @rolldown/binding-linux-x64-gnu@1.1.5
+      - run: npm run db:migrate
+      - run: npm run test:postgres

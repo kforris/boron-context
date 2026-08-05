@@ -1,4 +1,4 @@
 interface:
   display_name: 'Boron Context Continuity'
   short_description: 'Read and write durable project context'
-  default_prompt: 'Use Boron Context to continue this project with durable context.'
+  default_prompt: 'For every non-trivial project task, use Boron Context automatically: begin or resume the leased session, retrieve bounded sourced context, record verified milestones only, and complete the session before handoff.'

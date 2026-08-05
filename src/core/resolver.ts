@@ -83,6 +83,7 @@ export class ContextResolver {
           const evidence = await adapter.search({
             request,
             projectId: project?.id ?? null,
+            resolvedProjectName: project?.name ?? null,
             limit: this.perAdapterLimit,
             stageId: planned.id,
             purpose: planned.purpose,

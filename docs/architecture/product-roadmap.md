@@ -28,30 +28,39 @@
 - bilingual operating manual and reusable context-engineering methodology
 - timezone-offset activity timestamps
 
-### 0.4 local discovery
+### 0.4 human-review Inspector
+
+- authenticated Ontology, Codebase Memory, and OpenWiki review surfaces
+- revisioned pending human corrections
+- native menu-bar Content entry point and visual audit
+- collision-safe project identity repair
+
+### 0.5 continuity health
 
 - local folder and Git repository discovery
 - stable project identity and deduplication
 - live Codebase Memory adapter
 - live OpenWiki adapter
-- setup CLI and temporary local web flow
-- candidate-relation confirmation
+- leased session resumption and automatic stale closure
+- observable MCP-thread adoption coverage
+- coherent confirmed relation endpoints
+- explicit non-destructive project supersession
 
-### 0.5 inference and confirmation
+### 0.6 inference and confirmation
 
 - configurable activity-to-relation rules
 - derived-state query contracts
 - candidate relation review and correction
 - replay and projection rebuild tests
 
-### 0.6 macOS lifecycle
+### 0.7 macOS lifecycle
 
 - signed installer
 - `launchd` install, upgrade, health, and uninstall
 - PostgreSQL backup and restore
 - OS-managed credential persistence
 
-### 0.7 Linux
+### 0.8 Linux
 
 - `systemd` lifecycle
 - XDG directories

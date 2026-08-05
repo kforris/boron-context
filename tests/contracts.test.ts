@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { manualCorrectionSchema, recordActivityRequestSchema } from '../src/core/contracts.js'
+import {
+  agentClientObservationSchema,
+  manualCorrectionSchema,
+  recordActivityRequestSchema,
+  startSessionRequestSchema
+} from '../src/core/contracts.js'
 
 const activity = {
   sessionId: '00000000-0000-4000-8000-000000000000',
@@ -35,5 +40,43 @@ describe('manualCorrectionSchema', () => {
     expect(
       manualCorrectionSchema.safeParse({ ...base, note: 'Verify the relation owner.' }).success
     ).toBe(true)
+  })
+})
+
+describe('agent continuity contracts', () => {
+  it('defaults a durable session to a twelve-hour lease', () => {
+    expect(
+      startSessionRequestSchema.parse({ objective: 'Continue project work' }).leaseMinutes
+    ).toBe(720)
+  })
+
+  it('accepts a bounded MCP client observation without conversation content', () => {
+    expect(
+      agentClientObservationSchema.parse({
+        clientInstanceId: 'thread-1',
+        client: 'codex',
+        event: 'initialized'
+      })
+    ).toMatchObject({ event: 'initialized', metadata: {} })
+  })
+
+  it('keeps uncertain relation effects candidate unless confirmation is explicit', () => {
+    const relation = {
+      subject: { kind: 'project', name: 'A', canonicalUri: 'project://a' },
+      relationType: 'DEPENDS_ON',
+      target: { kind: 'service', name: 'B', canonicalUri: 'service://b' },
+      operation: 'assert' as const,
+      rationale: 'Observed during deterministic verification.'
+    }
+    const candidate = recordActivityRequestSchema.parse({
+      ...activity,
+      relationEffects: [relation]
+    })
+    const confirmed = recordActivityRequestSchema.parse({
+      ...activity,
+      relationEffects: [{ ...relation, confirmationState: 'confirmed' }]
+    })
+    expect(candidate.relationEffects[0]?.confirmationState).toBe('candidate')
+    expect(confirmed.relationEffects[0]?.confirmationState).toBe('confirmed')
   })
 })

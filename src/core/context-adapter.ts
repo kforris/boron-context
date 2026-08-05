@@ -9,6 +9,7 @@ import type {
 export interface AdapterSearchInput {
   readonly request: ResolveContextRequest
   readonly projectId: string | null
+  readonly resolvedProjectName: string | null
   readonly limit: number
   readonly stageId: string
   readonly purpose: RetrievalPurpose

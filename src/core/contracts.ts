@@ -223,6 +223,7 @@ export const startSessionRequestSchema = z.object({
   client: z.string().trim().min(1).max(200).default('unknown'),
   constraints: z.array(z.string().trim().min(1).max(2_000)).max(50).default([]),
   tokenBudget: z.number().int().min(256).max(16_000).default(4_000),
+  leaseMinutes: z.number().int().min(15).max(1_440).default(720),
   metadata: z.record(z.string(), z.unknown()).default({})
 })
 export type StartSessionRequest = z.infer<typeof startSessionRequestSchema>
@@ -252,6 +253,22 @@ export const completeSessionRequestSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({})
 })
 export type CompleteSessionRequest = z.infer<typeof completeSessionRequestSchema>
+
+export const agentClientObservationSchema = z.object({
+  clientInstanceId: z.string().trim().min(1).max(1_000),
+  client: z.string().trim().min(1).max(200).default('unknown'),
+  clientVersion: z.string().trim().min(1).max(200).optional(),
+  protocolVersion: z.string().trim().min(1).max(200).optional(),
+  event: z.enum(['initialized', 'context_read', 'session_started', 'session_completed']),
+  sessionId: z.string().uuid().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({})
+})
+export type AgentClientObservation = z.infer<typeof agentClientObservationSchema>
+
+export const adoptionHealthRequestSchema = z.object({
+  windowDays: z.number().int().min(1).max(365).default(30)
+})
+export type AdoptionHealthRequest = z.infer<typeof adoptionHealthRequestSchema>
 
 export const contextMeterSummaryRequestSchema = z.object({
   projectHint: z.string().trim().min(1).max(1_000).optional(),

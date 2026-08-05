@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { loadConfig } from '../src/config.js'
 import { startCodebaseMemoryGraph } from '../src/platform/codebase-memory-sidecar.js'
 import { platformPaths } from '../src/platform/paths.js'
+import { normalizeRepositoryUri } from '../src/platform/project-root.js'
 import { launchdDatabaseEnvironment, renderLaunchdPlist } from '../src/platform/launchd.js'
 
 describe('platformPaths', () => {
@@ -82,5 +83,19 @@ describe('renderLaunchdPlist', () => {
     expect(launchdDatabaseEnvironment('postgresql://127.0.0.1/boron_context')).toEqual({
       BORON_DATABASE_URL: 'postgresql://127.0.0.1/boron_context'
     })
+  })
+})
+
+describe('normalizeRepositoryUri', () => {
+  it('maps HTTPS and SSH GitHub remotes to one credential-free identity', () => {
+    expect(normalizeRepositoryUri('https://github.com/notionnext-org/NotionNext.git')).toBe(
+      'github://notionnext-org/NotionNext'
+    )
+    expect(normalizeRepositoryUri('git@github.com:notionnext-org/NotionNext.git')).toBe(
+      'github://notionnext-org/NotionNext'
+    )
+    expect(normalizeRepositoryUri('https://token@github.com/owner/repo.git')).toBe(
+      'github://owner/repo'
+    )
   })
 })

@@ -41,7 +41,9 @@ python3 scripts/install_menubar.py
 ```
 
 Start a new Codex task after installing or upgrading the plugin. Codex loads plugin tools and
-skills when a task starts.
+skills when a task starts. The bundled MCP server automatically observes its initialization and
+uses `CODEX_THREAD_ID` as the session identity when Codex exposes it; it never stores the task
+transcript.
 
 ## 3. Upgrade an existing local installation
 
@@ -88,6 +90,11 @@ Do not open a writeback session for a question that will not create a durable pr
 6. Verify the actual outcome.
 7. Call `complete_context_session` once with `completed`, `partial`, `failed`, or `cancelled`.
 
+The default session lease is 12 hours and renews whenever a semantic activity is recorded. If a
+client disappears without completing, the daemon records an auditable `session.partial` event and
+sets `closure_reason=lease_expired`. Repeating `begin_context_session` in the same active Codex
+thread resumes the lease.
+
 Use an idempotency key when an activity may be retried. `occurredAt` accepts UTC `Z` or an explicit
 ISO 8601 timezone offset; retain the event's real time rather than silently replacing it with the
 recording time.
@@ -116,6 +123,10 @@ inference and proposed relationships as `candidate`.
 
 Call `get_context_meter` for a bounded summary. Call `inspect_context_meter` when a user needs to
 audit how a number or source choice was composed.
+
+Call `get_adoption_health` to measure use across MCP-initialized agent threads. Its denominator is
+not every conversation on the computer: agents that never load the Boron plugin remain outside
+observability and the response says so explicitly.
 
 Interpret the metrics separately:
 
@@ -151,7 +162,29 @@ owns no LLM calls.
 | Session outcome is mixed                         | Complete as `partial` and state exactly what remains                                       |
 | Secret or raw transcript is proposed for storage | Reject or redact it before writeback                                                       |
 
-## 8. Applying the pattern to a workflow
+## 8. Project identity supersession
+
+Unknown Git worktrees are keyed by a normalized credential-free remote URI, so temporary clones of
+the same repository converge on one project. Non-Git folders still require an exact root or an
+explicit user-approved mapping.
+
+Preview an explicit identity repair before applying it:
+
+```bash
+node dist/cli.js repair-project-identities \
+  --manifest "/path/to/project-supersession-v1.json"
+
+node dist/cli.js repair-project-identities \
+  --manifest "/path/to/project-supersession-v1.json" \
+  --apply
+```
+
+A merge reassigns project-scoped history to the canonical record, rejects the old aliases with
+provenance, and archives the superseded project row. An archive-only repair preserves history but
+removes a retired identity from active resolution. Neither action deletes sessions, activities,
+evidence, objects, or project rows.
+
+## 9. Applying the pattern to a workflow
 
 The Boron Content operating workflow supplied a useful general pattern:
 
@@ -162,7 +195,7 @@ source references, and a fail-closed outcome such as `no_material_change` or `in
 content, private assets, credentials, and full review messages stay in their owning systems rather
 than Boron.
 
-## 9. Verification after upgrade
+## 10. Verification after upgrade
 
 Verify source, runtime, and installed artifacts separately:
 
@@ -178,7 +211,10 @@ codex plugin list
 Expected release behavior:
 
 - `/health` reports the current daemon version and adapter source types;
-- the Codex plugin exposes seven tools, including `inspect_context_meter`;
+- the Codex plugin exposes continuity, Meter, correction, and `get_adoption_health` tools;
 - a code-oriented query shows Ontology before Codebase in `retrievalPlan`;
 - a continuity query shows Ontology before Wiki;
+- `/health` labels the local Codebase Memory and OpenWiki adapters as `live` when current queries
+  are available, with PostgreSQL snapshots retained as fallback;
+- adoption health reports its observable denominator and stale active sessions are zero;
 - the menu item shows separate `R` and `S` values, with `S—` when source coverage is absent.
