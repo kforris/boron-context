@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { LanMrPairingAuthority } from '../src/gateway/lan-mr-auth.js'
 import { startLanMrGateway } from '../src/gateway/lan-mr-server.js'
+import { waitForLanMrDaemon } from '../src/lan-mr-runtime.js'
 import { ensureLanMrCertificates } from '../src/platform/lan-mr-certificates.js'
 import { detectLanIpv4 } from '../src/platform/lan-mr-config.js'
 
@@ -30,6 +31,24 @@ describe('LAN MR address discovery', () => {
         wlan0: [address('10.0.0.4')]
       })
     ).toThrow(/Multiple LAN interfaces/)
+  })
+})
+
+describe('LAN MR daemon dependency', () => {
+  it('retries the loopback daemon during launchd startup ordering', async () => {
+    let attempts = 0
+    const request = (async () => {
+      attempts += 1
+      if (attempts < 3) throw new Error('connection refused')
+      return new Response(JSON.stringify({ ok: true }), { status: 200 })
+    }) as typeof fetch
+
+    await waitForLanMrDaemon('http://127.0.0.1:41635', {
+      request,
+      attempts: 3,
+      delayMs: 0
+    })
+    expect(attempts).toBe(3)
   })
 })
 

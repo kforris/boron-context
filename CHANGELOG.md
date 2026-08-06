@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1] - 2026-08-06
+
+### Fixed
+
+- the LAN MR launchd companion now waits through the bounded daemon startup window instead of
+  exiting after a single loopback health failure; pairing and user requests are never retried
+  implicitly.
+
 ## [0.7.0] - 2026-08-06
 
 ### Added
