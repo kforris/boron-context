@@ -8,6 +8,16 @@ export const inspectorScopeSchema = z.object({
 })
 export type InspectorScope = z.infer<typeof inspectorScopeSchema>
 
+export const spatialCodebaseGraphRequestSchema = z.object({
+  project: z.string().trim().min(1).max(1_000)
+})
+export type SpatialCodebaseGraphRequest = z.infer<typeof spatialCodebaseGraphRequestSchema>
+
+export const spatialCodebaseExpandRequestSchema = spatialCodebaseGraphRequestSchema.extend({
+  symbol: z.string().trim().min(1).max(2_000)
+})
+export type SpatialCodebaseExpandRequest = z.infer<typeof spatialCodebaseExpandRequestSchema>
+
 export const manualCorrectionSchema = z
   .object({
     projectHint: z.string().trim().min(1).max(1_000).optional(),

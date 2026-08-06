@@ -149,6 +149,82 @@ task；从未加载 plugin 的 Agent 不在可观测范围内，结果会明确�
 relation、Codebase Memory 搜索结果和 OpenWiki 页面都可以点击。人工填写的字段与备注会创建
 pending correction，而不是覆盖原始数据。
 
+<a id="quest-3-lan-spatial-inspector"></a>
+
+### Quest 3 局域网空间 Inspector（推荐）
+
+局域网模式使用独立的只读 gateway，而不是扩大 `41635` daemon 的监听范围。Mac 上执行：
+
+```bash
+npm run build
+node dist/cli.js lan-inspector install
+```
+
+安装完成后会输出 HTTP 证书引导地址、HTTPS 配对地址、本地 CA 的 SHA-256 指纹，以及一个
+5 分钟有效且只能使用一次的六位配对码。默认端口为：
+
+- `http://<Mac-LAN-IP>:41636`：只提供最小健康状态和 Boron LAN 本地 CA 下载，不提供项目数据；
+- `https://<Mac-LAN-IP>:41637/pair`：受 TLS、配对和会话保护的只读 Spatial Inspector。
+
+首次在 Quest 上使用时：
+
+1. 在 Mac 上运行 `node dist/cli.js lan-inspector pair`，保留终端显示的 `CA SHA-256` 值。
+2. 打开 HTTP 引导地址，将页面显示的指纹与可信 Mac 终端逐字比对；如果不同，立即停止。只有
+   完全一致后，才下载 `boron-lan-mr-ca.crt` 并在 Quest 证书设置中安装为受信任 CA。这是 WebXR
+   secure context 所需的一次性设备信任步骤。
+3. 打开页面给出的 HTTPS 地址，输入 Mac 当前显示的单次配对码。
+4. 配对成功后会话有效 8 小时。选择 **Enter Quest passthrough**；Trigger 或 pinch 会从架构群组
+   逐层进入代表 Symbol，再进入实时的一跳调用图。双手 pinch 用于缩放和旋转空间工作台，摇杆仍可
+   旋转和上下移动。
+
+**Cinematic FX** 会启用 Fresnel 节点光壳、曲线能量连接、定向数据粒子、展开动画和选择冲击波。
+如果实时 FPS 指示低于头显目标刷新率，切换到 **Quest performance**；图数据和操作不变，但会减少
+曲线采样、粒子与装饰轨道。性能指示只统计渲染帧和 draw calls，不检查、不捕获透视画面。
+
+HTTP 证书下载本身不是认证传输；必须与 Mac 终端做带外指纹比对，才能发现被替换的引导页或 CA。
+LAN gateway 绑定安装时检测到的明确私有 IPv4，并校验客户端地址与 Host header。它只会向
+loopback daemon 转发 `/v1/inspector/ontology`、有边界的 `/v1/inspector/codebase-spatial` 和
+`codebase-spatial-expand` 只读请求；任何 lifecycle、activity、correction 或其他 `/v1/` 写入口
+都返回 `read_only_surface`。连续五次错误配对会触发五分钟限流。配对成功后立即轮换配对 secret，
+因此旧码不能复用。
+
+CA 私钥只保存在 Mac 的 Boron state directory，权限为 `0600`，不得复制到 Quest 或对外分享。
+如果 DHCP 使 Mac 的局域网 IP 发生变化，重新运行 `lan-inspector install`；Boron 会为新 IP 签发
+新的 server certificate，并保留同一个本地 CA。整个路径不使用云服务，也不增加 LLM 调用。
+
+### Quest 3 ADB 空间 Inspector（开发兜底）
+
+Meta Quest Browser 中的 `127.0.0.1` 指向头显自身，不是 Mac；仅处于同一局域网并不能访问
+loopback Inspector。实验性 WebXR 入口继续让 Boron gateway 只监听 loopback，并通过 Android
+Debug Bridge 做反向端口映射：
+
+1. 在 Quest 3 开启 Developer Mode，通过 USB 或已授权的无线 ADB 连接一次，并在头显内接受
+   debugging 提示。
+2. 构建当前源码、保持 Boron daemon 运行，然后执行：
+
+   ```bash
+   node dist/cli.js quest-inspector
+   ```
+
+3. 命令会创建一次性 Spatial Inspector ticket，为 `41635` 建立 ADB reverse，并在 Meta Quest
+   Browser 中打开已认证页面。命令不会打印 ticket，也不会把 daemon 绑定到局域网。
+4. 选择 **Enter Quest passthrough**。Trigger 或 pinch 逐层钻取，双手 pinch 缩放和旋转，摇杆
+   旋转或升降图；MR 模式为只读。
+5. 结束后移除 reverse：
+
+   ```bash
+   node dist/cli.js quest-inspector --stop
+   ```
+
+多个 ADB 设备同时连接时使用 `--serial <device>`；`adb` 不在 `PATH` 时使用
+`BORON_ADB=/path/to/adb`。
+
+空间视图请求 WebXR `immersive-ar`，透视画面由 Meta Quest Browser 合成；Boron 不请求、不接收、
+不保存摄像头帧。实体色节点表示 confirmed Ontology，琥珀色空心节点仍是 candidate；青色/紫色
+代码视图明确是渐进式、有边界的实时 Codebase Memory 投影，不是源码副本：L0 看架构，L1 看代表
+Symbol，L2 只查询所选 Symbol 的一跳调用邻域。局域网无线模式使用上面的独立 HTTPS 与一次性配对
+边界，不能用 `BORON_ALLOW_REMOTE` 代替。
+
 下一个项目 session 开始时调用 `list_manual_corrections`。针对本次任务相关的请求，先与当前
 source 对照，再修复或拒绝语义关系，最后用 `resolve_manual_correction` 记录有证据的结果。仅仅读到
 请求不能作为 resolve 的理由。Boron Content 自身仍然不调用 LLM。
@@ -219,3 +295,5 @@ codex plugin list
   PostgreSQL snapshot fallback；
 - adoption health 明确报告可观测分母，且 stale active session 为 0；
 - 菜单栏分别显示 `R` 与 `S`，无来源覆盖时显示 `S—`。
+- `/inspector/spatial` 可以显示本地 3D 预览；局域网入口只暴露 `41636/41637` 的配对只读服务，
+  `41635` 仍为 loopback；ADB 入口仍可作为开发兜底。

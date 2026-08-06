@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.7.0] - 2026-08-06
+
+### Added
+
+- a read-only Spatial Inspector that combines confirmed/candidate Ontology facts with a bounded,
+  source-free projection of the live Codebase Memory graph;
+- progressive L0 architecture, L1 representative-symbol, and L2 one-hop call-neighborhood views;
+- desktop selection plus Quest WebXR controller/pinch input, two-hand scale/rotation, passthrough,
+  breadcrumbs, performance telemetry, and a lower-cost Quest rendering mode;
+- an optional paired LAN MR service with a certificate-only HTTP bootstrap, HTTPS data surface,
+  five-minute single-use pairing codes, client-bound eight-hour sessions, and a strict read-route
+  allowlist;
+- a loopback-preserving ADB reverse fallback for Quest development;
+- deterministic tests for spatial graph bounds, path/source-text omission, TLS pairing, code reuse,
+  request limits, host/client boundaries, write rejection, Three.js assets, and launchd arguments.
+
+### Changed
+
+- the local Inspector can issue standard or spatial one-time tickets and serves pinned Three.js
+  build assets from the installed dependency instead of a CDN;
+- the macOS CLI and launchd generator can install, serve, and inspect the separate LAN MR process;
+- public manuals now document Quest setup, progressive graph semantics, gesture controls,
+  performance tradeoffs, and the wireless trust boundary.
+
+### Security
+
+- the privileged Boron daemon remains bound to loopback; LAN access is handled by a separate
+  process that cannot forward lifecycle, activity, correction, or other semantic writes;
+- the Mac CLI and certificate bootstrap expose the same CA SHA-256 fingerprint for required
+  out-of-band verification before a Quest trusts the downloaded local CA;
+- LAN request bodies are capped at 64 KiB and return `413`; five failed pairing attempts trigger a
+  five-minute per-client limit, and a successful exchange immediately rotates the pairing secret.
+
 ## [0.6.0] - 2026-08-05
 
 ### Added

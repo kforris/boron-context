@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
 import { ContextResolver } from '../src/core/resolver.js'
 import { startGateway } from '../src/gateway/server.js'
@@ -51,6 +53,60 @@ function codexThreadsStub(calls?: string[]) {
       }
     }
   } as never
+}
+
+async function startFakeCodebaseGraph() {
+  const server = createServer(async (request, response) => {
+    if (request.url !== '/rpc') {
+      response.writeHead(404).end()
+      return
+    }
+    const chunks: Buffer[] = []
+    for await (const chunk of request) chunks.push(Buffer.from(chunk))
+    const rpc = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+      params?: { name?: string }
+    }
+    const result =
+      rpc.params?.name === 'trace_path'
+        ? {
+            function: 'routeRequest',
+            direction: 'both',
+            mode: 'calls',
+            callers: [{ name: 'startGateway', qualified_name: 'src.gateway.startGateway', hop: 1 }],
+            callees: [{ name: 'authorize', qualified_name: 'src.gateway.authorize', hop: 1 }]
+          }
+        : {
+            project: 'Users-test-Boron-Context',
+            total_nodes: 1142,
+            total_edges: 2512,
+            clusters: [
+              {
+                id: 7,
+                label: 'gateway',
+                members: 22,
+                cohesion: 0.8,
+                top_nodes: ['routeRequest', 'authorize'],
+                packages: ['src']
+              }
+            ]
+          }
+    const payload = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      result: { content: [{ type: 'text', text: JSON.stringify(result) }] }
+    })
+    response.writeHead(200, {
+      'content-type': 'application/json',
+      'content-length': Buffer.byteLength(payload)
+    })
+    response.end(payload)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address() as AddressInfo
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve()))
+  }
 }
 
 describe('gateway', () => {
@@ -352,6 +408,7 @@ describe('gateway', () => {
   })
 
   it('opens the Inspector through a one-time ticket and protects browser mutations with CSRF', async () => {
+    const codebaseGraph = await startFakeCodebaseGraph()
     const resolver = new ContextResolver({
       projects: { resolve: async () => null },
       adapters: []
@@ -364,7 +421,7 @@ describe('gateway', () => {
       activity: {} as never,
       codexThreads: codexThreadsStub(),
       inspector: inspectorStub(),
-      codebaseMemoryGraphUrl: 'http://127.0.0.1:9749',
+      codebaseMemoryGraphUrl: codebaseGraph.url,
       adapters: [],
       databaseHealth: async () => ({ ok: true }),
       version: '0.3.0'
@@ -380,6 +437,31 @@ describe('gateway', () => {
       const shellHtml = await shell.text()
       expect(shellHtml).toContain('Boron Content Inspector')
       expect(shellHtml).toContain('loadOntology(project.sourceUri)')
+      expect(shellHtml).toContain('Spatial MR')
+
+      const spatialShell = await fetch(`${gateway.url}/inspector/spatial`)
+      expect(spatialShell.status).toBe(200)
+      expect(spatialShell.headers.get('content-security-policy')).toContain("script-src 'nonce-")
+      const spatialHtml = await spatialShell.text()
+      expect(spatialHtml).toContain('Boron Spatial Inspector')
+      expect(spatialHtml).toContain("requestSession('immersive-ar'")
+      expect(spatialHtml).toContain('L2 call graph')
+      expect(spatialHtml).toContain('two-hand pinch')
+      expect(spatialHtml).toContain('Quest performance')
+      expect(spatialHtml).toContain('measuring FPS')
+      expect(spatialHtml).toContain('0 camera frames captured')
+
+      const threeModule = await fetch(`${gateway.url}/inspector/assets/three.module.js`)
+      expect(threeModule.status).toBe(200)
+      expect(threeModule.headers.get('content-type')).toContain('text/javascript')
+      expect(await threeModule.text()).toContain('three.core.min.js')
+
+      const threeCore = await fetch(`${gateway.url}/inspector/assets/three.core.min.js`)
+      expect(threeCore.status).toBe(200)
+      expect(threeCore.headers.get('content-type')).toContain('text/javascript')
+      const threeCoreSource = await threeCore.text()
+      expect(threeCoreSource).toContain('Three.js Authors')
+      expect(threeCoreSource.length).toBeGreaterThan(100_000)
 
       const ticketResponse = await fetch(`${gateway.url}/v1/inspector/ticket`, {
         method: 'POST',
@@ -392,6 +474,15 @@ describe('gateway', () => {
         new RegExp(`^/inspector\\?launch=[0-9a-f-]+#ticket=${ticket.ticket}$`)
       )
       expect(ticket.url).not.toContain('test-token')
+
+      const spatialTicketResponse = await fetch(`${gateway.url}/v1/inspector/ticket`, {
+        method: 'POST',
+        headers: bearerHeaders,
+        body: JSON.stringify({ mode: 'spatial' })
+      })
+      expect(spatialTicketResponse.status).toBe(200)
+      const spatialTicket = (await spatialTicketResponse.json()) as { url: string }
+      expect(spatialTicket.url).toMatch(/^\/inspector\/spatial\?launch=/)
 
       const sessionResponse = await fetch(`${gateway.url}/v1/inspector/session`, {
         method: 'POST',
@@ -417,6 +508,66 @@ describe('gateway', () => {
       })
       expect(ontology.status).toBe(200)
       expect(await ontology.json()).toMatchObject({ project: { name: 'Boron Context' } })
+
+      const codebaseSpatial = await fetch(`${gateway.url}/v1/inspector/codebase-spatial`, {
+        method: 'POST',
+        headers: { cookie: cookie!, 'content-type': 'application/json' },
+        body: JSON.stringify({ project: 'Users-test-Boron-Context' })
+      })
+      expect(codebaseSpatial.status).toBe(200)
+      const codebaseSpatialBody = (await codebaseSpatial.json()) as {
+        nodes: unknown[]
+        edges: unknown[]
+      }
+      expect(codebaseSpatialBody).toMatchObject({
+        project: 'Users-test-Boron-Context',
+        sourceType: 'live',
+        projection: 'architecture_clusters_lod_v2',
+        original: { nodes: 1142, edges: 2512 }
+      })
+      expect(codebaseSpatialBody.nodes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'routeRequest / authorize',
+            kind: 'code_cluster',
+            confirmationState: 'derived'
+          }),
+          expect.objectContaining({
+            name: 'routeRequest',
+            kind: 'code_symbol',
+            confirmationState: 'derived'
+          })
+        ])
+      )
+      expect(codebaseSpatialBody.edges).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            relationType: 'SURFACES_TOP_NODE',
+            confirmationState: 'derived'
+          })
+        ])
+      )
+
+      const codebaseExpansion = await fetch(`${gateway.url}/v1/inspector/codebase-spatial-expand`, {
+        method: 'POST',
+        headers: { cookie: cookie!, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          project: 'Users-test-Boron-Context',
+          symbol: 'routeRequest'
+        })
+      })
+      expect(codebaseExpansion.status).toBe(200)
+      expect(await codebaseExpansion.json()).toEqual(
+        expect.objectContaining({
+          project: 'Users-test-Boron-Context',
+          projection: 'call_neighborhood_lod_v1',
+          focusLookupKey: 'routeRequest',
+          truncated: false,
+          edges: expect.arrayContaining([
+            expect.objectContaining({ relationType: 'CALLS', confirmationState: 'derived' })
+          ])
+        })
+      )
 
       const correctionBody = JSON.stringify({
         projectHint: 'Boron Context',
@@ -456,6 +607,7 @@ describe('gateway', () => {
       expect(await created.json()).toMatchObject({ revision: 1, status: 'pending' })
     } finally {
       await gateway.close()
+      await codebaseGraph.close()
     }
   })
 })

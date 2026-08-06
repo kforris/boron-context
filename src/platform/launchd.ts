@@ -8,6 +8,7 @@ export interface LaunchdDefinition {
   readonly stdoutPath: string
   readonly stderrPath: string
   readonly environment: Readonly<Record<string, string>>
+  readonly arguments?: readonly string[]
 }
 
 export function renderLaunchdPlist(definition: LaunchdDefinition): string {
@@ -27,7 +28,7 @@ export function renderLaunchdPlist(definition: LaunchdDefinition): string {
     <array>
       <string>${escapeXml(definition.nodePath)}</string>
       <string>${escapeXml(definition.cliPath)}</string>
-      <string>serve</string>
+${(definition.arguments ?? ['serve']).map((argument) => `      <string>${escapeXml(argument)}</string>`).join('\n')}
     </array>
     <key>WorkingDirectory</key>
     <string>${escapeXml(definition.workingDirectory)}</string>

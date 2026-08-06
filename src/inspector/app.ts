@@ -21,7 +21,9 @@ export function inspectorHtml(nonce: string, codebaseMemoryUrl: string): string 
     nav button { border:0; background:transparent; color:var(--muted); padding:10px 13px; border-radius:9px; cursor:pointer; }
     nav button:hover,nav button.active { background:var(--panel2); color:var(--text); }
     nav button.active { box-shadow:inset 0 -2px var(--acid); }
-    .status { margin-left:auto; color:var(--muted); font-size:12px; }
+    .spatial-link { margin-left:auto; border:1px solid #58705f; border-radius:9px; background:#17241e; color:var(--acid); padding:8px 11px; text-decoration:none; font-size:12px; font-weight:800; white-space:nowrap; }
+    .spatial-link:hover { border-color:var(--acid); }
+    .status { color:var(--muted); font-size:12px; }
     .status.ok::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--acid); margin-right:7px; }
     main { min-height:0; }
     .view { display:none; width:100%; height:100%; }
@@ -106,6 +108,7 @@ export function inspectorHtml(nonce: string, codebaseMemoryUrl: string): string 
       <button data-view="wiki">OpenWiki</button>
       <button data-view="review">Review Queue</button>
     </nav>
+    <a class="spatial-link" href="/inspector/spatial">Spatial MR</a>
     <div id="status" class="status">Authenticating…</div>
   </header>
   <main>
