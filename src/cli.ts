@@ -158,7 +158,7 @@ function launchdDefinition(): string {
 }
 
 function help(): void {
-  console.log(`Boron Context 0.5
+  console.log(`Boron Context 0.6
 
 Usage:
   boron-context serve          Start the headless local daemon

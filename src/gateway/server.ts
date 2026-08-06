@@ -6,10 +6,12 @@ import type { ContextAdapter } from '../core/context-adapter.js'
 import {
   adoptionHealthRequestSchema,
   agentClientObservationSchema,
+  codexThreadSyncRequestSchema,
   completeSessionRequestSchema,
   contextMeterAuditRequestSchema,
   contextMeterSummaryRequestSchema,
   inspectorScopeSchema,
+  lifecycleSessionEndRequestSchema,
   listManualCorrectionsSchema,
   manualCorrectionSchema,
   recordActivityRequestSchema,
@@ -18,6 +20,7 @@ import {
 } from '../core/contracts.js'
 import type { ContextResolver } from '../core/resolver.js'
 import type { PostgresActivityRepository } from '../db/activity-repository.js'
+import type { PostgresCodexThreadRepository } from '../db/codex-thread-repository.js'
 import type { PostgresInspectorRepository } from '../db/inspector-repository.js'
 import { inspectorHtml } from '../inspector/app.js'
 
@@ -33,6 +36,7 @@ export interface GatewayOptions {
   readonly token: string
   readonly resolver: ContextResolver
   readonly activity: PostgresActivityRepository
+  readonly codexThreads: PostgresCodexThreadRepository
   readonly inspector: PostgresInspectorRepository
   readonly codebaseMemoryGraphUrl: string
   readonly adapters: readonly ContextAdapter[]
@@ -188,12 +192,29 @@ async function routeRequest(
       return
     }
     if (request.method === 'POST' && pathname === '/v1/clients/observe') {
+      if (authorization.kind !== 'bearer') {
+        json(response, 403, { error: 'bearer_token_required', traceId })
+        return
+      }
       const body = agentClientObservationSchema.parse(await readJson(request))
       await options.activity.observeAgentClient(body)
       json(response, 200, { observed: true })
       return
     }
+    if (request.method === 'POST' && pathname === '/v1/imports/codex-threads') {
+      if (authorization.kind !== 'bearer') {
+        json(response, 403, { error: 'bearer_token_required', traceId })
+        return
+      }
+      const body = codexThreadSyncRequestSchema.parse(await readJson(request))
+      json(response, 200, await options.codexThreads.sync(body))
+      return
+    }
     if (request.method === 'POST' && pathname === '/v1/sessions/start') {
+      if (authorization.kind !== 'bearer') {
+        json(response, 403, { error: 'bearer_token_required', traceId })
+        return
+      }
       const body = startSessionRequestSchema.parse(await readJson(request))
       const session = await options.activity.startSession(body)
       const resolution = await options.resolver.resolveWithAudit(
@@ -215,16 +236,68 @@ async function routeRequest(
       json(response, 200, { session, capsule: resolution.capsule })
       return
     }
+    if (request.method === 'POST' && pathname === '/v1/sessions/bootstrap') {
+      if (authorization.kind !== 'bearer') {
+        json(response, 403, { error: 'bearer_token_required', traceId })
+        return
+      }
+      const body = startSessionRequestSchema.parse(await readJson(request))
+      const session = await options.activity.bootstrapSession(body)
+      if (!session) {
+        json(response, 200, {
+          started: false,
+          reason: 'project_unresolved',
+          session: null,
+          capsule: null
+        })
+        return
+      }
+      const resolution = await options.resolver.resolveWithAudit(
+        {
+          objective: body.objective,
+          projectHint: session.project!.name,
+          constraints: body.constraints,
+          tokenBudget: body.tokenBudget,
+          client: body.client,
+          workflow: 'session_start'
+        },
+        session.traceId
+      )
+      await options.activity.saveCapsule({
+        session,
+        capsule: resolution.capsule,
+        evidenceAudit: resolution.evidenceAudit
+      })
+      json(response, 200, { started: true, session, capsule: resolution.capsule })
+      return
+    }
     if (request.method === 'POST' && pathname === '/v1/activity/record') {
+      if (authorization.kind !== 'bearer') {
+        json(response, 403, { error: 'bearer_token_required', traceId })
+        return
+      }
       const body = recordActivityRequestSchema.parse(await readJson(request))
       const result = await options.activity.recordActivity(body, 'http')
       json(response, 200, result)
       return
     }
     if (request.method === 'POST' && pathname === '/v1/sessions/complete') {
+      if (authorization.kind !== 'bearer') {
+        json(response, 403, { error: 'bearer_token_required', traceId })
+        return
+      }
       const body = completeSessionRequestSchema.parse(await readJson(request))
       const result = await options.activity.completeSession(body, 'http')
       json(response, 200, result)
+      return
+    }
+    if (request.method === 'POST' && pathname === '/v1/sessions/lifecycle-end') {
+      if (authorization.kind !== 'bearer') {
+        json(response, 403, { error: 'bearer_token_required', traceId })
+        return
+      }
+      const body = lifecycleSessionEndRequestSchema.parse(await readJson(request))
+      json(response, 200, await options.activity.endSessionFromClientLifecycle(body))
       return
     }
     if (request.method === 'POST' && pathname === '/v1/metrics/context') {
@@ -242,6 +315,10 @@ async function routeRequest(
     if (request.method === 'POST' && pathname === '/v1/metrics/adoption') {
       const body = adoptionHealthRequestSchema.parse(await readJson(request))
       json(response, 200, await options.activity.adoptionHealth(body))
+      return
+    }
+    if (request.method === 'POST' && pathname === '/v1/metrics/codex-sync') {
+      json(response, 200, await options.codexThreads.health())
       return
     }
     json(response, 404, { error: 'not_found', traceId })

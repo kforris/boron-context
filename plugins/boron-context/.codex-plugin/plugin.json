@@ -1,6 +1,6 @@
 {
   "name": "boron-context",
-  "version": "0.5.0+codex.20260805013553",
+  "version": "0.6.0+codex.20260805183055",
   "description": "Read and write durable, project-scoped context through a local Boron Context runtime.",
   "author": {
     "name": "Boron Context contributors",
@@ -11,10 +11,11 @@
   "license": "MIT",
   "keywords": ["agents", "context", "ontology", "memory", "mcp"],
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Boron Context",
     "shortDescription": "Durable context continuity for project work",
-    "longDescription": "Boron Context gives Codex a zero-owned-model, ontology-first context substrate. It resolves a bounded sourced Context Capsule before work, exposes an auditable Retrieval Plan and Meter, and records only verified activities, decisions, evidence, and candidate relations after work.",
+    "longDescription": "Boron Context gives Codex a zero-owned-model, ontology-first context substrate. Trusted lifecycle hooks automatically load a bounded sourced Context Capsule, while MCP tools preserve only verified activities, decisions, evidence, and candidate relations after work.",
     "developerName": "Boron Context contributors",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Read", "Write", "Local"],

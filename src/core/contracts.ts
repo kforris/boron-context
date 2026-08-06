@@ -254,6 +254,13 @@ export const completeSessionRequestSchema = z.object({
 })
 export type CompleteSessionRequest = z.infer<typeof completeSessionRequestSchema>
 
+export const lifecycleSessionEndRequestSchema = z.object({
+  externalSessionId: z.string().trim().min(1).max(1_000),
+  client: z.string().trim().min(1).max(200).default('codex'),
+  metadata: z.record(z.string(), z.unknown()).default({})
+})
+export type LifecycleSessionEndRequest = z.infer<typeof lifecycleSessionEndRequestSchema>
+
 export const agentClientObservationSchema = z.object({
   clientInstanceId: z.string().trim().min(1).max(1_000),
   client: z.string().trim().min(1).max(200).default('unknown'),
@@ -264,6 +271,53 @@ export const agentClientObservationSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({})
 })
 export type AgentClientObservation = z.infer<typeof agentClientObservationSchema>
+
+export const codexThreadSyncAuthoritySchema = z.enum([
+  'user_approved_plan',
+  'codex_project_assignment',
+  'exact_registered_root',
+  'parent_inheritance',
+  'candidate'
+])
+export type CodexThreadSyncAuthority = z.infer<typeof codexThreadSyncAuthoritySchema>
+
+export const codexThreadProjectObservationSchema = z
+  .object({
+    externalThreadId: z.string().trim().min(1).max(1_000),
+    codexProjectId: z.string().trim().min(1).max(1_000).optional(),
+    classificationState: z.enum(['confirmed', 'candidate', 'projectless']),
+    authority: codexThreadSyncAuthoritySchema,
+    confidence: z.number().min(0).max(1),
+    evidenceDigest: z.string().regex(/^[0-9a-f]{64}$/),
+    metadata: z.record(z.string(), z.unknown()).default({})
+  })
+  .superRefine((input, context) => {
+    if (input.classificationState === 'confirmed' && !input.codexProjectId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['codexProjectId'],
+        message: 'Confirmed thread observations require a Codex project ID'
+      })
+    }
+    if (input.classificationState === 'projectless' && input.codexProjectId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['codexProjectId'],
+        message: 'Projectless thread observations cannot carry a Codex project ID'
+      })
+    }
+  })
+export type CodexThreadProjectObservation = z.infer<typeof codexThreadProjectObservationSchema>
+
+export const codexThreadSyncRequestSchema = z.object({
+  snapshotId: z.string().regex(/^[0-9a-f]{64}$/),
+  client: z.string().trim().min(1).max(200).default('codex'),
+  source: z.string().trim().min(1).max(200).default('codex_hook'),
+  observedAt: z.string().datetime({ offset: true }),
+  observations: z.array(codexThreadProjectObservationSchema).max(5_000),
+  metadata: z.record(z.string(), z.unknown()).default({})
+})
+export type CodexThreadSyncRequest = z.infer<typeof codexThreadSyncRequestSchema>
 
 export const adoptionHealthRequestSchema = z.object({
   windowDays: z.number().int().min(1).max(365).default(30)

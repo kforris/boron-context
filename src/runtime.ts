@@ -7,6 +7,7 @@ import { ContextResolver } from './core/resolver.js'
 import { loadConfig } from './config.js'
 import { migrateDatabase } from './db/migrate.js'
 import { PostgresActivityRepository } from './db/activity-repository.js'
+import { PostgresCodexThreadRepository } from './db/codex-thread-repository.js'
 import { PostgresInspectorRepository } from './db/inspector-repository.js'
 import {
   PostgresLayerEvidenceAdapter,
@@ -29,6 +30,7 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
   })
   const ontology = new PostgresOntologyRepository(pool)
   const activity = new PostgresActivityRepository(pool)
+  const codexThreads = new PostgresCodexThreadRepository(pool)
   const inspector = new PostgresInspectorRepository(pool, config.openWikiRoot)
   const adapters = [
     ontology,
@@ -65,6 +67,7 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
     token,
     resolver,
     activity,
+    codexThreads,
     inspector,
     codebaseMemoryGraphUrl: config.codebaseMemoryGraphUrl,
     adapters,

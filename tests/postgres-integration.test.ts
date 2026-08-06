@@ -1,9 +1,11 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { PostgresActivityRepository } from '../src/db/activity-repository.js'
+import { PostgresCodexThreadRepository } from '../src/db/codex-thread-repository.js'
 import { reconcileProjectSupersessions } from '../src/db/project-supersession.js'
 
 const databaseUrl = process.env.BORON_TEST_DATABASE_URL
@@ -12,10 +14,19 @@ const describeDatabase = databaseUrl ? describe : describe.skip
 describeDatabase('PostgreSQL continuity integration', () => {
   let pool: Pool
   let repository: PostgresActivityRepository
+  let codexThreads: PostgresCodexThreadRepository
 
-  beforeAll(() => {
+  beforeAll(async () => {
     pool = new Pool({ connectionString: databaseUrl })
     repository = new PostgresActivityRepository(pool)
+    codexThreads = new PostgresCodexThreadRepository(pool)
+    await pool.query(
+      `
+        INSERT INTO projects (name, source_uri, status, metadata)
+        VALUES ('Boron Context', 'github://kforris/boron-context', 'confirmed', '{}'::jsonb)
+        ON CONFLICT (source_uri) DO UPDATE SET status = 'confirmed'
+      `
+    )
   })
 
   afterAll(async () => {
@@ -148,6 +159,274 @@ describeDatabase('PostgreSQL continuity integration', () => {
         alias: 'Uncertain nickname',
         confirmation_state: 'candidate',
         correction: 'noncanonical_alias_requires_review'
+      }
+    ])
+  })
+
+  it('bootstraps only scoped projects and closes client lifecycle sessions idempotently', async () => {
+    const suffix = randomUUID()
+    const externalSessionId = `postgres-lifecycle-${suffix}`
+    const skipped = await repository.bootstrapSession({
+      objective: 'Load automatic context without creating a broad-root project.',
+      projectHint: 'Unregistered broad root',
+      projectRoot: homedir(),
+      externalSessionId: `broad-root-${suffix}`,
+      client: 'codex',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    expect(skipped).toBeNull()
+
+    const unknownRoot = `/tmp/boron-unregistered-${suffix}`
+    const unknown = await repository.bootstrapSession({
+      objective: 'Do not create an authoritative project from an unknown temporary root.',
+      projectRoot: unknownRoot,
+      externalSessionId: `unknown-root-${suffix}`,
+      client: 'codex',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    expect(unknown).toBeNull()
+    const unknownProject = await pool.query<{ count: number }>(
+      `SELECT count(*)::integer AS count FROM projects WHERE source_uri = $1`,
+      [`file://${unknownRoot}`]
+    )
+    expect(unknownProject.rows[0]?.count).toBe(0)
+
+    const session = await repository.bootstrapSession({
+      objective: 'Load automatic project continuity.',
+      projectHint: 'Boron Context',
+      projectRoot: process.cwd(),
+      externalSessionId,
+      client: 'codex',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    expect(session?.project?.name).toBe('Boron Context')
+
+    const first = await repository.endSessionFromClientLifecycle({
+      externalSessionId,
+      client: 'codex',
+      metadata: { integrationTest: true }
+    })
+    expect(first).toMatchObject({
+      closed: true,
+      sessionId: session!.id,
+      status: 'partial',
+      reason: 'client_session_end'
+    })
+    const second = await repository.endSessionFromClientLifecycle({
+      externalSessionId,
+      client: 'codex',
+      metadata: { integrationTest: true }
+    })
+    expect(second).toEqual({
+      closed: false,
+      sessionId: null,
+      status: null,
+      reason: 'no_active_session'
+    })
+    const stored = await pool.query<{ status: string; closure_reason: string }>(
+      'SELECT status, closure_reason FROM agent_sessions WHERE id = $1::uuid',
+      [session!.id]
+    )
+    expect(stored.rows).toEqual([{ status: 'partial', closure_reason: 'client_session_end' }])
+  })
+
+  it('imports reviewed Codex thread ownership without ontology graph expansion', async () => {
+    const suffix = randomUUID()
+    const codexProjectId = `codex-project-${suffix}`
+    const project = await pool.query<{ id: string }>(
+      `
+        INSERT INTO projects (name, source_uri, status, metadata)
+        VALUES ($1, $2, 'confirmed', $3::jsonb)
+        RETURNING id::text
+      `,
+      [
+        `Thread sync project ${suffix}`,
+        `codex-project://${codexProjectId}`,
+        JSON.stringify({ codexProjectId })
+      ]
+    )
+    const threadId = `thread-sync-${suffix}`
+    const snapshotId = createHash('sha256').update(`snapshot-${suffix}`).digest('hex')
+    const result = await codexThreads.sync({
+      snapshotId,
+      client: 'codex',
+      source: 'integration_test',
+      observedAt: new Date().toISOString(),
+      observations: [
+        {
+          externalThreadId: threadId,
+          codexProjectId,
+          classificationState: 'confirmed',
+          authority: 'user_approved_plan',
+          confidence: 1,
+          evidenceDigest: createHash('sha256').update(`thread-${suffix}`).digest('hex'),
+          metadata: { contentRead: false }
+        },
+        {
+          externalThreadId: `projectless-${suffix}`,
+          classificationState: 'projectless',
+          authority: 'user_approved_plan',
+          confidence: 1,
+          evidenceDigest: createHash('sha256').update(`projectless-${suffix}`).digest('hex'),
+          metadata: { contentRead: false }
+        }
+      ],
+      metadata: { privacyBoundary: 'no_prompt_or_transcript' }
+    })
+    expect(result).toMatchObject({
+      duplicate: false,
+      received: 2,
+      confirmed: 1,
+      projectless: 1,
+      unresolvedProjects: 0
+    })
+    expect(
+      await codexThreads.sync({
+        snapshotId,
+        client: 'codex',
+        source: 'integration_test',
+        observedAt: new Date().toISOString(),
+        observations: [],
+        metadata: {}
+      })
+    ).toMatchObject({ duplicate: true })
+
+    const stored = await pool.query<{
+      project_id: string | null
+      classification_state: string
+    }>(
+      `
+        SELECT project_id::text, classification_state
+        FROM codex_thread_project_state
+        WHERE client = 'codex' AND external_thread_id = $1
+      `,
+      [threadId]
+    )
+    expect(stored.rows).toEqual([
+      { project_id: project.rows[0]!.id, classification_state: 'confirmed' }
+    ])
+    const session = await repository.bootstrapSession({
+      objective: 'Resolve this task from reviewed thread ownership.',
+      projectRoot: homedir(),
+      externalSessionId: threadId,
+      client: 'codex',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    expect(session?.project?.id).toBe(project.rows[0]!.id)
+    const ontologyObjects = await pool.query<{ count: number }>(
+      `SELECT count(*)::integer AS count FROM objects WHERE canonical_uri = $1`,
+      [`codex-thread://${threadId}`]
+    )
+    expect(ontologyObjects.rows[0]?.count).toBe(0)
+  })
+
+  it('keeps uncertain ownership candidate and fails closed on equal-authority conflicts', async () => {
+    const suffix = randomUUID()
+    const firstCodexProjectId = `candidate-project-${suffix}`
+    const secondCodexProjectId = `conflicting-project-${suffix}`
+    await pool.query(
+      `
+        INSERT INTO projects (name, source_uri, status, metadata)
+        VALUES
+          ($1, $2, 'confirmed', $3::jsonb),
+          ($4, $5, 'confirmed', $6::jsonb)
+      `,
+      [
+        `Candidate project ${suffix}`,
+        `codex-project://${firstCodexProjectId}`,
+        JSON.stringify({ codexProjectId: firstCodexProjectId }),
+        `Conflicting project ${suffix}`,
+        `codex-project://${secondCodexProjectId}`,
+        JSON.stringify({ codexProjectId: secondCodexProjectId })
+      ]
+    )
+    const candidateThreadId = `candidate-thread-${suffix}`
+    const conflictThreadId = `conflict-thread-${suffix}`
+    const digest = (value: string) => createHash('sha256').update(value).digest('hex')
+
+    const candidate = await codexThreads.sync({
+      snapshotId: digest(`candidate-snapshot-${suffix}`),
+      client: 'codex',
+      source: 'integration_test',
+      observedAt: new Date().toISOString(),
+      observations: [
+        {
+          externalThreadId: candidateThreadId,
+          codexProjectId: firstCodexProjectId,
+          classificationState: 'candidate',
+          authority: 'candidate',
+          confidence: 0.6,
+          evidenceDigest: digest(`candidate-evidence-${suffix}`),
+          metadata: { contentRead: false }
+        },
+        {
+          externalThreadId: conflictThreadId,
+          codexProjectId: firstCodexProjectId,
+          classificationState: 'confirmed',
+          authority: 'codex_project_assignment',
+          confidence: 1,
+          evidenceDigest: digest(`first-conflict-evidence-${suffix}`),
+          metadata: { contentRead: false }
+        }
+      ],
+      metadata: {}
+    })
+    expect(candidate).toMatchObject({ candidate: 1, confirmed: 1 })
+
+    await codexThreads.sync({
+      snapshotId: digest(`conflict-snapshot-${suffix}`),
+      client: 'codex',
+      source: 'integration_test',
+      observedAt: new Date().toISOString(),
+      observations: [
+        {
+          externalThreadId: conflictThreadId,
+          codexProjectId: secondCodexProjectId,
+          classificationState: 'confirmed',
+          authority: 'codex_project_assignment',
+          confidence: 1,
+          evidenceDigest: digest(`second-conflict-evidence-${suffix}`),
+          metadata: { contentRead: false }
+        }
+      ],
+      metadata: {}
+    })
+
+    const state = await pool.query<{
+      external_thread_id: string
+      project_id: string | null
+      classification_state: string
+    }>(
+      `
+        SELECT external_thread_id, project_id::text, classification_state
+        FROM codex_thread_project_state
+        WHERE external_thread_id = ANY($1::text[])
+        ORDER BY external_thread_id
+      `,
+      [[candidateThreadId, conflictThreadId]]
+    )
+    expect(state.rows).toEqual([
+      {
+        external_thread_id: candidateThreadId,
+        project_id: expect.any(String),
+        classification_state: 'candidate'
+      },
+      {
+        external_thread_id: conflictThreadId,
+        project_id: null,
+        classification_state: 'conflicted'
       }
     ])
   })
