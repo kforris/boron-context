@@ -4,6 +4,7 @@ import { loadConfig } from '../src/config.js'
 import { startCodebaseMemoryGraph } from '../src/platform/codebase-memory-sidecar.js'
 import { platformPaths } from '../src/platform/paths.js'
 import { normalizeRepositoryUri } from '../src/platform/project-root.js'
+import { parseAdbDevices, selectAdbDevice } from '../src/platform/quest-inspector.js'
 import { launchdDatabaseEnvironment, renderLaunchdPlist } from '../src/platform/launchd.js'
 
 describe('platformPaths', () => {
@@ -76,6 +77,22 @@ describe('renderLaunchdPlist', () => {
     expect(plist).toContain('postgres://user:&lt;secret&gt;@localhost/db')
   })
 
+  it('renders a dedicated command for a separate launchd service', () => {
+    const plist = renderLaunchdPlist({
+      label: 'dev.boroncontext.lan-mr',
+      nodePath: '/usr/bin/node',
+      cliPath: '/app/dist/cli.js',
+      arguments: ['lan-inspector', 'serve'],
+      workingDirectory: '/app',
+      stdoutPath: '/logs/lan.out',
+      stderrPath: '/logs/lan.err',
+      environment: { BORON_LAN_MR_HOST: '192.168.50.23' }
+    })
+    expect(plist).toContain('<string>lan-inspector</string>')
+    expect(plist).toContain('<string>serve</string>')
+    expect(plist).not.toContain('<string>serve</string>\n      <string>serve</string>')
+  })
+
   it('refuses to print database passwords into a public plist file', () => {
     expect(() =>
       launchdDatabaseEnvironment('postgresql://user:secret@127.0.0.1/boron_context')
@@ -97,5 +114,30 @@ describe('normalizeRepositoryUri', () => {
     expect(normalizeRepositoryUri('https://token@github.com/owner/repo.git')).toBe(
       'github://owner/repo'
     )
+  })
+})
+
+describe('Quest Inspector ADB selection', () => {
+  it('parses authorized and blocked devices and fails closed on ambiguity', () => {
+    const devices = parseAdbDevices(`List of devices attached
+1WMHH123456789 device product:panther model:Quest_3 transport_id:1
+blocked-device unauthorized usb:1-2 transport_id:2
+`)
+    expect(devices).toHaveLength(2)
+    expect(selectAdbDevice(devices, '1WMHH123456789')).toMatchObject({
+      serial: '1WMHH123456789',
+      state: 'device'
+    })
+    expect(() => selectAdbDevice(devices, 'blocked-device')).toThrow(/authorize/)
+    expect(() => selectAdbDevice([], undefined)).toThrow(/No Quest found/)
+    expect(() =>
+      selectAdbDevice(
+        [
+          { serial: 'one', state: 'device', description: '' },
+          { serial: 'two', state: 'device', description: '' }
+        ],
+        undefined
+      )
+    ).toThrow(/--serial/)
   })
 })

@@ -155,6 +155,95 @@ the browser exchanges the ticket for an HttpOnly same-site session, and correcti
 CSRF token. Ontology entities and relations, Codebase Memory search results, and OpenWiki pages are
 clickable. Human fields and notes create pending corrections rather than overwriting their source.
 
+<a id="quest-3-lan-spatial-inspector"></a>
+
+### Quest 3 LAN spatial Inspector (recommended)
+
+LAN mode uses a separate read-only gateway instead of widening the `41635` daemon binding. On the
+Mac, run:
+
+```bash
+npm run build
+node dist/cli.js lan-inspector install
+```
+
+Installation prints an HTTP certificate-bootstrap URL, an HTTPS pairing URL, the local CA SHA-256
+fingerprint, and a six-digit code that expires after five minutes and is consumed once. The default
+ports are:
+
+- `http://<Mac-LAN-IP>:41636`: minimal health plus the Boron LAN local-CA download; no project data;
+- `https://<Mac-LAN-IP>:41637/pair`: the TLS, pairing, and session-protected read-only Spatial
+  Inspector.
+
+For the first Quest connection:
+
+1. On the Mac, run `node dist/cli.js lan-inspector pair`. Keep the printed `CA SHA-256` value visible.
+2. Open the HTTP bootstrap URL and compare the fingerprint shown there with the trusted Mac terminal
+   value. Stop if they differ. Only after they match, download `boron-lan-mr-ca.crt` and install it as
+   a trusted CA in the Quest certificate settings. This is the one-time device-trust step required
+   for a WebXR secure context.
+3. Open the HTTPS URL shown by the page, then enter the current one-time code from the Mac.
+4. The paired session lasts eight hours. Select **Enter Quest passthrough**. Trigger or pinch drills
+   from architecture clusters to representative symbols and then to a live one-hop call graph. A
+   two-hand pinch scales and rotates the workbench; the thumbstick remains available for rotation and
+   vertical movement.
+
+**Cinematic FX** adds Fresnel node shells, curved energy links, directional data particles, reveal
+transitions, and selection shockwaves. If the live FPS badge drops below the headset refresh target,
+switch to **Quest performance**; it keeps the same graph data and interaction but reduces curve
+sampling, particles, and decorative orbiters. The badge reports render frames and draw calls only—it
+does not inspect or capture passthrough images.
+
+The HTTP certificate download is not an authenticated transport. The required out-of-band
+fingerprint comparison against the Mac terminal is what detects a substituted bootstrap page or CA.
+The LAN gateway binds the explicit private IPv4 detected at installation and validates both the
+client address and Host header. It forwards only `/v1/inspector/ontology` and
+the bounded `/v1/inspector/codebase-spatial` and `codebase-spatial-expand` reads to the loopback
+daemon. Lifecycle, activity, correction, and every other `/v1/` endpoint fail with
+`read_only_surface`. Five failed codes trigger a five-minute rate limit. A successful pairing
+immediately rotates the pairing secret, so the code cannot be reused.
+
+The CA private key remains in Boron's Mac state directory with mode `0600`; never copy it to the
+Quest or share it. If DHCP changes the Mac LAN address, rerun `lan-inspector install`; Boron issues a
+new server certificate for the address while preserving the local CA. This path uses no cloud
+service and adds no LLM calls.
+
+### Quest 3 ADB spatial Inspector (development fallback)
+
+`127.0.0.1` inside Meta Quest Browser refers to the headset, not the Mac. Being on the same LAN is
+therefore not enough to open the loopback Inspector. The experimental WebXR path keeps the Boron
+gateway loopback-only and uses Android Debug Bridge reverse forwarding:
+
+1. Enable Developer Mode on the Quest 3, connect it once through USB or an authorized wireless ADB
+   session, and accept the headset's debugging prompt.
+2. Build the current source, keep the Boron daemon running, then run:
+
+   ```bash
+   node dist/cli.js quest-inspector
+   ```
+
+3. The command creates a one-time spatial Inspector ticket, installs an ADB reverse mapping for port
+   `41635`, and opens the authenticated page in Meta Quest Browser. It does not print the ticket or
+   bind the daemon to the LAN.
+4. Select **Enter Quest passthrough**. Trigger or pinch drills down one level, a two-hand pinch scales
+   and rotates, and the thumbstick rotates or raises the graph. The MR view is read-only.
+5. Remove the reverse mapping when finished:
+
+   ```bash
+   node dist/cli.js quest-inspector --stop
+   ```
+
+Pass `--serial <device>` when more than one ADB device is connected. Override the executable with
+`BORON_ADB=/path/to/adb` when `adb` is not on `PATH`.
+
+The spatial view requests WebXR `immersive-ar`; Meta Quest Browser owns passthrough composition.
+Boron does not request, receive, or store camera frames. Solid nodes are confirmed Ontology facts,
+hollow amber nodes remain candidates, and the cyan/purple code view is explicitly a progressive,
+bounded live Codebase Memory projection—not a copy of source files. L0 shows architecture, L1 shows
+representative symbols, and L2 queries only the selected symbol's one-hop call neighborhood. LAN
+wireless access uses the separate HTTPS and one-time pairing boundary above; do not use
+`BORON_ALLOW_REMOTE` as a substitute.
+
 At the next project session, call `list_manual_corrections`. Verify each applicable request against
 current sources, make the semantic repair or reject it, then call `resolve_manual_correction` with
 the evidence-backed result. Reading a request is not sufficient reason to resolve it. Boron Content
@@ -229,3 +318,5 @@ Expected release behavior:
   are available, with PostgreSQL snapshots retained as fallback;
 - adoption health reports its observable denominator and stale active sessions are zero;
 - the menu item shows separate `R` and `S` values, with `S—` when source coverage is absent.
+- `/inspector/spatial` renders a local 3D preview. The LAN route exposes only the paired read-only
+  service on `41636/41637`, while `41635` stays on loopback; ADB remains a development fallback.

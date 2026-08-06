@@ -159,6 +159,16 @@ selected excerpts, not wholesale copies.
 - generated local bearer token with mode `0600`;
 - local PostgreSQL or an explicitly configured server.
 
+The optional Quest LAN MR process is a separate trust boundary. It binds an explicit private IPv4,
+terminates TLS with a device-installed local CA, consumes a five-minute pairing code once, and
+exposes only the read-only spatial shell plus Ontology and bounded Codebase projection routes. It
+does not widen the daemon's loopback listener or forward lifecycle, activity, or correction writes.
+Because the CA download uses a certificate-only HTTP bootstrap, the CLI and bootstrap surface expose
+the same SHA-256 fingerprint for mandatory out-of-band comparison before device trust is granted.
+The Codebase projection uses progressive disclosure: the initial architecture payload includes
+cluster membership and representative symbols, while a separate bounded read fetches at most one
+hop of callers and callees for the symbol a user explicitly opens.
+
 ### Linux
 
 - same daemon, schema, adapters, and HTTP/MCP contracts;

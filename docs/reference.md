@@ -39,13 +39,33 @@ require the daemon bearer.
 ### Inspector
 
 - `GET /inspector`
+- `GET /inspector/spatial`
 - `POST /v1/inspector/ticket`
 - `POST /v1/inspector/session`
 - `POST /v1/inspector/ontology`
+- `POST /v1/inspector/codebase-spatial`
+- `POST /v1/inspector/codebase-spatial-expand`
 - `POST /v1/inspector/wiki`
 - `POST /v1/inspector/corrections/list`
 - `POST /v1/inspector/corrections/create`
 - `POST /v1/inspector/corrections/resolve`
+
+Pass `{"mode":"spatial"}` to the ticket endpoint to issue a one-time URL for the read-only WebXR
+Inspector. `codebase-spatial` returns a bounded `architecture_clusters_lod_v2` projection from the
+live Codebase Memory graph. The client reveals it progressively: project and architecture clusters
+(L0), representative symbols for one selected cluster (L1), then a separately queried, deterministic
+one-hop call neighborhood (L2). `codebase-spatial-expand` accepts `project` and `symbol`, caps callers
+and callees at 12 each, and returns names and typed derived edges—not source text or file paths.
+
+The optional LAN MR service is a separate HTTPS process. Its public HTTP bootstrap exposes only
+minimal health, the local CA certificate, and its SHA-256 fingerprint. Compare that fingerprint
+with the value printed directly by `boron-context lan-inspector pair` before installing the CA;
+stop if they differ. After one-time pairing, the HTTPS service whitelists
+only `/inspector/spatial`, the local Three.js assets, `/v1/inspector/ontology`, and
+`/v1/inspector/codebase-spatial` plus its read-only `-expand` route; every other `/v1/` route fails
+closed. Install it with
+`boron-context lan-inspector install` and print a fresh pairing code with
+`boron-context lan-inspector pair`.
 
 Resolve a capsule directly:
 
@@ -83,21 +103,28 @@ semantic turning points, not every tool call or raw conversation content.
 
 ## Configuration
 
-| Variable                          | Default                                | Purpose                                       |
-| --------------------------------- | -------------------------------------- | --------------------------------------------- |
-| `BORON_DATABASE_URL`              | `postgresql://127.0.0.1/boron_context` | PostgreSQL connection                         |
-| `BORON_HOST`                      | `127.0.0.1`                            | Gateway bind host                             |
-| `BORON_PORT`                      | `41635`                                | Gateway port                                  |
-| `BORON_DAEMON_TOKEN`              | generated file                         | Explicit in-memory token override             |
-| `BORON_TOKEN_FILE`                | platform state path                    | Token file override                           |
-| `BORON_OPENWIKI_ROOT`             | `~/.openwiki/wiki`                     | Local Markdown Wiki root                      |
-| `BORON_CODEBASE_MEMORY_GRAPH_URL` | `http://127.0.0.1:9749`                | Codebase graph UI and RPC endpoint            |
-| `BORON_CODEBASE_MEMORY_COMMAND`   | `~/.local/bin/codebase-memory-mcp`     | Optional graph sidecar command                |
-| `BORON_SESSION_SWEEP_INTERVAL_MS` | `300000`                               | Expired-session sweep interval                |
-| `BORON_CODEBASE_MEMORY_URL`       | unset                                  | Compatible authenticated code search endpoint |
-| `BORON_CODEBASE_MEMORY_TOKEN`     | unset                                  | Code search bearer token                      |
-| `BORON_OPENWIKI_URL`              | unset                                  | Compatible authenticated Wiki search endpoint |
-| `BORON_OPENWIKI_TOKEN`            | unset                                  | Wiki search bearer token                      |
+| Variable                          | Default                                | Purpose                                        |
+| --------------------------------- | -------------------------------------- | ---------------------------------------------- |
+| `BORON_DATABASE_URL`              | `postgresql://127.0.0.1/boron_context` | PostgreSQL connection                          |
+| `BORON_HOST`                      | `127.0.0.1`                            | Gateway bind host                              |
+| `BORON_PORT`                      | `41635`                                | Gateway port                                   |
+| `BORON_DAEMON_TOKEN`              | generated file                         | Explicit in-memory token override              |
+| `BORON_TOKEN_FILE`                | platform state path                    | Token file override                            |
+| `BORON_OPENWIKI_ROOT`             | `~/.openwiki/wiki`                     | Local Markdown Wiki root                       |
+| `BORON_CODEBASE_MEMORY_GRAPH_URL` | `http://127.0.0.1:9749`                | Codebase graph UI and RPC endpoint             |
+| `BORON_CODEBASE_MEMORY_COMMAND`   | `~/.local/bin/codebase-memory-mcp`     | Optional graph sidecar command                 |
+| `BORON_SESSION_SWEEP_INTERVAL_MS` | `300000`                               | Expired-session sweep interval                 |
+| `BORON_CODEBASE_MEMORY_URL`       | unset                                  | Compatible authenticated code search endpoint  |
+| `BORON_CODEBASE_MEMORY_TOKEN`     | unset                                  | Code search bearer token                       |
+| `BORON_OPENWIKI_URL`              | unset                                  | Compatible authenticated Wiki search endpoint  |
+| `BORON_OPENWIKI_TOKEN`            | unset                                  | Wiki search bearer token                       |
+| `BORON_ADB`                       | `adb`                                  | Quest Inspector ADB executable override        |
+| `BORON_LAN_MR_HOST`               | detected private IPv4                  | Exact LAN address for the read-only MR service |
+| `BORON_LAN_MR_HOSTNAME`           | macOS local hostname                   | Optional Bonjour hostname in the TLS SAN       |
+| `BORON_LAN_MR_BOOTSTRAP_PORT`     | `41636`                                | Certificate-only HTTP bootstrap port           |
+| `BORON_LAN_MR_PORT`               | `41637`                                | Paired read-only HTTPS Inspector port          |
+| `BORON_LAN_MR_STATE_DIR`          | platform state path + `/lan-mr`        | CA, server certificate, and pairing secrets    |
+| `BORON_OPENSSL`                   | `/usr/bin/openssl`                     | Local certificate generator executable         |
 
 The gateway rejects non-loopback bindings unless `BORON_ALLOW_REMOTE=true`. That override is not a
 complete remote security design; place remote access behind an independently authenticated boundary.

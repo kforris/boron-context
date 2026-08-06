@@ -21,7 +21,15 @@ mitigation. Never include real credentials or private user data.
 - The read-only Meter Inspector requires the same bearer token, omits excerpts, and strips URL
   user-info/query values before returning source URIs. It never returns the daemon token.
 - Inferred semantic relationships must not become confirmed facts without an explicit decision.
-- Remote access is not part of the current supported threat model.
+- The privileged daemon's remote access remains outside the supported threat model. The optional
+  Quest LAN MR process is a separate, explicitly private-IPv4, read-only boundary: HTTPS data access
+  requires single-use pairing, sessions are client-bound, and only three Inspector read routes are
+  forwarded to loopback.
+- The Quest CA is downloaded from a certificate-only HTTP bootstrap. Before installation, users must
+  compare its SHA-256 fingerprint with the value printed on the trusted Mac by
+  `boron-context lan-inspector pair`; a mismatch means the bootstrap may have been substituted.
+- The LAN MR process caps bodies at 64 KiB, rate-limits failed codes, rotates the pairing secret on
+  success, and has no route for lifecycle, activity, correction, or other semantic writes.
 
 Run before contributing:
 

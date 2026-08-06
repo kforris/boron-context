@@ -25,7 +25,7 @@ Boron Context 是面向 Codex 和其他 Coding Agent 的开源、本地上下文
 > 身份存在歧义时 fail-closed。
 
 [快速开始](#快速开始) · [工作原理](#工作原理) · [Codex 自动接入](#codex-自动接入) ·
-[文档导航](#文档导航) · [安全说明](SECURITY.md)
+[Spatial Inspector](#spatial-inspector) · [文档导航](#文档导航) · [安全说明](SECURITY.md)
 
 ## 为什么需要 Boron
 
@@ -117,6 +117,20 @@ Boron 当前自身发起的 LLM 调用数为 **0**。推理由客户端 Agent �
 其他 Agent 可以通过同一个本地 MCP server 或带认证的 HTTP API 接入。只有客户端真正集成
 Boron 后，连续上下文才会自动发生。
 
+## Spatial Inspector
+
+Boron 可以把审阅图投射到桌面 3D workbench 或 Quest 3 passthrough 中，同时不把 daemon 变成
+远程服务。视图按层级逐步展开：
+
+- **L0**：项目与架构 cluster；
+- **L1**：所选 cluster 的代表性 symbol；
+- **L2**：单独查询、带上限的一跳 caller/callee 图。
+
+投影只包含名称、provenance/confirmation state 和 typed derived edge，不包含源文件或仓库正文。
+可选 LAN gateway 是独立、配对式、只读的 HTTPS 进程；高权限 daemon 仍只监听 loopback。
+设置步骤与信任边界见
+[Quest 操作说明](docs/operating-manual.zh-CN.md#quest-3-lan-spatial-inspector)。
+
 ## 信任与隐私
 
 - Gateway 默认只绑定 loopback，并要求使用自动生成的 bearer token。
@@ -126,13 +140,15 @@ Boron 后，连续上下文才会自动发生。
 - 同权威身份冲突会 fail-closed，不按数据库行顺序选择。
 - 未登记的临时目录不会自动创建 confirmed 项目。
 - Hook 失败时 fail-open，不会阻止 Coding Agent 启动。
+- 可选 Quest LAN 接入使用独立只读进程、单次 pairing 和强制 CA SHA-256 指纹比对，不扩大
+  daemon 的监听范围。
 
 远程暴露服务或批量修改身份前，请阅读[安全策略](SECURITY.md)与
 [项目身份修复契约](docs/project-identity-repair.md)。
 
 ## 项目状态
 
-Boron Context 当前为 **pre-alpha**，主要面向 Apple Silicon macOS 上的本地开发。v0.6
+Boron Context 当前为 **pre-alpha**，主要面向 Apple Silicon macOS 上的本地开发。v0.7
 基础能力包括：
 
 - 受信任的 Codex 生命周期 hook，以及可续接、带 lease 的 session；
@@ -141,7 +157,7 @@ Boron Context 当前为 **pre-alpha**，主要面向 Apple Silicon macOS 上的�
 - PostgreSQL Ontology、实时 Codebase Memory 与实时 Markdown Wiki adapter；
 - candidate/confirmed 关系边界和人工 correction 请求；
 - Context Meter、接入健康度与来源真实性审计；
-- 带认证的本地 Inspector 和可选的 macOS 原生菜单栏 Meter；
+- 带认证的本地 Inspector、配对式只读 Quest 3 局域网 WebXR 投影和可选的 macOS 原生菜单栏 Meter；
 - macOS 与 Linux CI。
 
 `1.0` 前接口可能变化。Linux service 打包、签名安装器、setup UX 与可配置推断/确认规则仍在
@@ -157,7 +173,7 @@ roadmap 中。
 | 理解上下文工程方法            | [方法论](docs/context-engineering-methodology.zh-CN.md) · [English](docs/context-engineering-methodology.md) |
 | 审阅 task-to-project 归属     | [Codex task context](docs/codex-thread-project-reconciliation.md)                                            |
 | 安全修复项目身份              | [Project identity repair](docs/project-identity-repair.md)                                                   |
-| 查看 v0.6 变化                | [Release notes](docs/releases/v0.6.0.md) · [Changelog](CHANGELOG.md)                                         |
+| 查看 v0.7 变化                | [Release notes](docs/releases/v0.7.0.md) · [Changelog](CHANGELOG.md)                                         |
 | 查看产品方向                  | [Roadmap](docs/architecture/product-roadmap.md)                                                              |
 | 参与贡献                      | [Contributing guide](CONTRIBUTING.md)                                                                        |
 

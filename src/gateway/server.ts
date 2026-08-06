@@ -16,6 +16,8 @@ import {
   manualCorrectionSchema,
   recordActivityRequestSchema,
   resolveManualCorrectionSchema,
+  spatialCodebaseExpandRequestSchema,
+  spatialCodebaseGraphRequestSchema,
   startSessionRequestSchema
 } from '../core/contracts.js'
 import type { ContextResolver } from '../core/resolver.js'
@@ -23,12 +25,21 @@ import type { PostgresActivityRepository } from '../db/activity-repository.js'
 import type { PostgresCodexThreadRepository } from '../db/codex-thread-repository.js'
 import type { PostgresInspectorRepository } from '../db/inspector-repository.js'
 import { inspectorHtml } from '../inspector/app.js'
+import {
+  loadSpatialCodebaseGraph,
+  loadSpatialCodebaseNeighborhood
+} from '../inspector/codebase-spatial.js'
+import { spatialInspectorHtml } from '../inspector/spatial-app.js'
+import { readThreeAsset } from '../inspector/three-assets.js'
 
 const MAX_BODY_BYTES = 256 * 1024
 const INSPECTOR_TICKET_TTL_MS = 60_000
 const INSPECTOR_SESSION_TTL_MS = 8 * 60 * 60 * 1_000
 const INSPECTOR_COOKIE = 'boron_inspector_session'
 const inspectorSessionRequestSchema = z.object({ ticket: z.string().uuid() })
+const inspectorTicketRequestSchema = z.object({
+  mode: z.enum(['standard', 'spatial']).default('standard')
+})
 
 export interface GatewayOptions {
   readonly host: string
@@ -113,6 +124,19 @@ async function routeRequest(
       )
       return
     }
+    if (request.method === 'GET' && pathname === '/inspector/spatial') {
+      const nonce = randomBytes(18).toString('base64')
+      html(response, spatialInspectorHtml(nonce), nonce, options.codebaseMemoryGraphUrl)
+      return
+    }
+    if (request.method === 'GET' && pathname === '/inspector/assets/three.module.js') {
+      javascript(response, await readThreeAsset('three.module.js')!)
+      return
+    }
+    if (request.method === 'GET' && pathname === '/inspector/assets/three.core.min.js') {
+      javascript(response, await readThreeAsset('three.core.min.js')!)
+      return
+    }
     if (request.method === 'POST' && pathname === '/v1/inspector/session') {
       const body = inspectorSessionRequestSchema.parse(await readJson(request))
       const session = inspectorSessions.exchange(body.ticket)
@@ -137,11 +161,12 @@ async function routeRequest(
         json(response, 403, { error: 'bearer_token_required', traceId })
         return
       }
+      const body = inspectorTicketRequestSchema.parse(await readJson(request))
       const ticket = inspectorSessions.issueTicket()
       const launchId = randomUUID()
       json(response, 200, {
         ticket: ticket.id,
-        url: `/inspector?launch=${launchId}#ticket=${ticket.id}`,
+        url: `${body.mode === 'spatial' ? '/inspector/spatial' : '/inspector'}?launch=${launchId}#ticket=${ticket.id}`,
         expiresAt: ticket.expiresAt
       })
       return
@@ -154,6 +179,28 @@ async function routeRequest(
     if (request.method === 'POST' && pathname === '/v1/inspector/wiki') {
       inspectorScopeSchema.parse(await readJson(request))
       json(response, 200, await options.inspector.wiki())
+      return
+    }
+    if (request.method === 'POST' && pathname === '/v1/inspector/codebase-spatial') {
+      const body = spatialCodebaseGraphRequestSchema.parse(await readJson(request))
+      json(
+        response,
+        200,
+        await loadSpatialCodebaseGraph(options.codebaseMemoryGraphUrl, body.project)
+      )
+      return
+    }
+    if (request.method === 'POST' && pathname === '/v1/inspector/codebase-spatial-expand') {
+      const body = spatialCodebaseExpandRequestSchema.parse(await readJson(request))
+      json(
+        response,
+        200,
+        await loadSpatialCodebaseNeighborhood(
+          options.codebaseMemoryGraphUrl,
+          body.project,
+          body.symbol
+        )
+      )
       return
     }
     if (request.method === 'POST' && pathname === '/v1/inspector/corrections/list') {
@@ -404,6 +451,16 @@ function json(response: ServerResponse, status: number, body: unknown): void {
   response.end(payload)
 }
 
+function javascript(response: ServerResponse, body: Buffer): void {
+  response.writeHead(200, {
+    'content-type': 'text/javascript; charset=utf-8',
+    'content-length': body.byteLength,
+    'cache-control': 'public, max-age=31536000, immutable',
+    'x-content-type-options': 'nosniff'
+  })
+  response.end(body)
+}
+
 function html(
   response: ServerResponse,
   body: string,
@@ -418,7 +475,7 @@ function html(
     'content-security-policy': [
       "default-src 'self'",
       `style-src 'nonce-${nonce}'`,
-      `script-src 'nonce-${nonce}'`,
+      `script-src 'nonce-${nonce}' 'self'`,
       `frame-src ${codebaseMemoryOrigin}`,
       `connect-src 'self' ${codebaseMemoryOrigin}`,
       "img-src 'self' data:",

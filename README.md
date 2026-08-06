@@ -25,7 +25,8 @@ and relationship changes for the next agent.
 > reviewable, and ambiguous project identities fail closed.
 
 [Get started](#quick-start) · [How it works](#how-it-works) ·
-[Codex integration](#automatic-with-codex) · [Documentation](#documentation) ·
+[Codex integration](#automatic-with-codex) · [Spatial Inspector](#spatial-inspector) ·
+[Documentation](#documentation) ·
 [Security](SECURITY.md)
 
 ## Why Boron
@@ -122,6 +123,20 @@ digests only. It does not send task titles, prompts, previews, transcripts, or w
 Other agent clients can use the same local MCP server or authenticated HTTP API. Continuity becomes
 automatic only when that client actually integrates Boron.
 
+## Spatial Inspector
+
+Boron can project the review graph into a desktop 3D workbench or Quest 3 passthrough without
+turning the daemon into a remote service. The view reveals context progressively:
+
+- **L0** — project and architecture clusters;
+- **L1** — representative symbols for one selected cluster;
+- **L2** — a separately queried, bounded one-hop caller/callee graph.
+
+The projection contains names, provenance/confirmation state, and typed derived edges—not source
+files or repository text. The optional LAN gateway is a separate paired, read-only HTTPS process;
+the privileged daemon remains on loopback. See the
+[Quest setup and trust procedure](docs/operating-manual.md#quest-3-lan-spatial-inspector-recommended).
+
 ## Trust and privacy
 
 - The gateway binds to loopback by default and requires a generated bearer token.
@@ -131,6 +146,8 @@ automatic only when that client actually integrates Boron.
 - Equal-authority identity conflicts fail closed instead of choosing by row order.
 - Unknown temporary directories do not create confirmed projects.
 - Hook failures fail open, so Boron cannot prevent the coding agent from starting.
+- Optional Quest LAN access uses a separate read-only process, single-use pairing, and mandatory
+  CA SHA-256 fingerprint comparison; it does not widen the daemon listener.
 
 Read the [security policy](SECURITY.md) and
 [project identity repair contract](docs/project-identity-repair.md) before remote exposure or bulk
@@ -139,7 +156,7 @@ identity changes.
 ## Project status
 
 Boron Context is **pre-alpha** and currently optimized for local development on Apple Silicon macOS.
-The v0.6 foundation includes:
+The v0.7 foundation includes:
 
 - trusted Codex lifecycle hooks and resumable, leased sessions;
 - privacy-safe, idempotent task-to-project synchronization;
@@ -147,7 +164,8 @@ The v0.6 foundation includes:
 - PostgreSQL Ontology, live Codebase Memory, and live Markdown Wiki adapters;
 - candidate/confirmed relationship boundaries and human correction requests;
 - Context Meter, adoption health, and source-truth audit surfaces;
-- an authenticated local Inspector and optional native macOS menu-bar meter; and
+- an authenticated local Inspector, paired read-only Quest 3 LAN WebXR projection, and optional
+  native macOS menu-bar meter; and
 - macOS and Linux CI.
 
 Interfaces may change before `1.0`. Linux service packaging, a signed installer, setup UX, and
@@ -163,7 +181,7 @@ configurable inference/confirmation rules remain roadmap work.
 | Understand the context-engineering method     | [Methodology](docs/context-engineering-methodology.md) · [简体中文](docs/context-engineering-methodology.zh-CN.md) |
 | Review task-to-project ownership              | [Codex task context](docs/codex-thread-project-reconciliation.md)                                                  |
 | Repair project identity safely                | [Project identity repair](docs/project-identity-repair.md)                                                         |
-| See what changed in v0.6                      | [Release notes](docs/releases/v0.6.0.md) · [Changelog](CHANGELOG.md)                                               |
+| See what changed in v0.7                      | [Release notes](docs/releases/v0.7.0.md) · [Changelog](CHANGELOG.md)                                               |
 | Follow the product direction                  | [Roadmap](docs/architecture/product-roadmap.md)                                                                    |
 | Contribute                                    | [Contributing guide](CONTRIBUTING.md)                                                                              |
 
