@@ -1,0 +1,33 @@
+{
+  "description": "Load bounded Boron project context at Codex session start and safely close abandoned sessions.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$PLUGIN_ROOT/hooks/boron-context-hook.mjs\"",
+            "commandWindows": "node \"%PLUGIN_ROOT%\\hooks\\boron-context-hook.mjs\"",
+            "timeout": 3,
+            "statusMessage": "Loading verified Boron project context",
+            "additionalContextLimit": 2000
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$PLUGIN_ROOT/hooks/boron-context-hook.mjs\"",
+            "commandWindows": "node \"%PLUGIN_ROOT%\\hooks\\boron-context-hook.mjs\"",
+            "timeout": 3,
+            "statusMessage": "Closing the Boron context lease"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -46,21 +46,32 @@
 - coherent confirmed relation endpoints
 - explicit non-destructive project supersession
 
-### 0.6 inference and confirmation
+### 0.6 invisible Codex continuity
+
+- plugin-bundled, trust-reviewed `SessionStart` and `SessionEnd` hooks
+- automatic exact-project Context Capsule injection
+- privacy-safe, idempotent task ownership sync at startup
+- dedicated thread context index outside the Ontology relationship graph
+- fail-closed unknown-root handling without implicit project creation
+- privacy boundary: no prompt or transcript capture
+- idempotent client-lifecycle partial closure
+- hook/MCP adoption convergence on one external session identity
+
+### 0.7 inference and confirmation
 
 - configurable activity-to-relation rules
 - derived-state query contracts
 - candidate relation review and correction
 - replay and projection rebuild tests
 
-### 0.7 macOS lifecycle
+### 0.8 macOS lifecycle
 
 - signed installer
 - `launchd` install, upgrade, health, and uninstall
 - PostgreSQL backup and restore
 - OS-managed credential persistence
 
-### 0.8 Linux
+### 0.9 Linux
 
 - `systemd` lifecycle
 - XDG directories

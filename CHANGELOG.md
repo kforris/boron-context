@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.6.0] - 2026-08-05
+
+### Added
+
+- plugin-bundled Codex `SessionStart` and `SessionEnd` hooks for automatic project context loading
+  and lifecycle closure after the required Codex trust review;
+- a project-required bootstrap endpoint that skips broad or unresolved roots instead of creating an
+  unscoped automatic session;
+- an idempotent client-lifecycle finalizer that closes unfinished work as `partial` without reading
+  or storing the Codex transcript;
+- hook contract tests covering privacy, bounded context, fail-open behavior, exact-root bootstrap,
+  and repeated lifecycle completion;
+- migration `009_codex_thread_context_sync.sql` with an append-only, privacy-safe task ownership
+  index and current derived state outside the Ontology graph;
+- idempotent `SessionStart` history synchronization plus `get_codex_sync_health` and its
+  authenticated HTTP metric.
+
+### Changed
+
+- automatic hook context uses only Codex session identity, working directory, and lifecycle source;
+  user prompts and transcript paths never enter Boron requests;
+- adoption language now covers Boron-observed hook or MCP threads while preserving the explicit
+  boundary for agents that never load the plugin;
+- historical reconciliation is now a read-only, user-approved plan consumed by Boron at startup;
+  it never rewrites Codex private state or requires an exit/restart window.
+
+### Fixed
+
+- Agent lifecycle, observation, activity, and completion mutations now require the daemon bearer;
+  an Inspector browser cookie cannot invoke those write paths;
+- unknown temporary roots no longer auto-create confirmed projects; bootstrap uses confirmed thread
+  ownership, an explicit project hint, or an exact registered root and otherwise fails closed.
+
 ## [0.5.0] - 2026-08-05
 
 ### Added

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
-import { basename, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Pool, PoolClient } from 'pg'
 import type {
@@ -13,6 +13,7 @@ import type {
   ContextMeterEvidenceAudit,
   ContextMeterSummaryRequest,
   EntityReference,
+  LifecycleSessionEndRequest,
   RecordActivityRequest,
   RelationEffect,
   ResolvedProject,
@@ -35,6 +36,13 @@ export interface RecordedActivity {
   readonly relationEffects: number
   readonly evidence: number
   readonly duplicate: boolean
+}
+
+export interface LifecycleSessionEndResult {
+  readonly closed: boolean
+  readonly sessionId: string | null
+  readonly status: 'partial' | null
+  readonly reason: 'client_session_end' | 'no_active_session'
 }
 
 export interface AdoptionHealthSummary {
@@ -130,11 +138,28 @@ export class PostgresActivityRepository {
   constructor(private readonly pool: Pool) {}
 
   async startSession(input: StartSessionRequest): Promise<StartedSession> {
+    const session = await this.startSessionInternal(input, false)
+    if (!session) throw new Error('Unable to start an unscoped Boron session')
+    return session
+  }
+
+  async bootstrapSession(input: StartSessionRequest): Promise<StartedSession | null> {
+    return this.startSessionInternal(input, true)
+  }
+
+  private async startSessionInternal(
+    input: StartSessionRequest,
+    requireProject: boolean
+  ): Promise<StartedSession | null> {
     await this.expireStaleSessions()
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
       const project = await ensureProject(client, input)
+      if (!project && requireProject) {
+        await client.query('ROLLBACK')
+        return null
+      }
       if (input.externalSessionId) {
         const existing = await client.query<{
           id: string
@@ -379,6 +404,99 @@ export class PostgresActivityRepository {
       [input.sessionId, input.outcome, JSON.stringify(input.metadata)]
     )
     return recorded
+  }
+
+  async endSessionFromClientLifecycle(
+    input: LifecycleSessionEndRequest
+  ): Promise<LifecycleSessionEndResult> {
+    const client = await this.pool.connect()
+    try {
+      await client.query('BEGIN')
+      const active = await client.query<{ id: string; project_id: string | null }>(
+        `
+          SELECT id::text, project_id::text
+          FROM agent_sessions
+          WHERE client = $1
+            AND external_session_id = $2
+            AND status = 'active'
+          FOR UPDATE
+          LIMIT 1
+        `,
+        [input.client, input.externalSessionId]
+      )
+      const session = active.rows[0]
+      if (!session) {
+        await client.query('COMMIT')
+        return {
+          closed: false,
+          sessionId: null,
+          status: null,
+          reason: 'no_active_session'
+        }
+      }
+      const summary =
+        'The client session ended without an explicit verified Boron completion outcome.'
+      const activity = await insertActivity(client, {
+        sessionId: session.id,
+        projectId: session.project_id,
+        activityType: 'session.partial',
+        summary,
+        source: 'boron-client-lifecycle',
+        idempotencyKey: `client-session-end:${session.id}`,
+        confidence: 1,
+        payload: {
+          ...input.metadata,
+          autoClosed: true,
+          closureReason: 'client_session_end'
+        },
+        occurredAt: new Date().toISOString()
+      })
+      if (!activity.duplicate) {
+        await insertEvidence(client, activity.id, session.project_id, {
+          layer: 'ontology',
+          title: 'Activity: session.partial',
+          excerpt: summary,
+          confidence: 1,
+          authority: 1,
+          metadata: {
+            activityId: activity.id,
+            closureReason: 'client_session_end'
+          }
+        })
+      }
+      await client.query(
+        `
+          UPDATE agent_sessions
+          SET
+            status = 'partial',
+            ended_at = now(),
+            last_seen_at = now(),
+            closure_reason = 'client_session_end',
+            metadata = metadata || $2::jsonb
+          WHERE id = $1::uuid AND status = 'active'
+        `,
+        [
+          session.id,
+          JSON.stringify({
+            ...input.metadata,
+            autoClosed: true,
+            closureReason: 'client_session_end'
+          })
+        ]
+      )
+      await client.query('COMMIT')
+      return {
+        closed: true,
+        sessionId: session.id,
+        status: 'partial',
+        reason: 'client_session_end'
+      }
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
   }
 
   async saveCapsule(input: {
@@ -880,8 +998,8 @@ export class PostgresActivityRepository {
       activeSessionThreads: Number(row.active_session_threads),
       staleActiveSessions: Number(row.stale_active_sessions),
       caveats: [
-        'Coverage uses Boron MCP client initializations as the observable denominator; agents that never load the plugin remain outside the denominator.',
-        'One MCP client instance normally maps to one Codex thread when CODEX_THREAD_ID is available, but other clients may use a different process lifecycle.',
+        'Coverage uses Boron hook or MCP observations as the denominator; agents that never load the plugin remain outside the denominator.',
+        'A Codex hook or MCP client instance normally maps to one thread when the shared session identity is available, but other clients may use a different process lifecycle.',
         'Read-only context queries count as covered without creating a durable writeback session.'
       ]
     }
@@ -974,6 +1092,24 @@ export async function ensureProject(
 ): Promise<ResolvedProject | null> {
   const hintedProject = await resolveProjectIdentity(client, input.projectHint)
   if (hintedProject) return hintedProject
+  if (input.externalSessionId) {
+    const observed = await client.query<{ id: string; name: string }>(
+      `
+        SELECT p.id::text, p.name
+        FROM codex_thread_project_state state
+        JOIN projects p ON p.id = state.project_id
+        WHERE state.client = $1
+          AND state.external_thread_id = $2
+          AND state.classification_state = 'confirmed'
+          AND p.status = 'confirmed'
+        LIMIT 1
+      `,
+      [input.client, input.externalSessionId]
+    )
+    if (observed.rows[0]) {
+      return { ...observed.rows[0], confidence: 1 }
+    }
+  }
   if (!input.projectRoot) return null
   const requestedRoot = resolve(input.projectRoot)
   if (requestedRoot === resolve(homedir())) return null
@@ -1006,48 +1142,7 @@ export async function ensureProject(
     )
     return repositoryProject
   }
-  const name = input.projectHint ?? basename(root)
-  const canonicalSourceUri = discovered.repositoryUri ?? sourceUri
-  const result = await client.query<{ id: string; name: string }>(
-    `
-      INSERT INTO projects (name, source_uri, status, metadata)
-      VALUES ($1, $2, 'confirmed', $3::jsonb)
-      ON CONFLICT (source_uri) DO NOTHING
-      RETURNING id::text, name
-    `,
-    [
-      name,
-      canonicalSourceUri,
-      JSON.stringify({
-        localRoot: discovered.repositoryRoot ?? root,
-        observedRoots: [root],
-        ...(discovered.repositoryUri ? { repositoryUri: discovered.repositoryUri } : {}),
-        selectedByClient: input.client
-      })
-    ]
-  )
-  const inserted = result.rows[0]
-  const project = inserted ?? (await resolveProjectIdentity(client, canonicalSourceUri))
-  if (!project) return null
-  const projectId = project.id
-  for (const alias of new Set([name, basename(root)])) {
-    await client.query(
-      `
-        INSERT INTO project_aliases (
-          project_id, alias, normalized_alias, source_uri, confirmation_state
-        )
-        VALUES ($1::uuid, $2, lower(trim($2)), $3, 'confirmed')
-        ON CONFLICT (project_id, normalized_alias)
-        DO UPDATE SET
-          alias = EXCLUDED.alias,
-          source_uri = EXCLUDED.source_uri,
-          confirmation_state = 'confirmed',
-          updated_at = now()
-      `,
-      [projectId, alias, canonicalSourceUri]
-    )
-  }
-  return { id: projectId, name: project.name, confidence: 1 }
+  return null
 }
 
 async function loadSession(

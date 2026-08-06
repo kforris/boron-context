@@ -40,10 +40,12 @@ codex plugin add boron-context@boron-context
 python3 scripts/install_menubar.py
 ```
 
-Start a new Codex task after installing or upgrading the plugin. Codex loads plugin tools and
-skills when a task starts. The bundled MCP server automatically observes its initialization and
-uses `CODEX_THREAD_ID` as the session identity when Codex exposes it; it never stores the task
-transcript.
+After installing or upgrading, inspect the exact `SessionStart` and `SessionEnd` commands once in a
+Codex surface that exposes hook review (`/hooks` in the CLI), then start a new task. Codex skips new
+or changed command hooks until this review. A desktop build without `/hooks` can use the same local
+trust decision; verify a fresh task contains `Boron automatic project context`. The startup hook
+injects bounded project context and performs a content-free ownership sync; it never sends titles,
+prompts, previews, transcripts, or working directories in that history-sync payload.
 
 ## 3. Upgrade an existing local installation
 
@@ -60,8 +62,9 @@ python3 scripts/install_menubar.py
 codex plugin add boron-context@boron-context
 ```
 
-Then start a new Codex task. Do not judge the upgrade from a task that loaded the previous plugin
-version.
+Then repeat hook review in a surface that exposes it because changed hook definitions receive a new
+trust hash, and start a new task. Do not judge the upgrade from a task that loaded the previous
+plugin version.
 
 ## 4. Standard client sequence
 
@@ -76,7 +79,8 @@ Do not open a writeback session for a question that will not create a durable pr
 
 ### Substantive project work
 
-1. Call `begin_context_session` once before implementation.
+1. If developer context contains `Boron automatic project context`, reuse its session ID. Otherwise,
+   call `begin_context_session` once before implementation.
 2. Use the returned capsule first. Expand only missing, stale, conflicting, or high-risk facts.
 3. Inspect `retrievalPlan`:
    - Ontology must be the first stage;
@@ -91,9 +95,10 @@ Do not open a writeback session for a question that will not create a durable pr
 7. Call `complete_context_session` once with `completed`, `partial`, `failed`, or `cancelled`.
 
 The default session lease is 12 hours and renews whenever a semantic activity is recorded. If a
-client disappears without completing, the daemon records an auditable `session.partial` event and
-sets `closure_reason=lease_expired`. Repeating `begin_context_session` in the same active Codex
-thread resumes the lease.
+client reaches `SessionEnd` without explicit completion, the hook records an auditable
+`session.partial` with `closure_reason=client_session_end`. A missing end event still falls back to
+the lease sweeper and `closure_reason=lease_expired`. Repeating begin in the same active Codex thread
+resumes the lease.
 
 Use an idempotency key when an activity may be retried. `occurredAt` accepts UTC `Z` or an explicit
 ISO 8601 timezone offset; retain the event's real time rather than silently replacing it with the
@@ -124,9 +129,15 @@ inference and proposed relationships as `candidate`.
 Call `get_context_meter` for a bounded summary. Call `inspect_context_meter` when a user needs to
 audit how a number or source choice was composed.
 
-Call `get_adoption_health` to measure use across MCP-initialized agent threads. Its denominator is
-not every conversation on the computer: agents that never load the Boron plugin remain outside
+Call `get_adoption_health` to measure use across hook- or MCP-observed agent threads. Its denominator
+is not every conversation on the computer: agents that never load the Boron plugin remain outside
 observability and the response says so explicitly.
+
+Call `get_codex_sync_health` to inspect historical ownership. Healthy state has no conflicts and no
+unexpected candidate growth. The index stores only IDs, classification, authority, confidence, and
+evidence digests. It does not mutate the Codex sidebar or private global state. An optional approved
+historical review plan is documented in
+[`codex-thread-project-reconciliation.md`](codex-thread-project-reconciliation.md).
 
 Interpret the metrics separately:
 

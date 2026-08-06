@@ -171,7 +171,7 @@ const tools = [
   {
     name: 'get_adoption_health',
     description:
-      'Report observable Boron coverage across MCP-initialized agent threads, session closure, and stale leased sessions. Agents that never load this plugin remain outside the denominator.',
+      'Report observable Boron coverage across hook- or MCP-observed agent threads, session closure, and stale leased sessions. Agents that never load this plugin remain outside the denominator.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -179,6 +179,12 @@ const tools = [
         windowDays: { type: 'integer', minimum: 1, maximum: 365, default: 30 }
       }
     }
+  },
+  {
+    name: 'get_codex_sync_health',
+    description:
+      'Report privacy-safe Codex thread-to-project synchronization health: confirmed, candidate, projectless, conflicted, snapshots, and last sync time. This index does not modify the Codex sidebar or copy prompts/transcripts.',
+    inputSchema: { type: 'object', additionalProperties: false, properties: {} }
   },
   {
     name: 'list_manual_corrections',
@@ -271,6 +277,8 @@ async function callTool(name, args) {
       return request('/v1/metrics/context/inspect', { method: 'POST', body: args })
     case 'get_adoption_health':
       return request('/v1/metrics/adoption', { method: 'POST', body: args })
+    case 'get_codex_sync_health':
+      return request('/v1/metrics/codex-sync', { method: 'POST', body: args })
     case 'list_manual_corrections':
       return request('/v1/inspector/corrections/list', { method: 'POST', body: args })
     case 'resolve_manual_correction':
@@ -374,7 +382,7 @@ async function handle(message) {
       result: {
         protocolVersion: params.protocolVersion ?? '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'boron-context', version: '0.5.0' },
+        serverInfo: { name: 'boron-context', version: '0.6.0' },
         instructions:
           'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule and pending human corrections before project work, record only verified semantic milestones, resolve corrections only after evidence-backed repair, and close the session with verified outcomes. Never store secrets or raw transcripts.'
       }

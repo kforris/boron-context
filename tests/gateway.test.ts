@@ -24,6 +24,35 @@ function inspectorStub() {
   } as never
 }
 
+function codexThreadsStub(calls?: string[]) {
+  return {
+    sync: async (input: { observations: unknown[]; snapshotId: string }) => {
+      calls?.push('codex-sync')
+      return {
+        snapshotId: input.snapshotId,
+        duplicate: false,
+        received: input.observations.length,
+        confirmed: input.observations.length,
+        candidate: 0,
+        projectless: 0,
+        unresolvedProjects: 0
+      }
+    },
+    health: async () => {
+      calls?.push('codex-sync-health')
+      return {
+        snapshots: 1,
+        totalThreads: 1,
+        confirmedThreads: 1,
+        candidateThreads: 0,
+        projectlessThreads: 0,
+        conflictedThreads: 0,
+        lastSnapshotAt: '2026-08-06T00:00:00.000Z'
+      }
+    }
+  } as never
+}
+
 describe('gateway', () => {
   it('serves health without exposing the token and protects context resolution', async () => {
     const resolver = new ContextResolver({
@@ -58,6 +87,7 @@ describe('gateway', () => {
         observeAgentClient: async () => {},
         adoptionHealth: async () => ({ observedAgentThreads: 0 })
       } as never,
+      codexThreads: codexThreadsStub(),
       inspector: inspectorStub(),
       codebaseMemoryGraphUrl: 'http://127.0.0.1:9749',
       adapters: [],
@@ -120,6 +150,10 @@ describe('gateway', () => {
           calls.push('start')
           return session
         },
+        bootstrapSession: async () => {
+          calls.push('bootstrap')
+          return session
+        },
         saveCapsule: async () => {
           calls.push('capsule')
         },
@@ -139,6 +173,15 @@ describe('gateway', () => {
           calls.push('complete')
           return { id: randomUUID(), relationEffects: 0, evidence: 2, duplicate: false }
         },
+        endSessionFromClientLifecycle: async () => {
+          calls.push('lifecycle-end')
+          return {
+            closed: true,
+            sessionId: session.id,
+            status: 'partial',
+            reason: 'client_session_end'
+          }
+        },
         observeAgentClient: async () => {
           calls.push('observe')
         },
@@ -148,6 +191,7 @@ describe('gateway', () => {
           contextThreads: 1
         })
       } as never,
+      codexThreads: codexThreadsStub(calls),
       inspector: inspectorStub(),
       codebaseMemoryGraphUrl: 'http://127.0.0.1:9749',
       adapters: [],
@@ -172,6 +216,21 @@ describe('gateway', () => {
       expect(started.status).toBe(200)
       expect(await started.json()).toMatchObject({ session: { id: session.id } })
 
+      const bootstrapped = await fetch(`${gateway.url}/v1/sessions/bootstrap`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          objective: 'Load automatic project continuity',
+          projectRoot: '/tmp/boron-context',
+          client: 'codex'
+        })
+      })
+      expect(bootstrapped.status).toBe(200)
+      expect(await bootstrapped.json()).toMatchObject({
+        started: true,
+        session: { id: session.id }
+      })
+
       const observed = await fetch(`${gateway.url}/v1/clients/observe`, {
         method: 'POST',
         headers,
@@ -183,6 +242,29 @@ describe('gateway', () => {
         })
       })
       expect(observed.status).toBe(200)
+
+      const synced = await fetch(`${gateway.url}/v1/imports/codex-threads`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          snapshotId: 'a'.repeat(64),
+          client: 'codex',
+          source: 'codex_hook',
+          observedAt: '2026-08-06T00:00:00Z',
+          observations: [
+            {
+              externalThreadId: 'thread-1',
+              codexProjectId: 'project-1',
+              classificationState: 'confirmed',
+              authority: 'codex_project_assignment',
+              confidence: 1,
+              evidenceDigest: 'b'.repeat(64)
+            }
+          ]
+        })
+      })
+      expect(synced.status).toBe(200)
+      expect(await synced.json()).toMatchObject({ received: 1, confirmed: 1 })
 
       const activity = await fetch(`${gateway.url}/v1/activity/record`, {
         method: 'POST',
@@ -205,6 +287,20 @@ describe('gateway', () => {
         })
       })
       expect(completed.status).toBe(200)
+
+      const lifecycleEnd = await fetch(`${gateway.url}/v1/sessions/lifecycle-end`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          externalSessionId: 'thread-1',
+          client: 'codex'
+        })
+      })
+      expect(lifecycleEnd.status).toBe(200)
+      expect(await lifecycleEnd.json()).toMatchObject({
+        closed: true,
+        reason: 'client_session_end'
+      })
 
       const meter = await fetch(`${gateway.url}/v1/metrics/context`, {
         method: 'POST',
@@ -231,7 +327,25 @@ describe('gateway', () => {
       })
       expect(adoption.status).toBe(200)
       expect(await adoption.json()).toMatchObject({ observedAgentThreads: 1 })
-      expect(calls).toEqual(['start', 'capsule', 'observe', 'activity', 'complete'])
+      const codexSyncHealth = await fetch(`${gateway.url}/v1/metrics/codex-sync`, {
+        method: 'POST',
+        headers,
+        body: '{}'
+      })
+      expect(codexSyncHealth.status).toBe(200)
+      expect(await codexSyncHealth.json()).toMatchObject({ confirmedThreads: 1 })
+      expect(calls).toEqual([
+        'start',
+        'capsule',
+        'bootstrap',
+        'capsule',
+        'observe',
+        'codex-sync',
+        'activity',
+        'complete',
+        'lifecycle-end',
+        'codex-sync-health'
+      ])
     } finally {
       await gateway.close()
     }
@@ -248,6 +362,7 @@ describe('gateway', () => {
       token: 'test-token-with-at-least-thirty-two-characters',
       resolver,
       activity: {} as never,
+      codexThreads: codexThreadsStub(),
       inspector: inspectorStub(),
       codebaseMemoryGraphUrl: 'http://127.0.0.1:9749',
       adapters: [],
@@ -317,6 +432,16 @@ describe('gateway', () => {
         body: correctionBody
       })
       expect(missingCsrf.status).toBe(403)
+
+      const inspectorLifecycleMutation = await fetch(`${gateway.url}/v1/sessions/lifecycle-end`, {
+        method: 'POST',
+        headers: { cookie: cookie!, 'content-type': 'application/json' },
+        body: JSON.stringify({ externalSessionId: 'inspector-must-not-mutate' })
+      })
+      expect(inspectorLifecycleMutation.status).toBe(403)
+      expect(await inspectorLifecycleMutation.json()).toMatchObject({
+        error: 'bearer_token_required'
+      })
 
       const created = await fetch(`${gateway.url}/v1/inspector/corrections/create`, {
         method: 'POST',

@@ -4,40 +4,50 @@
 
 # Boron Context
 
-**Durable, local project context for coding agents**
+**Project memory that makes coding agents easier to continue with over time**
 
 [![CI](https://github.com/kforris/boron-context/actions/workflows/ci.yml/badge.svg)](https://github.com/kforris/boron-context/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-b7ff4a.svg)](#project-status)
-[![Version: 0.5.0](https://img.shields.io/badge/version-0.5.0-6ebb50.svg)](CHANGELOG.md)
+[![Version: 0.6.0](https://img.shields.io/badge/version-0.6.0-6ebb50.svg)](CHANGELOG.md)
 
 </div>
 
-Boron Context gives Codex and other coding agents a shared, sourced view of your projects across
-sessions. Before work starts, it resolves the exact project and returns only the relevant context.
-After the work is verified, it preserves the decisions, evidence, and relationship changes that the
-next agent should know.
+**Your coding agents should get better at your project every time they work on it.**
 
-**Boron is not an agent, a chat logger, or a model-training system.** It does not capture raw
-transcripts, write back every tool call, or call an LLM by default. It is a local context substrate
-that agent clients use through MCP or authenticated HTTP.
+Boron Context is open-source, local context infrastructure for Codex and other coding agents. At
+task start it identifies the project and returns a small, sourced **Context Capsule**. At task end it
+keeps only verified decisions, outcomes, and relationship changes. The next integrated agent starts
+from durable project state instead of reconstructing it from chat history.
+
+**No transcript warehouse. No default LLM. No private Codex-state patching.** Boron combines a
+privacy-safe thread-to-project index, confirmed ontology facts, code evidence, and Markdown
+knowledge. Uncertain matches remain reviewable; ambiguous identities fail closed.
+
+Use Boron long enough and a project becomes easier for any integrated agent to continue—not because
+the model was retrained, but because the project's context became structured, sourced, and reusable.
 
 [Quick start](#quick-start) · [Codex plugin](#codex-plugin) · [How it works](#how-it-works) ·
 [Security](SECURITY.md) · [Project status](#project-status)
 
 ## What it does
 
-| When        | Boron Context                                                                                    |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| Before work | Resolves an exact project identity and builds a bounded, sourced **Context Capsule**.            |
-| During work | Surfaces confirmed constraints, decisions, relationships, code evidence, and documentation.      |
-| After work  | Stores selected, verified milestones and relation changes—not the full conversation.             |
-| Next time   | Gives an integrated agent the durable project state without reconstructing it from chat history. |
+| When        | Boron Context                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| Before work | Resolves an exact project identity and builds a bounded, sourced **Context Capsule**.       |
+| During work | Surfaces confirmed constraints, decisions, relationships, code evidence, and documentation. |
+| After work  | Stores selected, verified milestones and relation changes—not the full conversation.        |
+| Next time   | Incrementally syncs task ownership and gives an integrated agent durable project state.     |
 
-The bundled MCP client uses `CODEX_THREAD_ID` when available, so a non-trivial Codex task resumes
-one leased Boron session instead of silently creating duplicates. Boron measures coverage among
-MCP-initialized agent threads while stating the boundary clearly: an agent that never loads the
-plugin is not observable.
+After one explicit Codex trust review, the bundled `SessionStart` hook incrementally syncs
+privacy-safe task ownership, opens or resumes a project-scoped Boron session, and injects a bounded
+Capsule as developer context. It never sends a task title, prompt, preview, transcript, or working
+directory in the history-sync payload. `SessionEnd` safely closes an unfinished lease as `partial`.
+The MCP tools remain available for objective-specific expansion and verified semantic writeback.
+
+Boron measures coverage among threads it can observe through the trusted hook or MCP initialization
+while stating the boundary clearly: an agent that never loads the plugin remains outside the
+denominator.
 
 Confirmed meaning lives in PostgreSQL. Uncertain discoveries remain `candidate` until an
 authoritative source or a person confirms them. Ambiguous project names fail closed instead of
@@ -67,8 +77,11 @@ codex plugin marketplace add .
 codex plugin add boron-context@boron-context
 ```
 
-Start a new Codex task so the MCP tools and context-continuity skill are loaded. Other agent clients
-can integrate through the authenticated HTTP API or configure the same local MCP surface.
+Review the two Boron lifecycle commands once in a Codex surface that exposes hook review (`/hooks`
+in the CLI), then start a new task. Codex deliberately skips new or changed plugin hooks until this
+review. Desktop builds that do not expose `/hooks` can use the same locally trusted plugin command;
+verify a fresh task contains `Boron automatic project context`. The MCP tools and skill work before
+hook trust. Other agent clients can integrate through authenticated HTTP or the local MCP surface.
 
 ## Context sources
 
@@ -137,8 +150,14 @@ This independent repository contains a new headless foundation:
 - collision-safe project identities and deterministic Codex project-registry reconciliation that
   confirms exact roots while leaving name-only matches as candidates;
 - leased, resumable agent sessions with auditable automatic partial closure for abandoned work;
-- MCP-initialization coverage metrics that distinguish context reads, durable sessions, and
-  initialized threads that never used context;
+- trusted Codex lifecycle hooks that automatically inject project context without reading prompts
+  or transcripts and safely close unfinished sessions;
+- a dedicated, privacy-safe Codex task ownership index that syncs idempotently at task startup
+  without rewriting Codex private state or polluting the Ontology graph;
+- fail-closed bootstrap that never creates a confirmed project merely because Codex opened an
+  unknown temporary directory;
+- adoption coverage metrics that distinguish context reads, durable sessions, and observed threads
+  that never used context;
 - append-only semantic activities with temporal assert/retract relation effects;
 - an ontology-first Retrieval Plan that selects sources sequentially from deterministic request
   signals and never requires a model or embedding pre-pass;
@@ -163,18 +182,41 @@ The current API is intentionally small:
 - `GET /health`
 - `POST /v1/context/resolve`
 - `POST /v1/sessions/start`
+- `POST /v1/sessions/bootstrap` (project-required automatic lifecycle start)
 - `POST /v1/activity/record`
 - `POST /v1/sessions/complete`
+- `POST /v1/sessions/lifecycle-end` (idempotent automatic partial closure)
 - `POST /v1/clients/observe`
+- `POST /v1/imports/codex-threads` (privacy-safe, append-only task ownership observations)
 - `POST /v1/metrics/context`
 - `POST /v1/metrics/context/inspect` (read-only, credential-redacted audit preview)
 - `POST /v1/metrics/adoption`
+- `POST /v1/metrics/codex-sync`
 - `GET /inspector` (browser shell; data requires a one-time menu-bar session)
 - `POST /v1/inspector/ontology`, `/wiki`, and `/corrections/list`
 - `POST /v1/inspector/corrections/create` and `/resolve`
 
 Generic inference rules and a setup surface remain next-stage work. Interfaces may change before
 `1.0`.
+
+## Automatic continuity in v0.6.0
+
+- A trust-reviewed Codex `SessionStart` hook loads project context automatically at startup, resume,
+  clear, and post-compaction boundaries.
+- Startup also imports changed thread-to-project ownership into a dedicated retrieval index. The
+  import is content-free, idempotent, and independent of the Codex sidebar layout.
+- The hook uses only lifecycle identity, exact working directory, and start source. It does not read
+  or forward prompts or transcripts.
+- History sync sends IDs, classification, authority, confidence, and evidence digests only—never
+  titles, previews, prompts, transcripts, or working directories.
+- Automatic bootstrap requires a confirmed thread owner or exact registered project scope. Broad
+  home roots and unknown temporary roots fail closed instead of creating projects.
+- A `SessionEnd` hook closes a remaining active session as `partial`; explicit verified completion
+  remains authoritative and makes the hook a no-op.
+- Hook output is bounded to 2,000 tokens by Codex configuration and 7,500 characters by the plugin.
+- No quit delay, restart-time race, or mutation of Codex private global state is required.
+
+See the [v0.6.0 release notes](docs/releases/v0.6.0.md) for trust, privacy, and verification details.
 
 ## Continuity health in v0.5.0
 
@@ -255,6 +297,7 @@ and process failures.
 
 The repository includes a local Codex plugin under `plugins/boron-context`. It provides:
 
+- trusted `SessionStart` and `SessionEnd` hooks for automatic, privacy-bounded project continuity;
 - `begin_context_session` to retrieve a project capsule and open an episode;
 - `record_activity` to store selected semantic milestones and relation effects;
 - `complete_context_session` to preserve verified outcomes and decisions;
@@ -263,13 +306,14 @@ The repository includes a local Codex plugin under `plugins/boron-context`. It p
   Boron-owned LLM usage.
 - `inspect_context_meter` to inspect recent sample composition, Retrieval Plan stages, adapters,
   candidate/selected evidence, and source-estimate coverage without exposing credentials.
-- `get_adoption_health` to inspect observable MCP-thread coverage, session closure, and expired
-  leases without pretending to see agents that never loaded the plugin.
+- `get_adoption_health` to inspect observable hook/MCP coverage, session closure, and expired leases
+  without pretending to see agents that never loaded the plugin.
 - `list_manual_corrections` to read human review requests recorded in Boron Content.
 - `resolve_manual_correction` to close a request only after evidence-backed repair or rejection.
 
-The companion skill asks Codex to read before substantive project work and write back after
-verification. It deliberately does not capture raw transcripts or every tool call.
+The companion skill reuses an automatically injected session when present, otherwise falling back
+to an explicit begin call. It asks Codex to write back after verification and deliberately does not
+capture raw transcripts or every tool call.
 
 The [quick start](#quick-start) installs the repository marketplace and plugin. Start a new Codex
 task after installation so the MCP tools and skill are loaded.

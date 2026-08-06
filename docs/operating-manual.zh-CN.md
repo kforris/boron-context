@@ -39,9 +39,11 @@ codex plugin add boron-context@boron-context
 python3 scripts/install_menubar.py
 ```
 
-安装或升级插件后要新建一个 Codex task。Codex 只会在 task 启动时加载 plugin 的 tools 和
-skills。MCP server 会自动记录一次不含对话内容的初始化观测；当 Codex 提供
-`CODEX_THREAD_ID` 时，它会被用作稳定 session identity。
+安装或升级后，在支持 hook 审查的 Codex 入口中检查一次准确的 `SessionStart` 与
+`SessionEnd` 命令（CLI 使用 `/hooks`），再新建 task。Codex 会跳过尚未审查的新 hook 或已
+变化 hook。没有 `/hooks` 的 Desktop 可以复用同一本地信任结果；请确认新 task 出现
+`Boron automatic project context`。启动 hook 会注入有边界的项目上下文并做无内容的归属同步；
+历史同步 payload 不发送标题、prompt、preview、transcript 或工作目录。
 
 ## 3. 升级现有本地安装
 
@@ -58,7 +60,8 @@ python3 scripts/install_menubar.py
 codex plugin add boron-context@boron-context
 ```
 
-完成后新建 Codex task。不要用仍加载旧 plugin 的 task 判断升级是否成功。
+完成后在支持的入口重新审查 hook，因为变化后的定义会获得新的 trust hash，再新建 task。
+不要用仍加载旧 plugin 的 task 判断升级是否成功。
 
 ## 4. 标准调用顺序
 
@@ -73,7 +76,8 @@ codex plugin add boron-context@boron-context
 
 ### 实质性项目工作
 
-1. 实施前只调用一次 `begin_context_session`。
+1. 如果 developer context 包含 `Boron automatic project context`，复用其中的 session ID；
+   否则在实施前只调用一次 `begin_context_session`。
 2. 优先使用返回的 capsule；只扩展缺失、过期、冲突或高风险事实。
 3. 检查 `retrievalPlan`：
    - 第一阶段必须是 Ontology；
@@ -88,9 +92,10 @@ codex plugin add boron-context@boron-context
 7. 只调用一次 `complete_context_session`，结果使用 `completed`、`partial`、`failed` 或
    `cancelled`。
 
-默认 session lease 为 12 小时，并在记录语义 activity 时续租。客户端消失且没有完成
-session 时，daemon 会写入可审计的 `session.partial` 并设置
-`closure_reason=lease_expired`。同一个活跃 Codex task 重复 begin 会续接现有 session。
+默认 session lease 为 12 小时，并在记录语义 activity 时续租。客户端进入 `SessionEnd`
+但没有显式完成时，hook 会写入可审计的 `session.partial` 并设置
+`closure_reason=client_session_end`；如果结束事件也没有触发，lease sweeper 仍会以
+`closure_reason=lease_expired` 兜底。同一个活跃 Codex task 重复 begin 会续接现有 session。
 
 可能重试的 activity 要使用 idempotency key。`occurredAt` 支持 UTC `Z` 和显式 ISO 8601
 时区偏移；保留事件真实发生时间，不要用记录时间静默替换。
@@ -120,8 +125,13 @@ session 时，daemon 会写入可审计的 `session.partial` 并设置
 需要有边界的汇总时调用 `get_context_meter`；需要审计数字或来源选择如何组成时调用
 `inspect_context_meter`。
 
-需要检查自动接入程度时调用 `get_adoption_health`。它的分母是已初始化 Boron MCP 的 Agent
+需要检查自动接入程度时调用 `get_adoption_health`。它的分母是 hook 或 MCP 已观测到的 Agent
 task；从未加载 plugin 的 Agent 不在可观测范围内，结果会明确保留这个边界。
+
+使用 `get_codex_sync_health` 检查历史 task 归属。健康状态应无冲突、无异常增长的 candidate。
+该索引只保存 ID、分类、authority、confidence 与证据摘要；它不修改 Codex 侧边栏或私有全局
+状态。可选的历史人工审阅方案见
+[`codex-thread-project-reconciliation.md`](codex-thread-project-reconciliation.md)。
 
 指标要分开解释：
 

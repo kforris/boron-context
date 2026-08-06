@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   agentClientObservationSchema,
+  codexThreadProjectObservationSchema,
+  codexThreadSyncRequestSchema,
+  lifecycleSessionEndRequestSchema,
   manualCorrectionSchema,
   recordActivityRequestSchema,
   startSessionRequestSchema
@@ -58,6 +61,62 @@ describe('agent continuity contracts', () => {
         event: 'initialized'
       })
     ).toMatchObject({ event: 'initialized', metadata: {} })
+  })
+
+  it('requires only external identity for lifecycle ending', () => {
+    expect(lifecycleSessionEndRequestSchema.parse({ externalSessionId: 'thread-1' })).toEqual({
+      externalSessionId: 'thread-1',
+      client: 'codex',
+      metadata: {}
+    })
+  })
+
+  it('requires confirmed Codex thread ownership to name a project', () => {
+    const base = {
+      externalThreadId: 'thread-1',
+      authority: 'codex_project_assignment',
+      confidence: 1,
+      evidenceDigest: 'a'.repeat(64)
+    }
+    expect(
+      codexThreadProjectObservationSchema.safeParse({
+        ...base,
+        classificationState: 'confirmed'
+      }).success
+    ).toBe(false)
+    expect(
+      codexThreadProjectObservationSchema.safeParse({
+        ...base,
+        codexProjectId: 'project-1',
+        classificationState: 'confirmed'
+      }).success
+    ).toBe(true)
+    expect(
+      codexThreadProjectObservationSchema.safeParse({
+        ...base,
+        codexProjectId: 'project-1',
+        classificationState: 'projectless'
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts a bounded privacy-safe Codex thread snapshot', () => {
+    expect(
+      codexThreadSyncRequestSchema.parse({
+        snapshotId: 'b'.repeat(64),
+        observedAt: '2026-08-06T00:00:00Z',
+        observations: [
+          {
+            externalThreadId: 'thread-1',
+            codexProjectId: 'project-1',
+            classificationState: 'confirmed',
+            authority: 'user_approved_plan',
+            confidence: 1,
+            evidenceDigest: 'c'.repeat(64)
+          }
+        ]
+      })
+    ).toMatchObject({ client: 'codex', source: 'codex_hook' })
   })
 
   it('keeps uncertain relation effects candidate unless confirmation is explicit', () => {
