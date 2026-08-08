@@ -77,6 +77,23 @@ codex plugin add boron-context@boron-context
 完成后在支持的入口重新审查 hook，因为变化后的定义会获得新的 trust hash，再新建 task。
 不要用仍加载旧 plugin 的 task 判断升级是否成功。
 
+Plugin 版本现在包含确定性的 12 位十六进制 payload 摘要。`npm run check` 会校验完整的内置
+plugin，避免源码已经变化却继续复用旧 Codex 缓存键。不要直接修改
+`~/.codex/plugins/cache`，也不要硬编码其中路径。该版本化目录由 Codex 管理，结构为
+`<marketplace>/<plugin>/<version>`；本地安装里出现重复的
+`boron-context/boron-context` 属于预期布局，不代表文件夹漂移。
+
+排查安装时先读取 plugin registry：
+
+```bash
+codex plugin list --marketplace boron-context --json
+rg --files "${CODEX_HOME:-$HOME/.codex}/plugins/cache/boron-context" \
+  | rg '/context-continuity/SKILL\.md$'
+```
+
+只有 registry 选中的已安装 artifact 与当前 marketplace payload 不一致时，才应报告
+source/cache 漂移。手工拼接路径时漏掉 marketplace 或 plugin 任一层，不是 Boron 健康故障。
+
 ## 4. 标准调用顺序
 
 ### 只读问题
@@ -307,6 +324,7 @@ codex plugin list
 预期行为：
 
 - `/health` 报告当前 daemon 版本和 adapter source type；
+- `plugin:check` 确认 manifest 缓存键与完整内置 plugin payload 一致；
 - Codex plugin 暴露 continuity、Meter、correction 和 `get_adoption_health` 工具；
 - 代码类请求的 `retrievalPlan` 中 Ontology 位于 Codebase 之前；
 - continuity 请求中 Ontology 位于 Wiki 之前；
