@@ -181,10 +181,10 @@ The v0.7 foundation includes:
 
 - trusted Codex lifecycle hooks and resumable, leased sessions;
 - privacy-safe, idempotent task-to-project synchronization;
-- collision-safe project identities and auditable supersession;
+- collision-safe Codex and operator-approved independent project identities with auditable supersession;
 - PostgreSQL Ontology, live Codebase Memory, and live Markdown Wiki adapters;
 - candidate/confirmed relationship boundaries and human correction requests;
-- Context Meter, adoption health, and source-truth audit surfaces;
+- Context Meter, structured context-quality health, adoption health, and source-truth audit surfaces;
 - an authenticated local Inspector, paired read-only Quest 3 LAN WebXR projection, and optional
   native macOS menu-bar meter; and
 - macOS and Linux CI.

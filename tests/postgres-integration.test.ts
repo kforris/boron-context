@@ -5,7 +5,9 @@ import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { PostgresActivityRepository } from '../src/db/activity-repository.js'
+import { ActivityTimestampError, ProjectScopeError } from '../src/core/errors.js'
 import { PostgresCodexThreadRepository } from '../src/db/codex-thread-repository.js'
+import { reconcileCodexRegistry, type CodexRegistry } from '../src/db/project-registry.js'
 import { reconcileProjectSupersessions } from '../src/db/project-supersession.js'
 
 const databaseUrl = process.env.BORON_TEST_DATABASE_URL
@@ -106,6 +108,131 @@ describeDatabase('PostgreSQL continuity integration', () => {
       relationEffects: [],
       evidence: [],
       metadata: { integrationTest: true }
+    })
+  })
+
+  it('rejects cross-project and future-skewed writeback while auditing explicit scope', async () => {
+    const suffix = randomUUID()
+    const otherName = `Independent integration ${suffix}`
+    await pool.query(
+      `
+        INSERT INTO projects (name, source_uri, status, metadata)
+        VALUES ($1, $2, 'confirmed', '{"integrationTest":true}'::jsonb)
+      `,
+      [otherName, `integration://project/${suffix}`]
+    )
+    const session = await repository.startSession({
+      objective: 'Verify project-scoped writeback integrity',
+      projectHint: 'Boron Context',
+      externalSessionId: `writeback-integrity-${suffix}`,
+      client: 'postgres-integration-test',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    const base = {
+      sessionId: session.id,
+      activityType: 'integration.writeback_scope',
+      summary: 'Verify explicit project scope.',
+      confidence: 1,
+      metadata: { integrationTest: true },
+      relationEffects: [],
+      evidence: []
+    }
+
+    await expect(
+      repository.recordActivity({ ...base, projectHint: otherName })
+    ).rejects.toBeInstanceOf(ProjectScopeError)
+    await expect(
+      repository.recordActivity({
+        ...base,
+        projectHint: 'Boron Context',
+        occurredAt: new Date(Date.now() + 6 * 60 * 1_000).toISOString()
+      })
+    ).rejects.toBeInstanceOf(ActivityTimestampError)
+    await repository.recordActivity({ ...base, projectHint: 'Boron Context' })
+
+    const quality = await repository.contextQualityHealth({
+      projectHint: 'Boron Context',
+      windowDays: 30
+    })
+    expect(quality.project).toBe('Boron Context')
+    expect(quality.writebackScope.explicitProject).toBeGreaterThanOrEqual(1)
+    expect(quality.boronLlmCalls).toBe(0)
+
+    await repository.completeSession({
+      sessionId: session.id,
+      outcome: 'completed',
+      summary: 'Project-scoped writeback integrity passed.',
+      decisions: [],
+      relationEffects: [],
+      evidence: [],
+      metadata: { integrationTest: true }
+    })
+  })
+
+  it('applies an operator-approved independent project registry idempotently', async () => {
+    const suffix = randomUUID()
+    const canonicalName = `Independent registry ${suffix}`
+    const sourceUri = `integration://independent-registry/${suffix}`
+    const registry: CodexRegistry = {
+      provenance: 'PostgreSQL integration test approval',
+      authority: 'user_approved',
+      stateUri: 'file:///tmp/integration-codex-state.json',
+      manifestUri: 'file:///tmp/integration-project-manifest.json',
+      projects: [],
+      independentProjects: [
+        {
+          canonicalName,
+          sourceUri,
+          aliases: [canonicalName, `${canonicalName} alias`],
+          roots: [process.cwd()],
+          ignoredRoots: []
+        }
+      ],
+      supersedeAliases: [],
+      supersedeObjects: [],
+      standaloneIdentities: []
+    }
+
+    const preview = await reconcileCodexRegistry(pool, registry, false)
+    expect(preview.plan.independentProjects[0]).toMatchObject({
+      sourceUri,
+      matchReason: 'create'
+    })
+    const applied = await reconcileCodexRegistry(pool, registry, true)
+    expect(applied.independentProjectsCreated).toBe(1)
+    expect(applied.independentRootRelations).toBe(1)
+    const repeated = await reconcileCodexRegistry(pool, registry, true)
+    expect(repeated.independentProjectsCreated).toBe(0)
+    expect(repeated.independentProjectsAdopted).toBe(1)
+    expect(repeated.independentRootRelations).toBe(0)
+
+    const project = await pool.query<{
+      name: string
+      status: string
+      registry_kind: string
+      aliases: string[]
+    }>(
+      `
+        SELECT
+          p.name,
+          p.status,
+          p.metadata->>'registryKind' AS registry_kind,
+          array_agg(a.alias ORDER BY a.alias) AS aliases
+        FROM projects p
+        JOIN project_aliases a ON a.project_id = p.id
+        WHERE p.source_uri = $1
+        GROUP BY p.id
+      `,
+      [sourceUri]
+    )
+    expect(project.rows[0]).toMatchObject({
+      name: canonicalName,
+      status: 'confirmed',
+      registry_kind: 'independent',
+      aliases: [canonicalName, `${canonicalName} alias`].sort()
     })
   })
 

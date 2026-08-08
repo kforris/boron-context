@@ -52,6 +52,13 @@ Call `record_activity` only for semantic turning points:
 - a new durable constraint;
 - an event that asserts or retracts a relationship.
 
+Pass the exact intended `projectHint` on every new semantic write. The daemon resolves it and rejects
+the write if it does not match the open session's project. If the target project is unresolved or
+different, stop and open the correctly scoped session instead of writing through the current one.
+Legacy clients that omit the hint remain compatible, but their writes are auditable as
+`implicit_session` rather than explicitly project-verified. Do not set `occurredAt` more than five
+minutes ahead of current observation time.
+
 Do not record every tool call. Do not store raw transcripts, secrets, tokens, credentials, private
 messages, or large file contents. Prefer a bounded factual summary and a stable URI.
 
@@ -108,6 +115,11 @@ Call `get_context_meter` when the user asks about saved context, token efficienc
 explanation, latency, or Boron model cost. Preserve the returned caveats: re-explanation avoided
 tokens were not re-provided by the user or agent but still enter the agent model, while
 source-window savings require explicit source-size coverage.
+
+Call `get_context_quality_health` when the user asks whether Boron is healthier, more reliable, or
+"smarter" over time. Report the separate project-resolution, lifecycle, writeback-scope,
+time-integrity, source-coverage, and correction indicators. Do not collapse them into a scalar score
+or claim semantic intelligence from operational telemetry alone.
 
 Use `inspect_context_meter` when the user needs to audit how a number was composed. The preview is
 read-only and credential-redacted. Distinguish re-explanation avoided context from source-window

@@ -109,13 +109,14 @@ const tools = [
   {
     name: 'record_activity',
     description:
-      'Record a bounded semantic activity in an open Boron session. Store decisions, corrections, material actions, tool outcomes, and relation effects—not raw transcripts or every tool call.',
+      'Record a bounded semantic activity in an open Boron session. Pass the intended projectHint so the daemon can reject cross-project writeback. occurredAt may be at most five minutes ahead of observation time.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['sessionId', 'activityType', 'summary'],
+      required: ['sessionId', 'projectHint', 'activityType', 'summary'],
       properties: {
         sessionId: { type: 'string', format: 'uuid' },
+        projectHint: { type: 'string' },
         activityType: { type: 'string' },
         summary: { type: 'string' },
         actorUri: { type: 'string' },
@@ -145,6 +146,19 @@ const tools = [
           maximum: 200,
           default: 40
         }
+      }
+    }
+  },
+  {
+    name: 'get_context_quality_health',
+    description:
+      'Read deterministic context quality indicators for project resolution, session lifecycle, explicit writeback scope, timestamp integrity, source coverage, and manual corrections. This does not produce a scalar intelligence score.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        projectHint: { type: 'string' },
+        windowDays: { type: 'integer', minimum: 1, maximum: 365, default: 30 }
       }
     }
   },
@@ -273,6 +287,8 @@ async function callTool(name, args) {
       return request('/v1/activity/record', { method: 'POST', body: args })
     case 'get_context_meter':
       return request('/v1/metrics/context', { method: 'POST', body: args })
+    case 'get_context_quality_health':
+      return request('/v1/metrics/context/quality', { method: 'POST', body: args })
     case 'inspect_context_meter':
       return request('/v1/metrics/context/inspect', { method: 'POST', body: args })
     case 'get_adoption_health':

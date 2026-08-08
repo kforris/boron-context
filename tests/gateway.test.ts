@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
 import { ContextResolver } from '../src/core/resolver.js'
+import { ProjectScopeError } from '../src/core/errors.js'
 import { startGateway } from '../src/gateway/server.js'
 
 function inspectorStub() {
@@ -140,6 +141,9 @@ describe('gateway', () => {
         contextMeterAudit: async () => {
           throw new Error('not used')
         },
+        contextQualityHealth: async () => {
+          throw new Error('not used')
+        },
         observeAgentClient: async () => {},
         adoptionHealth: async () => ({ observedAgentThreads: 0 })
       } as never,
@@ -221,7 +225,15 @@ describe('gateway', () => {
           summary: { samples: 1 },
           samples: [{ id: 'audit-sample' }]
         }),
-        recordActivity: async () => {
+        contextQualityHealth: async () => ({
+          project: 'Boron Context',
+          writebackScope: { explicitVerificationRatio: 1 },
+          timeIntegrity: { futureSkewedActivities: 0 }
+        }),
+        recordActivity: async (input: { projectHint?: string }) => {
+          if (input.projectHint === 'Wrong Project') {
+            throw new ProjectScopeError('project_mismatch', 'Wrong project')
+          }
           calls.push('activity')
           return { id: randomUUID(), relationEffects: 0, evidence: 1, duplicate: false }
         },
@@ -333,6 +345,19 @@ describe('gateway', () => {
       })
       expect(activity.status).toBe(200)
 
+      const mismatchedActivity = await fetch(`${gateway.url}/v1/activity/record`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          sessionId: session.id,
+          projectHint: 'Wrong Project',
+          activityType: 'decision.recorded',
+          summary: 'This must not cross project scope.'
+        })
+      })
+      expect(mismatchedActivity.status).toBe(409)
+      expect(await mismatchedActivity.json()).toMatchObject({ error: 'project_mismatch' })
+
       const completed = await fetch(`${gateway.url}/v1/sessions/complete`, {
         method: 'POST',
         headers,
@@ -375,6 +400,17 @@ describe('gateway', () => {
       expect(await audit.json()).toEqual({
         summary: { samples: 1 },
         samples: [{ id: 'audit-sample' }]
+      })
+      const quality = await fetch(`${gateway.url}/v1/metrics/context/quality`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ projectHint: 'Boron Context', windowDays: 30 })
+      })
+      expect(quality.status).toBe(200)
+      expect(await quality.json()).toMatchObject({
+        project: 'Boron Context',
+        writebackScope: { explicitVerificationRatio: 1 },
+        timeIntegrity: { futureSkewedActivities: 0 }
       })
       const adoption = await fetch(`${gateway.url}/v1/metrics/adoption`, {
         method: 'POST',

@@ -13,10 +13,35 @@ not resolve. Name-only matches discovered during reconciliation create `candidat
   `HAS_REGISTERED_WORKSPACE` relation.
 - A user-approved manifest may rename a canonical group, adopt an existing Boron project, add an
   exact root, supersede a wrong historical alias, or retire a misleading historical object.
+- The same manifest may declare `independentProjects` that are not present in Codex local-project
+  metadata. They become confirmed only because the operator supplied a stable source URI and
+  approved the manifest; they are never inferred from directory names.
 - A broad home path is recorded as ignored and is never treated as a project root.
 
 The manifest is operator-owned local configuration. Do not commit a personal manifest, project
 IDs, private names, or local paths to this repository.
+
+An independent project entry has this shape:
+
+```json
+{
+  "version": 1,
+  "authority": "user_approved",
+  "provenance": "Reviewed by the local operator on 2026-08-07",
+  "projects": {},
+  "independentProjects": [
+    {
+      "canonicalName": "Example Product",
+      "sourceUri": "project://example-product",
+      "aliases": ["ExampleProduct"],
+      "authoritativeRoots": ["/Users/operator/Projects/example-product"]
+    }
+  ]
+}
+```
+
+The source URI must be stable and unique. Exact roots may be omitted; the home directory and
+missing directories are reported as ignored. Identity collisions fail the preview.
 
 ## Operator procedure
 
@@ -30,7 +55,7 @@ IDs, private names, or local paths to this repository.
 3. Preview the deterministic plan. This performs no ontology mutation:
 
    ```bash
-   node dist/cli.js reconcile-codex-projects \
+   node dist/cli.js reconcile-projects \
      --state "$HOME/.codex/.codex-global-state.json" \
      --manifest "/path/to/user-approved-project-manifest.json"
    ```
@@ -39,7 +64,7 @@ IDs, private names, or local paths to this repository.
    after the preview matches the approved registry:
 
    ```bash
-   node dist/cli.js reconcile-codex-projects \
+   node dist/cli.js reconcile-projects \
      --state "$HOME/.codex/.codex-global-state.json" \
      --manifest "/path/to/user-approved-project-manifest.json" \
      --apply

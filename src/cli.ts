@@ -34,6 +34,7 @@ try {
       await health()
       break
     case 'reconcile-codex-projects':
+    case 'reconcile-projects':
       await reconcileProjects()
       break
     case 'repair-project-identities':
@@ -88,7 +89,7 @@ async function health(): Promise<void> {
 async function reconcileProjects(): Promise<void> {
   const manifestPath = optionValue('--manifest')
   if (!manifestPath) {
-    throw new Error('reconcile-codex-projects requires --manifest <path>')
+    throw new Error(`${command} requires --manifest <path>`)
   }
   const statePath = optionValue('--state') ?? join(homedir(), '.codex', '.codex-global-state.json')
   const registry = await loadCodexRegistry({
@@ -304,6 +305,8 @@ Usage:
   boron-context health         Read daemon health
   boron-context reconcile-codex-projects --manifest <path> [--state <path>] [--apply]
                                Preview or apply authoritative Codex project identities
+  boron-context reconcile-projects --manifest <path> [--state <path>] [--apply]
+                               Preview or apply Codex plus operator-approved independent projects
   boron-context repair-project-identities --manifest <path> [--apply]
                                Preview or apply explicit non-destructive identity supersessions
   boron-context print-launchd  Print a macOS launchd plist

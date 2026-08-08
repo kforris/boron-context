@@ -30,6 +30,21 @@ describe('recordActivityRequestSchema', () => {
       recordActivityRequestSchema.safeParse({ ...activity, occurredAt: 'not-a-date' }).success
     ).toBe(false)
   })
+
+  it('rejects timestamps more than five minutes in the future', () => {
+    expect(
+      recordActivityRequestSchema.safeParse({
+        ...activity,
+        occurredAt: new Date(Date.now() + 6 * 60 * 1_000).toISOString()
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts an explicit project writeback target', () => {
+    expect(
+      recordActivityRequestSchema.parse({ ...activity, projectHint: 'Boron Context' })
+    ).toMatchObject({ projectHint: 'Boron Context' })
+  })
 })
 
 describe('manualCorrectionSchema', () => {

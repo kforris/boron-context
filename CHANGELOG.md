@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- operator-approved independent projects in the existing preview/apply registry workflow, with
+  exact non-home roots, collision checks, provenance, and idempotent confirmed identities;
+- deterministic context-quality health metrics for project resolution, session lifecycle,
+  writeback scope, time integrity, source coverage, corrections, and zero Boron-owned LLM calls.
+
+### Fixed
+
+- activity writes can explicitly verify their intended project against the open session and reject
+  unresolved or cross-project targets;
+- activity timestamps more than five minutes ahead of observation time are rejected.
+
 ## [0.7.1] - 2026-08-06
 
 ### Fixed

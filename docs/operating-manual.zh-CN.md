@@ -101,7 +101,8 @@ codex plugin add boron-context@boron-context
 4. 高风险请求若在 `unresolved` 中报告缺少已确认 policy，停止写操作并取得 policy 或人工
    授权。Capsule 是上下文，不是行动权限。
 5. 只在语义转折点调用 `record_activity`：已验证的实质变更、决策、纠正、部署结果、耐久约束
-   或 relation effect。
+   或 relation effect。传入预期的 `projectHint`；如果项目无法解析，或目标项目与当前 session
+   不一致，daemon 会拒绝写入。
 6. 验证真实结果。
 7. 只调用一次 `complete_context_session`，结果使用 `completed`、`partial`、`failed` 或
    `cancelled`。
@@ -112,7 +113,7 @@ codex plugin add boron-context@boron-context
 `closure_reason=lease_expired` 兜底。同一个活跃 Codex task 重复 begin 会续接现有 session。
 
 可能重试的 activity 要使用 idempotency key。`occurredAt` 支持 UTC `Z` 和显式 ISO 8601
-时区偏移；保留事件真实发生时间，不要用记录时间静默替换。
+时区偏移，并且最多只能比观测时间超前 5 分钟；保留事件真实发生时间，不要用记录时间静默替换。
 
 ## 5. 证据与写回契约
 
@@ -138,6 +139,10 @@ codex plugin add boron-context@boron-context
 
 需要有边界的汇总时调用 `get_context_meter`；需要审计数字或来源选择如何组成时调用
 `inspect_context_meter`。
+
+需要比较连续性质量是否改善时调用 `get_context_quality_health`。项目解析、session 生命周期、
+显式写回范围、时间完整性、来源覆盖和 correction 状态必须分开报告；它们是运营证据，不是单一
+“聪明分数”，也不能单独证明语义判断更准确。
 
 需要检查自动接入程度时调用 `get_adoption_health`。它的分母是 hook 或 MCP 已观测到的 Agent
 task；从未加载 plugin 的 Agent 不在可观测范围内，结果会明确保留这个边界。

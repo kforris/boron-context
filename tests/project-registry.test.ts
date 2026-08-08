@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   discoverCodexProjects,
+  discoverIndependentProjects,
   planCodexRegistry,
   type CodexRegistry
 } from '../src/db/project-registry.js'
@@ -75,6 +76,7 @@ describe('Codex project registry discovery', () => {
       supersedeAliases: [],
       supersedeObjects: [],
       standaloneIdentities: [],
+      independentProjects: [],
       projects: [
         {
           codexProjectId: firstId,
@@ -149,6 +151,116 @@ describe('Codex project registry discovery', () => {
     expect(projects.map((project) => project.canonicalName)).toEqual(['Registered'])
   })
 
+  it('discovers only operator-approved independent projects and filters unsafe roots', async () => {
+    const projects = await discoverIndependentProjects(
+      {
+        version: 1,
+        authority: 'user_approved',
+        provenance: 'operator approval',
+        projects: {},
+        independentProjects: [
+          {
+            canonicalName: 'MapNook',
+            sourceUri: 'project://mapnook',
+            aliases: ['Map Nook'],
+            authoritativeRoots: [
+              '/Users/example',
+              '/Users/example/mapnook',
+              '/Users/example/missing'
+            ]
+          }
+        ]
+      },
+      '/Users/example',
+      async (path) => path === '/Users/example/mapnook'
+    )
+
+    expect(projects).toEqual([
+      {
+        canonicalName: 'MapNook',
+        sourceUri: 'project://mapnook',
+        aliases: ['MapNook', 'Map Nook'],
+        roots: ['/Users/example/mapnook'],
+        ignoredRoots: [
+          { path: '/Users/example', reason: 'broad_home_root' },
+          { path: '/Users/example/missing', reason: 'missing_directory' }
+        ]
+      }
+    ])
+  })
+
+  it('plans an independent project without requiring Codex local-project metadata', async () => {
+    const registry: CodexRegistry = {
+      provenance: 'operator approval',
+      authority: 'user_approved',
+      stateUri: 'file:///tmp/codex-state.json',
+      manifestUri: 'file:///tmp/manifest.json',
+      projects: [],
+      independentProjects: [
+        {
+          canonicalName: 'P3rkLab',
+          sourceUri: 'project://p3rklab',
+          aliases: ['P3rkLab', 'P3rk Lab'],
+          roots: ['/workspace/p3rklab'],
+          ignoredRoots: []
+        }
+      ],
+      supersedeAliases: [],
+      supersedeObjects: [],
+      standaloneIdentities: []
+    }
+    const pool = { query: async () => ({ rows: [] }) } as never
+
+    const plan = await planCodexRegistry(pool, registry)
+
+    expect(plan.projects).toEqual([])
+    expect(plan.independentProjects).toEqual([
+      expect.objectContaining({
+        canonicalName: 'P3rkLab',
+        sourceUri: 'project://p3rklab',
+        matchReason: 'create',
+        projectId: null
+      })
+    ])
+  })
+
+  it('fails closed when a Codex and independent project claim the same identity', async () => {
+    const registry: CodexRegistry = {
+      provenance: 'operator approval',
+      authority: 'user_approved',
+      stateUri: 'file:///tmp/codex-state.json',
+      manifestUri: 'file:///tmp/manifest.json',
+      projects: [
+        {
+          codexProjectId: firstId,
+          codexName: 'Codex project',
+          canonicalName: 'Shared identity',
+          aliases: ['Shared identity'],
+          roots: [],
+          ignoredRoots: [],
+          replaceProjectSourceUri: false,
+          removeLegacyLocalRoot: false
+        }
+      ],
+      independentProjects: [
+        {
+          canonicalName: 'Independent project',
+          sourceUri: 'project://independent',
+          aliases: ['Independent project', 'Shared identity'],
+          roots: [],
+          ignoredRoots: []
+        }
+      ],
+      supersedeAliases: [],
+      supersedeObjects: [],
+      standaloneIdentities: []
+    }
+
+    await expect(
+      planCodexRegistry({ query: async () => ({ rows: [] }) } as never, registry)
+    ).rejects.toThrow('Canonical project identity collision')
+  })
+
   it('plans an auditable object supersession without deleting current relations', async () => {
     const registry: CodexRegistry = {
       provenance: 'test approval',
@@ -156,6 +268,7 @@ describe('Codex project registry discovery', () => {
       stateUri: 'file:///tmp/codex-state.json',
       manifestUri: 'file:///tmp/manifest.json',
       projects: [],
+      independentProjects: [],
       supersedeAliases: [],
       supersedeObjects: [
         {
