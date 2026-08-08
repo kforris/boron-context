@@ -39,6 +39,20 @@ codex plugin add boron-context@boron-context
 python3 scripts/install_menubar.py
 ```
 
+### 可选菜单栏 Meter
+
+最后一条命令会构建原生 Swift 程序、安装到 `~/Applications/Boron Meter.app`，并注册
+`~/Library/LaunchAgents/dev.boroncontext.menubar.plist`，使它在当前 macOS 用户登录后自动运行。
+安装完成后，顶部菜单栏会出现 Boron 六边形图标和健康状态；点击图标会打开只读 Context Meter。
+
+<p align="center">
+  <a href="assets/screenshots/v0.7.1/boron-menubar-finished-state.png">
+    <img src="assets/screenshots/v0.7.1/boron-menubar-finished-state.png" alt="Boron Context macOS 菜单栏 Meter 成品效果" width="620" />
+  </a>
+</p>
+
+<p align="center"><sub>已有本地数据的真实运行示例；指标会随每台机器的项目与使用情况变化。</sub></p>
+
 安装或升级后，在支持 hook 审查的 Codex 入口中检查一次准确的 `SessionStart` 与
 `SessionEnd` 命令（CLI 使用 `/hooks`），再新建 task。Codex 会跳过尚未审查的新 hook 或已
 变化 hook。没有 `/hooks` 的 Desktop 可以复用同一本地信任结果；请确认新 task 出现
