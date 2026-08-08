@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export const MAX_FUTURE_ACTIVITY_SKEW_MS = 5 * 60 * 1_000
+
 export const contextLayerSchema = z.enum(['ontology', 'codebase', 'wiki'])
 export type ContextLayer = z.infer<typeof contextLayerSchema>
 
@@ -240,11 +242,19 @@ export type StartSessionRequest = z.infer<typeof startSessionRequestSchema>
 
 export const recordActivityRequestSchema = z.object({
   sessionId: z.string().uuid(),
+  projectHint: z.string().trim().min(1).max(1_000).optional(),
   activityType: z.string().trim().min(1).max(200),
   summary: z.string().trim().min(1).max(20_000),
   actorUri: z.string().trim().min(1).max(4_000).optional(),
   targetUri: z.string().trim().min(1).max(4_000).optional(),
-  occurredAt: z.string().datetime({ offset: true }).optional(),
+  occurredAt: z
+    .string()
+    .datetime({ offset: true })
+    .refine(
+      (value) => Date.parse(value) <= Date.now() + MAX_FUTURE_ACTIVITY_SKEW_MS,
+      'occurredAt cannot be more than 5 minutes in the future'
+    )
+    .optional(),
   idempotencyKey: z.string().trim().min(1).max(1_000).optional(),
   confidence: z.number().min(0).max(1).default(1),
   metadata: z.record(z.string(), z.unknown()).default({}),
@@ -345,6 +355,12 @@ export const contextMeterAuditRequestSchema = contextMeterSummaryRequestSchema.e
   limit: z.number().int().min(1).max(50).default(10)
 })
 export type ContextMeterAuditRequest = z.infer<typeof contextMeterAuditRequestSchema>
+
+export const contextQualityHealthRequestSchema = z.object({
+  projectHint: z.string().trim().min(1).max(1_000).optional(),
+  windowDays: z.number().int().min(1).max(365).default(30)
+})
+export type ContextQualityHealthRequest = z.infer<typeof contextQualityHealthRequestSchema>
 
 export interface ContextMeterEvidenceAudit {
   readonly evidenceId: string

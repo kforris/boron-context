@@ -9,6 +9,7 @@ import type {
   AgentClientObservation,
   CompleteSessionRequest,
   ContextCapsule,
+  ContextQualityHealthRequest,
   ContextMeterAuditRequest,
   ContextMeterEvidenceAudit,
   ContextMeterSummaryRequest,
@@ -19,6 +20,8 @@ import type {
   ResolvedProject,
   StartSessionRequest
 } from '../core/contracts.js'
+import { MAX_FUTURE_ACTIVITY_SKEW_MS } from '../core/contracts.js'
+import { ActivityTimestampError, ProjectScopeError } from '../core/errors.js'
 import { resolveProjectIdentity } from './project-identity.js'
 import { discoverProjectRoot } from '../platform/project-root.js'
 
@@ -93,6 +96,48 @@ export interface ContextMeterSummary {
     readonly inputTokens: 0
     readonly outputTokens: 0
   }
+  readonly caveats: readonly string[]
+}
+
+export interface ContextQualityHealthSummary {
+  readonly windowDays: number
+  readonly project: string | null
+  readonly projectResolution: {
+    readonly sessions: number
+    readonly scopedSessions: number
+    readonly projectlessSessions: number
+    readonly resolutionRatio: number
+  }
+  readonly sessionLifecycle: {
+    readonly active: number
+    readonly completed: number
+    readonly partial: number
+    readonly failed: number
+    readonly cancelled: number
+    readonly staleActive: number
+  }
+  readonly writebackScope: {
+    readonly activities: number
+    readonly explicitProject: number
+    readonly implicitSession: number
+    readonly explicitVerificationRatio: number
+  }
+  readonly timeIntegrity: {
+    readonly futureSkewedActivities: number
+    readonly maximumFutureSkewMinutes: number
+    readonly allowedFutureSkewMinutes: 5
+  }
+  readonly sourceCoverage: {
+    readonly selectedEvidence: number
+    readonly coveredEvidence: number
+    readonly coverageRatio: number
+  }
+  readonly manualCorrections: {
+    readonly pending: number
+    readonly resolved: number
+    readonly dismissed: number
+  }
+  readonly boronLlmCalls: 0
   readonly caveats: readonly string[]
 }
 
@@ -301,6 +346,10 @@ export class PostgresActivityRepository {
       await client.query('BEGIN')
       const session = await loadSession(client, input.sessionId)
       const occurredAt = input.occurredAt ?? new Date().toISOString()
+      assertActivityTimestamp(occurredAt)
+      const writebackScope = input.projectHint
+        ? await verifyActivityProjectScope(client, session.projectId, input.projectHint)
+        : { verification: 'implicit_session' as const }
       const activity = await insertActivity(client, {
         sessionId: input.sessionId,
         projectId: session.projectId,
@@ -311,7 +360,7 @@ export class PostgresActivityRepository {
         ...(input.targetUri ? { targetUri: input.targetUri } : {}),
         ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
         confidence: input.confidence,
-        payload: input.metadata,
+        payload: { ...input.metadata, writebackScope },
         occurredAt
       })
       if (activity.duplicate) {
@@ -334,7 +383,8 @@ export class PostgresActivityRepository {
           activityId: activity.id,
           actorUri: input.actorUri,
           targetUri: input.targetUri,
-          occurredAt
+          occurredAt,
+          writebackScope
         }
       })
       evidenceCount += 1
@@ -894,6 +944,175 @@ export class PostgresActivityRepository {
     }
   }
 
+  async contextQualityHealth(
+    input: ContextQualityHealthRequest
+  ): Promise<ContextQualityHealthSummary> {
+    const project = input.projectHint
+      ? await resolveProjectIdentity(this.pool, input.projectHint)
+      : null
+    if (input.projectHint && !project) {
+      throw new ProjectScopeError(
+        'project_unresolved',
+        `Context quality project could not be resolved: ${input.projectHint}`
+      )
+    }
+    const parameters: [number, string | null, string | null] = [
+      input.windowDays,
+      project?.id ?? null,
+      input.projectHint ?? null
+    ]
+    const [sessions, activities, sourceCoverage, corrections] = await Promise.all([
+      this.pool.query<{
+        sessions: string
+        scoped_sessions: string
+        projectless_sessions: string
+        active: string
+        completed: string
+        partial: string
+        failed: string
+        cancelled: string
+        stale_active: string
+      }>(
+        `
+          SELECT
+            count(*)::text AS sessions,
+            count(*) FILTER (WHERE s.project_id IS NOT NULL)::text AS scoped_sessions,
+            count(*) FILTER (WHERE s.project_id IS NULL)::text AS projectless_sessions,
+            count(*) FILTER (WHERE s.status = 'active')::text AS active,
+            count(*) FILTER (WHERE s.status = 'completed')::text AS completed,
+            count(*) FILTER (WHERE s.status = 'partial')::text AS partial,
+            count(*) FILTER (WHERE s.status = 'failed')::text AS failed,
+            count(*) FILTER (WHERE s.status = 'cancelled')::text AS cancelled,
+            count(*) FILTER (
+              WHERE s.status = 'active' AND s.lease_expires_at <= now()
+            )::text AS stale_active
+          FROM agent_sessions s
+          WHERE s.started_at >= now() - make_interval(days => $1)
+            AND ($3::text IS NULL OR s.project_id = $2::uuid)
+        `,
+        parameters
+      ),
+      this.pool.query<{
+        activities: string
+        explicit_project: string
+        implicit_session: string
+        future_skewed: string
+        maximum_future_skew_minutes: string | null
+      }>(
+        `
+          SELECT
+            count(*)::text AS activities,
+            count(*) FILTER (
+              WHERE a.payload #>> '{writebackScope,verification}' = 'explicit_project'
+            )::text AS explicit_project,
+            count(*) FILTER (
+              WHERE coalesce(
+                a.payload #>> '{writebackScope,verification}',
+                'implicit_session'
+              ) = 'implicit_session'
+            )::text AS implicit_session,
+            count(*) FILTER (
+              WHERE a.occurred_at > a.observed_at + interval '5 minutes'
+            )::text AS future_skewed,
+            round(greatest(
+              coalesce(max(extract(epoch FROM (a.occurred_at - a.observed_at)) / 60), 0),
+              0
+            )::numeric, 2)::text AS maximum_future_skew_minutes
+          FROM activities a
+          WHERE a.observed_at >= now() - make_interval(days => $1)
+            AND ($3::text IS NULL OR a.project_id = $2::uuid)
+        `,
+        parameters
+      ),
+      this.pool.query<{
+        selected_evidence: string
+        covered_evidence: string
+      }>(
+        `
+          SELECT
+            coalesce(sum(m.source_window_selected_evidence_count), 0)::text
+              AS selected_evidence,
+            coalesce(sum(m.source_window_covered_evidence_count), 0)::text
+              AS covered_evidence
+          FROM context_meter_samples m
+          WHERE m.created_at >= now() - make_interval(days => $1)
+            AND ($3::text IS NULL OR m.project_id = $2::uuid)
+        `,
+        parameters
+      ),
+      this.pool.query<{
+        pending: string
+        resolved: string
+        dismissed: string
+      }>(
+        `
+          SELECT
+            count(*) FILTER (WHERE c.status = 'pending')::text AS pending,
+            count(*) FILTER (WHERE c.status = 'resolved')::text AS resolved,
+            count(*) FILTER (WHERE c.status = 'dismissed')::text AS dismissed
+          FROM manual_corrections c
+          WHERE $2::text IS NULL OR c.project_id = $1::uuid
+        `,
+        [project?.id ?? null, input.projectHint ?? null]
+      )
+    ])
+    const sessionRow = sessions.rows[0]!
+    const activityRow = activities.rows[0]!
+    const sourceRow = sourceCoverage.rows[0]!
+    const correctionRow = corrections.rows[0]!
+    const sessionCount = Number(sessionRow.sessions)
+    const scopedSessions = Number(sessionRow.scoped_sessions)
+    const activityCount = Number(activityRow.activities)
+    const explicitProject = Number(activityRow.explicit_project)
+    const selectedEvidence = Number(sourceRow.selected_evidence)
+    const coveredEvidence = Number(sourceRow.covered_evidence)
+    return {
+      windowDays: input.windowDays,
+      project: project?.name ?? null,
+      projectResolution: {
+        sessions: sessionCount,
+        scopedSessions,
+        projectlessSessions: Number(sessionRow.projectless_sessions),
+        resolutionRatio: sessionCount > 0 ? scopedSessions / sessionCount : 0
+      },
+      sessionLifecycle: {
+        active: Number(sessionRow.active),
+        completed: Number(sessionRow.completed),
+        partial: Number(sessionRow.partial),
+        failed: Number(sessionRow.failed),
+        cancelled: Number(sessionRow.cancelled),
+        staleActive: Number(sessionRow.stale_active)
+      },
+      writebackScope: {
+        activities: activityCount,
+        explicitProject,
+        implicitSession: Number(activityRow.implicit_session),
+        explicitVerificationRatio: activityCount > 0 ? explicitProject / activityCount : 0
+      },
+      timeIntegrity: {
+        futureSkewedActivities: Number(activityRow.future_skewed),
+        maximumFutureSkewMinutes: Number(activityRow.maximum_future_skew_minutes ?? 0),
+        allowedFutureSkewMinutes: 5
+      },
+      sourceCoverage: {
+        selectedEvidence,
+        coveredEvidence,
+        coverageRatio: selectedEvidence > 0 ? coveredEvidence / selectedEvidence : 0
+      },
+      manualCorrections: {
+        pending: Number(correctionRow.pending),
+        resolved: Number(correctionRow.resolved),
+        dismissed: Number(correctionRow.dismissed)
+      },
+      boronLlmCalls: 0,
+      caveats: [
+        'These deterministic indicators audit continuity plumbing and evidence coverage; they do not claim a scalar intelligence score or prove semantic correctness.',
+        'Activities created before explicit project verification was introduced are classified as implicit session scope.',
+        'Manual correction counts are current totals for the selected scope rather than windowed events.'
+      ]
+    }
+  }
+
   async observeAgentClient(input: AgentClientObservation): Promise<void> {
     const mode =
       input.event === 'session_started' || input.event === 'session_completed'
@@ -1169,6 +1388,45 @@ async function loadSession(
   return {
     projectId: result.rows[0].project_id,
     leaseDurationMinutes: result.rows[0].lease_duration_minutes
+  }
+}
+
+async function verifyActivityProjectScope(
+  client: PoolClient,
+  sessionProjectId: string | null,
+  projectHint: string
+): Promise<{
+  readonly verification: 'explicit_project'
+  readonly projectHint: string
+  readonly resolvedProjectId: string
+}> {
+  const project = await resolveProjectIdentity(client, projectHint)
+  if (!project) {
+    throw new ProjectScopeError(
+      'project_unresolved',
+      `Activity target project could not be resolved: ${projectHint}`
+    )
+  }
+  if (!sessionProjectId || project.id !== sessionProjectId) {
+    throw new ProjectScopeError(
+      'project_mismatch',
+      `Activity target project ${project.name} does not match the open session`
+    )
+  }
+  return {
+    verification: 'explicit_project',
+    projectHint,
+    resolvedProjectId: project.id
+  }
+}
+
+function assertActivityTimestamp(occurredAt: string, observedAtMs = Date.now()): void {
+  const occurredAtMs = Date.parse(occurredAt)
+  if (!Number.isFinite(occurredAtMs)) {
+    throw new ActivityTimestampError('occurredAt must be a valid ISO 8601 timestamp')
+  }
+  if (occurredAtMs > observedAtMs + MAX_FUTURE_ACTIVITY_SKEW_MS) {
+    throw new ActivityTimestampError('occurredAt cannot be more than 5 minutes in the future')
   }
 }
 

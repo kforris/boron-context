@@ -9,6 +9,7 @@ import {
   codexThreadSyncRequestSchema,
   completeSessionRequestSchema,
   contextMeterAuditRequestSchema,
+  contextQualityHealthRequestSchema,
   contextMeterSummaryRequestSchema,
   inspectorScopeSchema,
   lifecycleSessionEndRequestSchema,
@@ -20,6 +21,7 @@ import {
   spatialCodebaseGraphRequestSchema,
   startSessionRequestSchema
 } from '../core/contracts.js'
+import { ActivityTimestampError, ProjectScopeError } from '../core/errors.js'
 import type { ContextResolver } from '../core/resolver.js'
 import type { PostgresActivityRepository } from '../db/activity-repository.js'
 import type { PostgresCodexThreadRepository } from '../db/codex-thread-repository.js'
@@ -359,6 +361,11 @@ async function routeRequest(
       json(response, 200, audit)
       return
     }
+    if (request.method === 'POST' && pathname === '/v1/metrics/context/quality') {
+      const body = contextQualityHealthRequestSchema.parse(await readJson(request))
+      json(response, 200, await options.activity.contextQualityHealth(body))
+      return
+    }
     if (request.method === 'POST' && pathname === '/v1/metrics/adoption') {
       const body = adoptionHealthRequestSchema.parse(await readJson(request))
       json(response, 200, await options.activity.adoptionHealth(body))
@@ -383,6 +390,14 @@ async function routeRequest(
     }
     if (error instanceof BodyTooLargeError) {
       json(response, 413, { error: 'body_too_large', traceId })
+      return
+    }
+    if (error instanceof ProjectScopeError) {
+      json(response, 409, { error: error.reason, traceId })
+      return
+    }
+    if (error instanceof ActivityTimestampError) {
+      json(response, 400, { error: 'invalid_activity_timestamp', traceId })
       return
     }
     json(response, 500, { error: 'internal_error', traceId })

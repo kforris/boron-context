@@ -173,10 +173,10 @@ Boron Context 当前为 **pre-alpha**，主要面向 Apple Silicon macOS 上的�
 
 - 受信任的 Codex 生命周期 hook，以及可续接、带 lease 的 session；
 - 隐私安全、幂等的 task-to-project 同步；
-- 防碰撞项目身份与可审计 supersession；
+- 防碰撞的 Codex 与人工批准独立项目身份，以及可审计 supersession；
 - PostgreSQL Ontology、实时 Codebase Memory 与实时 Markdown Wiki adapter；
 - candidate/confirmed 关系边界和人工 correction 请求；
-- Context Meter、接入健康度与来源真实性审计；
+- Context Meter、结构化上下文质量、接入健康度与来源真实性审计；
 - 带认证的本地 Inspector、配对式只读 Quest 3 局域网 WebXR 投影和可选的 macOS 原生菜单栏 Meter；
 - macOS 与 Linux CI。
 

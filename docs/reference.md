@@ -23,6 +23,7 @@ require the daemon bearer.
 - `POST /v1/context/resolve`
 - `POST /v1/metrics/context`
 - `POST /v1/metrics/context/inspect`
+- `POST /v1/metrics/context/quality`
 - `POST /v1/metrics/adoption`
 - `POST /v1/metrics/codex-sync`
 
@@ -85,18 +86,19 @@ curl -sS http://127.0.0.1:41635/v1/context/resolve \
 
 ## Codex plugin tools
 
-| Tool                        | Purpose                                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------------------- |
-| `begin_context_session`     | Retrieve a project capsule and open or resume a durable session.                            |
-| `query_context`             | Retrieve a read-only capsule without opening a writeback session.                           |
-| `record_activity`           | Store a selected semantic milestone and optional relationship effects.                      |
-| `complete_context_session`  | Close a session with its verified outcome and durable decisions.                            |
-| `get_context_meter`         | Summarize context reuse, filtering, source compression, latency, and Boron-owned model use. |
-| `inspect_context_meter`     | Inspect recent Retrieval Plans and evidence-level metric composition.                       |
-| `get_adoption_health`       | Measure coverage among hook- or MCP-observed agent tasks.                                   |
-| `get_codex_sync_health`     | Inspect privacy-safe historical task ownership synchronization.                             |
-| `list_manual_corrections`   | Read human-authored review requests from Boron Content.                                     |
-| `resolve_manual_correction` | Resolve or dismiss a request after evidence-backed review.                                  |
+| Tool                         | Purpose                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `begin_context_session`      | Retrieve a project capsule and open or resume a durable session.                            |
+| `query_context`              | Retrieve a read-only capsule without opening a writeback session.                           |
+| `record_activity`            | Store a milestone after verifying its target project against the open session.              |
+| `complete_context_session`   | Close a session with its verified outcome and durable decisions.                            |
+| `get_context_meter`          | Summarize context reuse, filtering, source compression, latency, and Boron-owned model use. |
+| `inspect_context_meter`      | Inspect recent Retrieval Plans and evidence-level metric composition.                       |
+| `get_context_quality_health` | Audit project scope, lifecycle, time integrity, source coverage, and corrections.           |
+| `get_adoption_health`        | Measure coverage among hook- or MCP-observed agent tasks.                                   |
+| `get_codex_sync_health`      | Inspect privacy-safe historical task ownership synchronization.                             |
+| `list_manual_corrections`    | Read human-authored review requests from Boron Content.                                     |
+| `resolve_manual_correction`  | Resolve or dismiss a request after evidence-backed review.                                  |
 
 The context-continuity skill reuses an automatically injected session when present. It records
 semantic turning points, not every tool call or raw conversation content.
@@ -149,6 +151,12 @@ Boron runs but are not provider invoices.
 `reExplanation.avoidedTokens` measures verified prior-context excerpts the user or agent did not
 need to re-enter. Those compact excerpts still enter the client model. `sourceWindow.savingsTokens`
 is reported only for evidence with a real `sourceTokenEstimate`, always alongside coverage.
+
+`get_context_quality_health` deliberately returns separate deterministic indicators rather than a
+single intelligence score. It reports project resolution, session lifecycle, explicit versus
+legacy implicit writeback scope, timestamps more than five minutes ahead of observation, source
+coverage, and current manual corrections. These fields audit continuity quality; they do not prove
+that an agent's semantic judgment improved.
 
 See the [operating manual](operating-manual.md) for interpretation and the
 [system design](architecture/system-design.md) for the underlying retrieval contract.

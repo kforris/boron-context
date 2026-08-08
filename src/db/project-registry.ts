@@ -36,6 +36,16 @@ const registryManifestSchema = z.object({
       })
     )
     .default({}),
+  independentProjects: z
+    .array(
+      z.object({
+        canonicalName: z.string().trim().min(1),
+        sourceUri: z.string().trim().min(1),
+        aliases: z.array(z.string().trim().min(1)).default([]),
+        authoritativeRoots: z.array(z.string().trim().min(1)).default([])
+      })
+    )
+    .default([]),
   supersedeAliases: z
     .array(
       z.object({
@@ -83,12 +93,21 @@ export interface DiscoveredCodexProject {
   readonly removeLegacyLocalRoot: boolean
 }
 
+export interface DiscoveredIndependentProject {
+  readonly canonicalName: string
+  readonly sourceUri: string
+  readonly aliases: readonly string[]
+  readonly roots: readonly string[]
+  readonly ignoredRoots: readonly { readonly path: string; readonly reason: string }[]
+}
+
 export interface CodexRegistry {
   readonly provenance: string
   readonly authority: 'user_approved'
   readonly stateUri: string
   readonly manifestUri: string
   readonly projects: readonly DiscoveredCodexProject[]
+  readonly independentProjects: readonly DiscoveredIndependentProject[]
   readonly supersedeAliases: RegistryManifest['supersedeAliases']
   readonly supersedeObjects: RegistryManifest['supersedeObjects']
   readonly standaloneIdentities: RegistryManifest['standaloneIdentities']
@@ -139,6 +158,17 @@ export interface RegistryProjectPlan {
   }[]
 }
 
+export interface IndependentProjectPlan {
+  readonly canonicalName: string
+  readonly sourceUri: string
+  readonly aliases: readonly string[]
+  readonly roots: readonly string[]
+  readonly ignoredRoots: DiscoveredIndependentProject['ignoredRoots']
+  readonly projectId: string | null
+  readonly matchReason: 'source_uri' | 'create'
+  readonly currentName: string | null
+}
+
 export interface RegistryPlan {
   readonly source: {
     readonly stateUri: string
@@ -146,6 +176,7 @@ export interface RegistryPlan {
     readonly provenance: string
   }
   readonly projects: readonly RegistryProjectPlan[]
+  readonly independentProjects: readonly IndependentProjectPlan[]
   readonly supersedeAliases: readonly {
     readonly ownerProjectId: string
     readonly ownerName: string
@@ -177,11 +208,14 @@ export interface RegistryApplyResult {
   readonly applied: boolean
   readonly projectsCreated: number
   readonly projectsAdopted: number
+  readonly independentProjectsCreated: number
+  readonly independentProjectsAdopted: number
   readonly canonicalAliases: number
   readonly aliasesSuperseded: number
   readonly objectsSuperseded: number
   readonly relationsSuperseded: number
   readonly confirmedRootRelations: number
+  readonly independentRootRelations: number
   readonly confirmedWorkspaceRelations: number
   readonly candidateWorkspaceRelations: number
   readonly plan: RegistryPlan
@@ -198,17 +232,52 @@ export async function loadCodexRegistry(input: {
   ])
   const state = codexStateSchema.parse(JSON.parse(stateText))
   const manifest = registryManifestSchema.parse(JSON.parse(manifestText))
-  const projects = await discoverCodexProjects(state, manifest, input.homeRoot ?? homedir())
+  const homeRoot = input.homeRoot ?? homedir()
+  const [projects, independentProjects] = await Promise.all([
+    discoverCodexProjects(state, manifest, homeRoot),
+    discoverIndependentProjects(manifest, homeRoot)
+  ])
+  assertUniqueRegistryIdentities(projects, independentProjects)
   return {
     provenance: manifest.provenance,
     authority: manifest.authority,
     stateUri: pathToFileURL(resolve(input.statePath)).href,
     manifestUri: pathToFileURL(resolve(input.manifestPath)).href,
     projects,
+    independentProjects,
     supersedeAliases: manifest.supersedeAliases,
     supersedeObjects: manifest.supersedeObjects,
     standaloneIdentities: manifest.standaloneIdentities
   }
+}
+
+export async function discoverIndependentProjects(
+  manifestInput: unknown,
+  homeRoot: string,
+  directoryExists: (path: string) => Promise<boolean> = isDirectory
+): Promise<readonly DiscoveredIndependentProject[]> {
+  const manifest = registryManifestSchema.parse(manifestInput)
+  const sourceOwners = new Set<string>()
+  const projects: DiscoveredIndependentProject[] = []
+  for (const source of manifest.independentProjects) {
+    if (sourceOwners.has(source.sourceUri)) {
+      throw new Error(`Independent project source URI collision: ${source.sourceUri}`)
+    }
+    sourceOwners.add(source.sourceUri)
+    const { roots, ignoredRoots } = await resolveRegisteredRoots(
+      source.authoritativeRoots,
+      homeRoot,
+      directoryExists
+    )
+    projects.push({
+      canonicalName: source.canonicalName,
+      sourceUri: source.sourceUri,
+      aliases: uniqueStrings([source.canonicalName, ...source.aliases]),
+      roots,
+      ignoredRoots
+    })
+  }
+  return projects
 }
 
 export async function discoverCodexProjects(
@@ -236,21 +305,11 @@ export async function discoverCodexProjects(
       }
       identityOwners.set(normalized, id)
     }
-    const rootInputs = uniqueStrings([
-      ...source.rootPaths,
-      ...(override?.authoritativeRoots ?? [])
-    ]).map((path) => resolve(path))
-    const roots: string[] = []
-    const ignoredRoots: { path: string; reason: string }[] = []
-    for (const root of rootInputs) {
-      if (root === resolve(homeRoot)) {
-        ignoredRoots.push({ path: root, reason: 'broad_home_root' })
-      } else if (!(await directoryExists(root))) {
-        ignoredRoots.push({ path: root, reason: 'missing_directory' })
-      } else {
-        roots.push(root)
-      }
-    }
+    const { roots, ignoredRoots } = await resolveRegisteredRoots(
+      [...source.rootPaths, ...(override?.authoritativeRoots ?? [])],
+      homeRoot,
+      directoryExists
+    )
     projects.push({
       codexProjectId: id,
       codexName: source.name,
@@ -273,6 +332,7 @@ export async function planCodexRegistry(
   pool: Pool | PoolClient,
   registry: CodexRegistry
 ): Promise<RegistryPlan> {
+  assertUniqueRegistryIdentities(registry.projects, registry.independentProjects)
   const existing = await loadExistingProjects(pool)
   const supersededKeys = new Set(
     registry.supersedeAliases.map((rule) => `${rule.ownerSourceUri}\u0000${normalize(rule.alias)}`)
@@ -363,7 +423,12 @@ export async function planCodexRegistry(
   const plannedIdentityOwners = new Map<string, string>()
   for (const project of registry.projects) {
     for (const alias of project.aliases) {
-      plannedIdentityOwners.set(normalize(alias), project.codexProjectId)
+      claimIdentity(plannedIdentityOwners, alias, `codex:${project.codexProjectId}`)
+    }
+  }
+  for (const project of registry.independentProjects) {
+    for (const alias of project.aliases) {
+      claimIdentity(plannedIdentityOwners, alias, `independent:${project.sourceUri}`)
     }
   }
   for (const identity of standaloneIdentities) {
@@ -376,6 +441,7 @@ export async function planCodexRegistry(
     }
   }
   const plans: RegistryProjectPlan[] = []
+  const independentPlans: IndependentProjectPlan[] = []
   const claimedProjects = new Map<string, string>()
   for (const project of registry.projects) {
     const codexUri = `codex-project://${project.codexProjectId}`
@@ -457,6 +523,50 @@ export async function planCodexRegistry(
       candidateProjects
     })
   }
+  const codexTargetSourceUris = new Set(plans.map((item) => item.targetSourceUri))
+  for (const project of registry.independentProjects) {
+    if (codexTargetSourceUris.has(project.sourceUri)) {
+      throw new Error(
+        `Independent project source URI collides with a Codex project: ${project.sourceUri}`
+      )
+    }
+    const matches = existing.filter((item) => item.sourceUri === project.sourceUri)
+    if (matches.length > 1) {
+      throw new Error(`Independent project source URI is not unique: ${project.sourceUri}`)
+    }
+    const adopted = matches[0] ?? null
+    if (adopted) {
+      const claimedBy = claimedProjects.get(adopted.id)
+      if (claimedBy && claimedBy !== `independent:${project.sourceUri}`) {
+        throw new Error(`Existing project ${adopted.name} is claimed by ${claimedBy}`)
+      }
+      claimedProjects.set(adopted.id, `independent:${project.sourceUri}`)
+    }
+    const normalizedIdentities = new Set(project.aliases.map(normalize))
+    const conflicts = existing.filter((item) => {
+      if (item.id === adopted?.id || item.status !== 'confirmed') return false
+      if (normalizedIdentities.has(normalize(item.name))) return true
+      return item.aliases.some(
+        (alias) =>
+          alias.confirmationState === 'confirmed' && normalizedIdentities.has(alias.normalizedAlias)
+      )
+    })
+    if (conflicts.length > 0) {
+      throw new Error(
+        `Independent project identity collides with existing project: ${project.canonicalName} / ${conflicts[0]!.name}`
+      )
+    }
+    independentPlans.push({
+      canonicalName: project.canonicalName,
+      sourceUri: project.sourceUri,
+      aliases: project.aliases,
+      roots: project.roots,
+      ignoredRoots: project.ignoredRoots,
+      projectId: adopted?.id ?? null,
+      matchReason: adopted ? 'source_uri' : 'create',
+      currentName: adopted?.name ?? null
+    })
+  }
   return {
     source: {
       stateUri: registry.stateUri,
@@ -464,6 +574,7 @@ export async function planCodexRegistry(
       provenance: registry.provenance
     },
     projects: plans,
+    independentProjects: independentPlans,
     supersedeAliases,
     supersedeObjects,
     standaloneIdentities
@@ -484,11 +595,14 @@ export async function reconcileCodexRegistry(
     const plan = await planCodexRegistry(client, registry)
     let projectsCreated = 0
     let projectsAdopted = 0
+    let independentProjectsCreated = 0
+    let independentProjectsAdopted = 0
     let canonicalAliases = 0
     let aliasesSuperseded = 0
     let objectsSuperseded = 0
     let relationsSuperseded = 0
     let confirmedRootRelations = 0
+    let independentRootRelations = 0
     let confirmedWorkspaceRelations = 0
     let candidateWorkspaceRelations = 0
     for (const repair of plan.supersedeAliases) {
@@ -798,6 +912,128 @@ export async function reconcileCodexRegistry(
         }
       }
     }
+    for (const item of plan.independentProjects) {
+      const existing = item.projectId ? await loadProjectById(client, item.projectId) : null
+      const metadataPatch = independentProjectMetadataPatch(existing, item, plan)
+      let projectId: string
+      if (existing) {
+        const result = await client.query<{ id: string }>(
+          `
+            UPDATE projects
+            SET
+              name = $2,
+              status = 'confirmed',
+              metadata = metadata || $3::jsonb,
+              updated_at = CASE
+                WHEN name IS DISTINCT FROM $2
+                  OR status IS DISTINCT FROM 'confirmed'
+                  OR NOT metadata @> $3::jsonb
+                THEN now()
+                ELSE updated_at
+              END
+            WHERE id = $1::uuid
+            RETURNING id::text
+          `,
+          [existing.id, item.canonicalName, JSON.stringify(metadataPatch)]
+        )
+        projectId = result.rows[0]!.id
+        independentProjectsAdopted += 1
+      } else {
+        const result = await client.query<{ id: string }>(
+          `
+            INSERT INTO projects (name, source_uri, status, metadata)
+            VALUES ($1, $2, 'confirmed', $3::jsonb)
+            RETURNING id::text
+          `,
+          [item.canonicalName, item.sourceUri, JSON.stringify(metadataPatch)]
+        )
+        projectId = result.rows[0]!.id
+        independentProjectsCreated += 1
+      }
+      for (const alias of item.aliases) {
+        await client.query(
+          `
+            INSERT INTO project_aliases (
+              project_id, alias, normalized_alias, source_uri, confirmation_state, metadata
+            )
+            VALUES ($1::uuid, $2, lower(trim($2)), $3, 'confirmed', $4::jsonb)
+            ON CONFLICT (project_id, normalized_alias)
+            DO UPDATE SET
+              alias = EXCLUDED.alias,
+              source_uri = EXCLUDED.source_uri,
+              confirmation_state = 'confirmed',
+              metadata = project_aliases.metadata || EXCLUDED.metadata,
+              updated_at = CASE
+                WHEN project_aliases.alias IS DISTINCT FROM EXCLUDED.alias
+                  OR project_aliases.source_uri IS DISTINCT FROM EXCLUDED.source_uri
+                  OR project_aliases.confirmation_state IS DISTINCT FROM 'confirmed'
+                  OR NOT project_aliases.metadata @> EXCLUDED.metadata
+                THEN now()
+                ELSE project_aliases.updated_at
+              END
+          `,
+          [
+            projectId,
+            alias,
+            item.sourceUri,
+            JSON.stringify({
+              identity: true,
+              registryKind: 'independent',
+              authority: 'user_approved',
+              provenance: plan.source.provenance
+            })
+          ]
+        )
+        canonicalAliases += 1
+      }
+      const scopeUri = `boron://registered-project/${encodeURIComponent(item.sourceUri)}`
+      const scopeObjectId = await ensureObject(client, {
+        projectId,
+        kind: 'project_scope',
+        name: item.canonicalName,
+        canonicalUri: scopeUri,
+        confirmationState: 'confirmed',
+        metadata: {
+          sourceUri: item.sourceUri,
+          registryKind: 'independent',
+          authority: 'user_approved',
+          provenance: plan.source.provenance
+        }
+      })
+      for (const root of item.roots) {
+        const rootObjectId = await ensureObject(client, {
+          projectId,
+          kind: 'local_root',
+          name: basename(root),
+          canonicalUri: `${scopeUri}/registered-root/${encodeURIComponent(root)}`,
+          confirmationState: 'confirmed',
+          metadata: {
+            path: root,
+            registryKind: 'independent',
+            authority: 'user_approved',
+            sourceUri: plan.source.manifestUri
+          }
+        })
+        if (
+          await ensureRelation(client, {
+            sourceObjectId: scopeObjectId,
+            relationType: 'HAS_REGISTERED_ROOT',
+            targetObjectId: rootObjectId,
+            confidence: 1,
+            confirmationState: 'confirmed',
+            provenance: {
+              source: 'operator_project_manifest',
+              sourceUri: plan.source.manifestUri,
+              modelProposed: false,
+              rationale:
+                'The exact non-home root is declared in a user-approved independent project manifest.'
+            }
+          })
+        ) {
+          independentRootRelations += 1
+        }
+      }
+    }
     for (const repair of plan.supersedeAliases) {
       if (!projectIdByCodexId.has(repair.supersededByCodexProjectId)) {
         throw new Error(
@@ -810,11 +1046,14 @@ export async function reconcileCodexRegistry(
       applied: true,
       projectsCreated,
       projectsAdopted,
+      independentProjectsCreated,
+      independentProjectsAdopted,
       canonicalAliases,
       aliasesSuperseded,
       objectsSuperseded,
       relationsSuperseded,
       confirmedRootRelations,
+      independentRootRelations,
       confirmedWorkspaceRelations,
       candidateWorkspaceRelations,
       plan
@@ -844,12 +1083,84 @@ async function isDirectory(path: string): Promise<boolean> {
   }
 }
 
+async function resolveRegisteredRoots(
+  paths: readonly string[],
+  homeRoot: string,
+  directoryExists: (path: string) => Promise<boolean>
+): Promise<{
+  readonly roots: readonly string[]
+  readonly ignoredRoots: readonly { readonly path: string; readonly reason: string }[]
+}> {
+  const rootInputs = uniqueStrings(paths).map((path) => resolve(path))
+  const roots: string[] = []
+  const ignoredRoots: { path: string; reason: string }[] = []
+  for (const root of rootInputs) {
+    if (root === resolve(homeRoot)) {
+      ignoredRoots.push({ path: root, reason: 'broad_home_root' })
+    } else if (!(await directoryExists(root))) {
+      ignoredRoots.push({ path: root, reason: 'missing_directory' })
+    } else {
+      roots.push(root)
+    }
+  }
+  return { roots: uniqueStrings(roots), ignoredRoots }
+}
+
 function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
 }
 
 function normalize(value: string): string {
   return value.trim().toLocaleLowerCase('en-US')
+}
+
+function claimIdentity(owners: Map<string, string>, alias: string, owner: string): void {
+  const normalized = normalize(alias)
+  const existing = owners.get(normalized)
+  if (existing && existing !== owner) {
+    throw new Error(`Canonical project identity collision: ${alias} (${existing}, ${owner})`)
+  }
+  owners.set(normalized, owner)
+}
+
+function assertUniqueRegistryIdentities(
+  codexProjects: readonly DiscoveredCodexProject[],
+  independentProjects: readonly DiscoveredIndependentProject[]
+): void {
+  const owners = new Map<string, string>()
+  const roots = new Map<string, string>()
+  const independentSources = new Set<string>()
+  for (const project of codexProjects) {
+    for (const alias of project.aliases) {
+      claimIdentity(owners, alias, `codex:${project.codexProjectId}`)
+    }
+    for (const root of project.roots) {
+      claimRegistryRoot(roots, root, `codex:${project.codexProjectId}`)
+    }
+  }
+  for (const project of independentProjects) {
+    if (independentSources.has(project.sourceUri)) {
+      throw new Error(`Independent project source URI collision: ${project.sourceUri}`)
+    }
+    independentSources.add(project.sourceUri)
+    for (const alias of project.aliases) {
+      claimIdentity(owners, alias, `independent:${project.sourceUri}`)
+    }
+    for (const root of project.roots) {
+      claimRegistryRoot(roots, root, `independent:${project.sourceUri}`)
+    }
+  }
+}
+
+function claimRegistryRoot(owners: Map<string, string>, root: string, owner: string): void {
+  const canonicalRoot = resolve(root)
+  const existing = owners.get(canonicalRoot)
+  if (existing && existing !== owner) {
+    throw new Error(
+      `Authoritative project root collision: ${canonicalRoot} (${existing}, ${owner})`
+    )
+  }
+  owners.set(canonicalRoot, owner)
 }
 
 function stringArray(value: unknown): readonly string[] {
@@ -1013,6 +1324,26 @@ function projectMetadataPatch(
     ...(previousNames.length > 0 ? { previousNames } : {}),
     ...(supersededSourceUris.length > 0 ? { supersededSourceUris } : {}),
     ...(supersededLocalRoots.length > 0 ? { supersededLocalRoots } : {})
+  }
+}
+
+function independentProjectMetadataPatch(
+  existing: ExistingProject | null,
+  item: IndependentProjectPlan,
+  plan: RegistryPlan
+): Record<string, unknown> {
+  const previousNames = uniqueStrings([
+    ...stringArray(existing?.metadata.previousNames),
+    ...(existing && existing.name !== item.canonicalName ? [existing.name] : [])
+  ])
+  return {
+    canonicalIdentity: true,
+    registryKind: 'independent',
+    identityAuthority: 'user_approved',
+    identityProvenance: plan.source.provenance,
+    registryManifestUri: plan.source.manifestUri,
+    registeredRoots: item.roots,
+    ...(previousNames.length > 0 ? { previousNames } : {})
   }
 }
 
@@ -1202,11 +1533,14 @@ function emptyResult(plan: RegistryPlan): RegistryApplyResult {
     applied: false,
     projectsCreated: 0,
     projectsAdopted: 0,
+    independentProjectsCreated: 0,
+    independentProjectsAdopted: 0,
     canonicalAliases: 0,
     aliasesSuperseded: 0,
     objectsSuperseded: 0,
     relationsSuperseded: 0,
     confirmedRootRelations: 0,
+    independentRootRelations: 0,
     confirmedWorkspaceRelations: 0,
     candidateWorkspaceRelations: 0,
     plan

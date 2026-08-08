@@ -106,7 +106,9 @@ Do not open a writeback session for a question that will not create a durable pr
 4. If a high-risk request reports missing confirmed policy in `unresolved`, stop the mutation and
    obtain policy or human authorization. A capsule is context, never action permission.
 5. Call `record_activity` only for a semantic turning point: a verified material change, decision,
-   correction, deployment result, durable constraint, or relation effect.
+   correction, deployment result, durable constraint, or relation effect. Pass the intended
+   `projectHint`; the daemon rejects unresolved projects or a target that differs from the open
+   session.
 6. Verify the actual outcome.
 7. Call `complete_context_session` once with `completed`, `partial`, `failed`, or `cancelled`.
 
@@ -117,8 +119,8 @@ the lease sweeper and `closure_reason=lease_expired`. Repeating begin in the sam
 resumes the lease.
 
 Use an idempotency key when an activity may be retried. `occurredAt` accepts UTC `Z` or an explicit
-ISO 8601 timezone offset; retain the event's real time rather than silently replacing it with the
-recording time.
+ISO 8601 timezone offset and cannot be more than five minutes ahead of observation time; retain the
+event's real time rather than silently replacing it with the recording time.
 
 ## 5. Evidence and writeback contract
 
@@ -144,6 +146,10 @@ inference and proposed relationships as `candidate`.
 
 Call `get_context_meter` for a bounded summary. Call `inspect_context_meter` when a user needs to
 audit how a number or source choice was composed.
+
+Call `get_context_quality_health` to compare continuity quality over time. Keep project resolution,
+session lifecycle, explicit writeback scope, time integrity, source coverage, and correction state
+separate. They are operational evidence, not a scalar "smart" score or proof of semantic accuracy.
 
 Call `get_adoption_health` to measure use across hook- or MCP-observed agent threads. Its denominator
 is not every conversation on the computer: agents that never load the Boron plugin remain outside
