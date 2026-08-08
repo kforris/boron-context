@@ -8,6 +8,22 @@ description: Maintain durable project context with the local Boron Context runti
 Use Boron as the context substrate while the current agent remains responsible for conversation,
 reasoning, permissions, execution, and presentation.
 
+## Installed path
+
+Codex stores marketplace plugins under a versioned
+`<cache>/<marketplace>/<plugin>/<version>/...` path. The repeated marketplace and plugin names in a
+path such as `.../boron-context/boron-context/<version>/...` are expected. When the skill catalog
+provides a root alias and relative file path, expand the alias and append the complete relative path;
+do not remove a repeated segment or describe a hand-built, shortened path as cache drift.
+
+Never hard-code a cached version. If the exact catalog path is genuinely absent, locate the current
+installation with
+`rg --files "$CODEX_HOME/plugins/cache/boron-context" | rg '/context-continuity/SKILL\\.md$'`
+(`$HOME/.codex` is the default when `CODEX_HOME` is unset), then compare its manifest version with
+`codex plugin list --marketplace boron-context --json`. Report integration drift only when the
+resolved installed artifact is stale or inconsistent, not merely because the cache path is
+versioned.
+
 ## Start
 
 1. Skip Boron for greetings, generic questions, or tasks with no durable project context.

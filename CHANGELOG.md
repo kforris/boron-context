@@ -8,12 +8,16 @@
   exact non-home roots, collision checks, provenance, and idempotent confirmed identities;
 - deterministic context-quality health metrics for project resolution, session lifecycle,
   writeback scope, time integrity, source coverage, corrections, and zero Boron-owned LLM calls.
+- deterministic Codex plugin payload fingerprints enforced by `npm run check`, preventing changed
+  plugin content from silently reusing a stale local cache key.
 
 ### Fixed
 
 - activity writes can explicitly verify their intended project against the open session and reject
   unresolved or cross-project targets;
 - activity timestamps more than five minutes ahead of observation time are rejected.
+- Codex cache diagnostics now preserve the expected `<marketplace>/<plugin>/<version>` hierarchy
+  and no longer classify a manually shortened path as Boron folder drift.
 
 ## [0.7.1] - 2026-08-06
 

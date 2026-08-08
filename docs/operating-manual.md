@@ -82,6 +82,24 @@ Then repeat hook review in a surface that exposes it because changed hook defini
 trust hash, and start a new task. Do not judge the upgrade from a task that loaded the previous
 plugin version.
 
+The plugin version includes a deterministic 12-hex payload digest. `npm run check` verifies that the
+digest covers the complete bundled plugin, so a source change cannot silently reuse an old Codex
+cache key. Do not edit files under `~/.codex/plugins/cache` or hard-code that directory. Codex owns
+the versioned `<marketplace>/<plugin>/<version>` layout; for this local marketplace, the repeated
+`boron-context/boron-context` path segment is expected rather than evidence of folder drift.
+
+To diagnose an installation, use the plugin registry first:
+
+```bash
+codex plugin list --marketplace boron-context --json
+rg --files "${CODEX_HOME:-$HOME/.codex}/plugins/cache/boron-context" \
+  | rg '/context-continuity/SKILL\.md$'
+```
+
+Only report source/cache drift when the registry-selected installed artifact differs from the
+current marketplace payload. A manually shortened path that omits either the marketplace or plugin
+segment is not a Boron health failure.
+
 ## 4. Standard client sequence
 
 ### Read-only question
@@ -333,6 +351,7 @@ codex plugin list
 Expected release behavior:
 
 - `/health` reports the current daemon version and adapter source types;
+- `plugin:check` confirms the manifest cache key matches the full bundled plugin payload;
 - the Codex plugin exposes continuity, Meter, correction, and `get_adoption_health` tools;
 - a code-oriented query shows Ontology before Codebase in `retrievalPlan`;
 - a continuity query shows Ontology before Wiki;
