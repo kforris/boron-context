@@ -66,7 +66,27 @@ codex plugin add boron-context@boron-context
 在支持 hook 审查的 Codex 入口中检查一次 Boron 的两个生命周期命令（CLI 使用 `/hooks`），
 然后新建任务。确认任务中出现 `Boron automatic project context`。
 
-升级、可选菜单栏程序、验证与恢复流程见[运营手册](docs/operating-manual.zh-CN.md)。
+### 可选：加载到 macOS 菜单栏
+
+安装只读的原生 Context Meter：
+
+```bash
+python3 scripts/install_menubar.py
+```
+
+安装脚本会构建 Swift 程序、安装到 `~/Applications/Boron Meter.app`、注册当前用户的
+LaunchAgent，并立即启动。macOS 顶部菜单栏会出现 Boron 六边形图标和健康状态；点击图标即可
+查看本地 daemon、Context Flow、来源覆盖、最近一次只读审计与 adapter 状态。
+
+<p align="center">
+  <a href="docs/assets/screenshots/v0.7.1/boron-menubar-finished-state.png">
+    <img src="docs/assets/screenshots/v0.7.1/boron-menubar-finished-state.png" alt="Boron Context macOS 菜单栏 Meter 成品效果" width="620" />
+  </a>
+</p>
+
+<p align="center"><sub>已有本地数据的真实运行示例；指标会随每台机器的项目与使用情况变化。</sub></p>
+
+升级、菜单栏故障排查、验证与恢复流程见[运营手册](docs/operating-manual.zh-CN.md)。
 
 ## 工作原理
 

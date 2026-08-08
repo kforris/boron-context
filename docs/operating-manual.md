@@ -40,6 +40,22 @@ codex plugin add boron-context@boron-context
 python3 scripts/install_menubar.py
 ```
 
+### Optional menu-bar Meter
+
+The final command builds the native Swift app, installs it at
+`~/Applications/Boron Meter.app`, and registers
+`~/Library/LaunchAgents/dev.boroncontext.menubar.plist` so it starts for the current macOS user at
+login. A Boron hexagon and health status then appear in the menu bar; click the item to open the
+read-only Context Meter.
+
+<p align="center">
+  <a href="assets/screenshots/v0.7.1/boron-menubar-finished-state.png">
+    <img src="assets/screenshots/v0.7.1/boron-menubar-finished-state.png" alt="Finished Boron Context Meter in the macOS menu bar" width="620" />
+  </a>
+</p>
+
+<p align="center"><sub>Real example from a populated local installation; metrics vary with each machine's projects and usage.</sub></p>
+
 After installing or upgrading, inspect the exact `SessionStart` and `SessionEnd` commands once in a
 Codex surface that exposes hook review (`/hooks` in the CLI), then start a new task. Codex skips new
 or changed command hooks until this review. A desktop build without `/hooks` can use the same local

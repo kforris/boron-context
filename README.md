@@ -70,7 +70,28 @@ Review the two Boron lifecycle commands once in a Codex surface that exposes hoo
 (`/hooks` in the CLI), then start a new task. Confirm that the task contains
 `Boron automatic project context`.
 
-See the [operating manual](docs/operating-manual.md) for upgrades, the optional menu-bar app,
+### Optional: add Boron to the macOS menu bar
+
+Install the native read-only Context Meter:
+
+```bash
+python3 scripts/install_menubar.py
+```
+
+The installer builds the Swift app, places it at `~/Applications/Boron Meter.app`, registers a
+per-user LaunchAgent, and starts it immediately. A Boron hexagon and health status appear in the
+macOS menu bar. Click it to inspect the local daemon, context flow, source coverage, latest
+read-only audit, and adapter state.
+
+<p align="center">
+  <a href="docs/assets/screenshots/v0.7.1/boron-menubar-finished-state.png">
+    <img src="docs/assets/screenshots/v0.7.1/boron-menubar-finished-state.png" alt="Finished Boron Context Meter in the macOS menu bar" width="620" />
+  </a>
+</p>
+
+<p align="center"><sub>Real example from a populated local installation; metrics vary with each machine's projects and usage.</sub></p>
+
+See the [operating manual](docs/operating-manual.md) for upgrades, menu-bar troubleshooting,
 verification, and recovery.
 
 ## How it works
