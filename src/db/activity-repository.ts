@@ -235,6 +235,13 @@ export class PostgresActivityRepository {
         )
         const active = existing.rows[0]
         if (active) {
+          const resumedProject = resolveResumedSessionProject(
+            {
+              id: active.project_id,
+              name: active.project_name
+            },
+            project
+          )
           const lease = await client.query<{ lease_expires_at: Date }>(
             `
               UPDATE agent_sessions
@@ -261,11 +268,7 @@ export class PostgresActivityRepository {
             id: active.id,
             traceId: active.trace_id,
             intentionId: active.intention_id,
-            project:
-              project ??
-              (active.project_id && active.project_name
-                ? { id: active.project_id, name: active.project_name, confidence: 1 }
-                : null),
+            project: resumedProject,
             leaseExpiresAt: lease.rows[0]!.lease_expires_at.toISOString(),
             resumed: true
           }
@@ -1389,6 +1392,21 @@ async function loadSession(
     projectId: result.rows[0].project_id,
     leaseDurationMinutes: result.rows[0].lease_duration_minutes
   }
+}
+
+export function resolveResumedSessionProject(
+  active: { readonly id: string | null; readonly name: string | null },
+  requested: ResolvedProject | null
+): ResolvedProject | null {
+  if (!active.id) return requested
+  if (!active.name) throw new Error(`Open Boron session project ${active.id} has no name`)
+  if (requested && requested.id !== active.id) {
+    throw new ProjectScopeError(
+      'project_mismatch',
+      `Open session belongs to ${active.name}; close it before starting ${requested.name}`
+    )
+  }
+  return { id: active.id, name: active.name, confidence: 1 }
 }
 
 async function verifyActivityProjectScope(
