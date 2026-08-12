@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [0.7.2] - 2026-08-12
+
 ### Added
 
 - operator-approved independent projects in the existing preview/apply registry workflow, with
@@ -15,6 +17,8 @@
 
 - activity writes can explicitly verify their intended project against the open session and reject
   unresolved or cross-project targets;
+- resuming a leased external session fails closed when the requested project differs from the
+  session's persisted project, without rewriting session ownership or reporting the wrong scope;
 - activity timestamps more than five minutes ahead of observation time are rejected.
 - Codex cache diagnostics now preserve the expected `<marketplace>/<plugin>/<version>` hierarchy
   and no longer classify a manually shortened path as Boron folder drift.

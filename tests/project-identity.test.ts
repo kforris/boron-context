@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { homedir } from 'node:os'
-import { ensureProject } from '../src/db/activity-repository.js'
+import { ensureProject, resolveResumedSessionProject } from '../src/db/activity-repository.js'
+import { ProjectScopeError } from '../src/core/errors.js'
 import { selectResolvedProject } from '../src/db/project-identity.js'
 
 describe('project identity resolution', () => {
@@ -21,6 +22,24 @@ describe('project identity resolution', () => {
 
   it('does not resolve an unregistered project', () => {
     expect(selectResolvedProject([])).toBeNull()
+  })
+
+  it('returns the actual active project when resuming the same scoped session', () => {
+    expect(
+      resolveResumedSessionProject(
+        { id: 'context', name: 'Boron Context' },
+        { id: 'context', name: 'Boron Context alias', confidence: 0.99 }
+      )
+    ).toEqual({ id: 'context', name: 'Boron Context', confidence: 1 })
+  })
+
+  it('rejects cross-project resume instead of reporting the requested project', () => {
+    expect(() =>
+      resolveResumedSessionProject(
+        { id: 'context', name: 'Boron Context' },
+        { id: 'marketing-project', name: 'CouriCon / 家庭仓', confidence: 1 }
+      )
+    ).toThrowError(ProjectScopeError)
   })
 
   it('does not create or rename a project from a broad home root', async () => {

@@ -202,7 +202,7 @@ configurable inference/confirmation rules remain roadmap work.
 | Understand the context-engineering method     | [Methodology](docs/context-engineering-methodology.md) · [简体中文](docs/context-engineering-methodology.zh-CN.md) |
 | Review task-to-project ownership              | [Codex task context](docs/codex-thread-project-reconciliation.md)                                                  |
 | Repair project identity safely                | [Project identity repair](docs/project-identity-repair.md)                                                         |
-| See what changed in v0.7.1                    | [Release notes](docs/releases/v0.7.1.md) · [Changelog](CHANGELOG.md)                                               |
+| See what changed in v0.7.2                    | [Release notes](docs/releases/v0.7.2.md) · [Changelog](CHANGELOG.md)                                               |
 | Follow the product direction                  | [Roadmap](docs/architecture/product-roadmap.md)                                                                    |
 | Contribute                                    | [Contributing guide](CONTRIBUTING.md)                                                                              |
 

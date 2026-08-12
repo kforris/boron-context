@@ -172,6 +172,63 @@ describeDatabase('PostgreSQL continuity integration', () => {
     })
   })
 
+  it('rejects resuming one external session under a different project identity', async () => {
+    const suffix = randomUUID()
+    const externalSessionId = `resume-scope-${suffix}`
+    const otherName = `Resume target ${suffix}`
+    await pool.query(
+      `
+        INSERT INTO projects (name, source_uri, status, metadata)
+        VALUES ($1, $2, 'confirmed', '{"integrationTest":true}'::jsonb)
+      `,
+      [otherName, `integration://resume-target/${suffix}`]
+    )
+    const session = await repository.startSession({
+      objective: 'Open the original scoped session.',
+      projectHint: 'Boron Context',
+      externalSessionId,
+      client: 'postgres-integration-test',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+
+    await expect(
+      repository.startSession({
+        objective: 'Do not silently retarget an active session.',
+        projectHint: otherName,
+        externalSessionId,
+        client: 'postgres-integration-test',
+        constraints: [],
+        tokenBudget: 512,
+        leaseMinutes: 15,
+        metadata: { integrationTest: true }
+      })
+    ).rejects.toMatchObject({ reason: 'project_mismatch' })
+
+    const stored = await pool.query<{ project_name: string }>(
+      `
+        SELECT p.name AS project_name
+        FROM agent_sessions s
+        JOIN projects p ON p.id = s.project_id
+        WHERE s.id = $1::uuid
+      `,
+      [session.id]
+    )
+    expect(stored.rows).toEqual([{ project_name: 'Boron Context' }])
+
+    await repository.completeSession({
+      sessionId: session.id,
+      outcome: 'completed',
+      summary: 'Cross-project resume was rejected without changing session ownership.',
+      decisions: [],
+      relationEffects: [],
+      evidence: [],
+      metadata: { integrationTest: true }
+    })
+  })
+
   it('applies an operator-approved independent project registry idempotently', async () => {
     const suffix = randomUUID()
     const canonicalName = `Independent registry ${suffix}`
