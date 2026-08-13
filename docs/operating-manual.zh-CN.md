@@ -161,8 +161,19 @@ source/cache 漂移。手工拼接路径时漏掉 marketplace 或 plugin 任一�
 显式写回范围、时间完整性、来源覆盖和 correction 状态必须分开报告；它们是运营证据，不是单一
 “聪明分数”，也不能单独证明语义判断更准确。
 
-需要检查自动接入程度时调用 `get_adoption_health`。它的分母是 hook 或 MCP 已观测到的 Agent
-task；从未加载 plugin 的 Agent 不在可观测范围内，结果会明确保留这个边界。
+需要检查自动接入程度时调用 `get_adoption_health`，并使用 telemetry contract v2：
+
+- 7 日与 30 日分别报告 `adoption.numerator / adoption.eligibleDenominator`，同时列出 eligible
+  与 ineligible 的原因计数；
+- `adoption.unobservable` 来自隐私安全的 Codex task ID：这些 task 没有匹配的 hook/MCP
+  observation，不能混入任何分母；
+- `writeback.numerator / writeback.eligibleDenominator` 只衡量显式项目验证的 semantic
+  activity；
+- lifecycle/intent、read-only、仅 MCP 初始化以及旧版 implicit records 都以明确排除原因报告。
+
+顶层的 `observedAgentThreads`、`contextThreads` 与 `observableCoverageRatio` 仅为向后兼容，仍是
+旧版混合分母，不能称为 eligible adoption。contract-v1 历史行只做 legacy 标注，不改写语义
+payload。
 
 使用 `get_codex_sync_health` 检查历史 task 归属。健康状态应无冲突、无异常增长的 candidate。
 该索引只保存 ID、分类、authority、confidence 与证据摘要；它不修改 Codex 侧边栏或私有全局

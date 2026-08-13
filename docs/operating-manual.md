@@ -169,9 +169,19 @@ Call `get_context_quality_health` to compare continuity quality over time. Keep 
 session lifecycle, explicit writeback scope, time integrity, source coverage, and correction state
 separate. They are operational evidence, not a scalar "smart" score or proof of semantic accuracy.
 
-Call `get_adoption_health` to measure use across hook- or MCP-observed agent threads. Its denominator
-is not every conversation on the computer: agents that never load the Boron plugin remain outside
-observability and the response says so explicitly.
+Call `get_adoption_health` to read telemetry contract v2. For both 7-day and 30-day reviews, report:
+
+- `adoption.numerator / adoption.eligibleDenominator`, plus eligible and ineligible reason counts;
+- `adoption.unobservable`, sourced from privacy-safe Codex task IDs without a matching hook/MCP
+  observation;
+- `writeback.numerator / writeback.eligibleDenominator`, where the numerator is explicitly
+  project-verified semantic activity;
+- lifecycle/intent activity, read-only context, MCP-initialization-only observations, and legacy
+  implicit records as named exclusions rather than denominator members.
+
+The top-level `observedAgentThreads`, `contextThreads`, and `observableCoverageRatio` fields remain
+for backward compatibility and retain the old mixed denominator. Do not use them as eligible
+adoption. Contract-v1 rows are labelled as legacy; their semantic payloads are not rewritten.
 
 Call `get_codex_sync_health` to inspect historical ownership. Healthy state has no conflicts and no
 unexpected candidate growth. The index stores only IDs, classification, authority, confidence, and

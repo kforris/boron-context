@@ -32,6 +32,7 @@ export function inspectorHtml(nonce: string, codebaseMemoryUrl: string): string 
     #codebase { grid-template-columns:minmax(620px,1fr) 340px; }
     #wiki { grid-template-columns:260px minmax(480px,1fr) 330px; background:#edf0ec; color:#18201c; }
     #review { grid-template-columns:340px minmax(500px,1fr); }
+    #telemetry { grid-template-columns:1fr; overflow:auto; padding:28px; }
     .rail,.detail { min-width:0; overflow:auto; background:var(--panel); border-right:1px solid var(--line); padding:18px; }
     .detail { border-right:0; border-left:1px solid var(--line); }
     .eyebrow { color:var(--subtle); font-size:10px; font-weight:800; letter-spacing:.15em; text-transform:uppercase; margin-bottom:8px; }
@@ -92,6 +93,13 @@ export function inspectorHtml(nonce: string, codebaseMemoryUrl: string): string 
     .review-detail { overflow:auto; padding:28px; }
     .kv { display:grid; grid-template-columns:130px 1fr; gap:8px 18px; padding:9px 0; border-bottom:1px solid var(--line); }
     .kv span:first-child { color:var(--muted); }
+    .telemetry-grid { display:grid; grid-template-columns:repeat(2,minmax(320px,1fr)); gap:16px; }
+    .telemetry-card { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:18px; }
+    .telemetry-card h2 { margin-bottom:14px; }
+    .telemetry-card .stats { grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); }
+    .reason-list { display:grid; gap:5px; margin-top:14px; }
+    .reason-list div { display:flex; justify-content:space-between; gap:18px; border-top:1px solid var(--line); padding-top:6px; color:var(--muted); }
+    .reason-list + .eyebrow { margin-top:20px; }
     .toast { position:fixed; right:20px; bottom:20px; max-width:440px; padding:12px 15px; border-radius:9px; background:#203028; border:1px solid #526a5e; color:var(--text); transform:translateY(100px); opacity:0; transition:.2s; z-index:30; }
     .toast.show { transform:none; opacity:1; }
     .toast.error { border-color:#93524d; background:#38201d; }
@@ -107,6 +115,7 @@ export function inspectorHtml(nonce: string, codebaseMemoryUrl: string): string 
       <button data-view="codebase">Codebase Graph</button>
       <button data-view="wiki">OpenWiki</button>
       <button data-view="review">Review Queue</button>
+      <button data-view="telemetry">Telemetry</button>
     </nav>
     <a class="spatial-link" href="/inspector/spatial">Spatial MR</a>
     <div id="status" class="status">Authenticating…</div>
@@ -173,6 +182,10 @@ export function inspectorHtml(nonce: string, codebaseMemoryUrl: string): string 
       <aside class="rail"><div class="eyebrow">Pending manual corrections</div><h2>Review queue</h2><p class="muted">A later agent resolves these after applying or rejecting the requested semantic repair.</p><div id="correctionList" class="correction-list"></div></aside>
       <div id="correctionDetail" class="review-detail"><div class="empty">Select a pending correction.</div></div>
     </section>
+
+    <section id="telemetry" class="view">
+      <div><div class="eyebrow">Eligibility contract v2</div><h1>Adoption + writeback telemetry</h1><p class="muted">Eligible denominators, exclusions, and the unobservable boundary are reported separately. Legacy mixed coverage remains visible only for compatibility.</p><button id="reloadTelemetry" class="button">Refresh</button><div id="telemetryGrid" class="telemetry-grid"></div></div>
+    </section>
   </main>
 </div>
 <div id="toast" class="toast"></div>
@@ -202,7 +215,7 @@ export function inspectorHtml(nonce: string, codebaseMemoryUrl: string): string 
     if(ticket){ var result=await api('/v1/inspector/session',{ticket:ticket},false); csrfToken=result.csrfToken; }
     var graph=await api('/v1/inspector/ontology',{projectHint:currentProject},false); csrfToken=csrfToken||graph.csrfToken||'';
     document.getElementById('status').textContent='Daemon + PostgreSQL online'; document.getElementById('status').className='status ok';
-    renderOntology(graph); await Promise.all([loadWiki(),loadCorrections(),loadCodebaseProjects()]);
+    renderOntology(graph); await Promise.all([loadWiki(),loadCorrections(),loadCodebaseProjects(),loadTelemetry()]);
   }
 
   document.querySelectorAll('nav button').forEach(function(button){ button.addEventListener('click',function(){
@@ -255,6 +268,12 @@ export function inspectorHtml(nonce: string, codebaseMemoryUrl: string): string 
 
   async function loadCorrections(){try{var items=await api('/v1/inspector/corrections/list',{status:'pending',limit:200},false);var list=document.getElementById('correctionList');list.innerHTML='';items.forEach(function(item){var button=document.createElement('button');button.className='list-item';button.innerHTML='<strong>'+escapeHtml(item.subjectUri)+'</strong><small><span class="badge pending">'+escapeHtml(item.layer)+'</span> · revision '+item.revision+'</small>';button.addEventListener('click',function(){showCorrection(item,button);});list.appendChild(button);});if(!items.length)list.innerHTML='<div class="empty">No pending corrections.</div>';}catch(error){toast(error.message,true);}}
   function showCorrection(item,button){document.querySelectorAll('#correctionList .list-item').forEach(function(el){el.classList.toggle('active',el===button);});var fields=Object.keys(item.fields).map(function(key){return '<div class="kv"><span>'+escapeHtml(key)+'</span><strong>'+escapeHtml(item.fields[key])+'</strong></div>';}).join('');document.getElementById('correctionDetail').innerHTML='<div class="eyebrow">'+escapeHtml(item.layer)+' · pending · revision '+item.revision+'</div><h1>'+escapeHtml(item.subjectUri)+'</h1><p class="muted">This is explicit human input. A Boron-enabled agent should reconcile it against current sources and relations, then resolve the correction through the MCP tool.</p><div class="kv"><span>Project</span><strong>'+escapeHtml(item.projectName||'Unscoped')+'</strong></div><div class="kv"><span>Subject kind</span><strong>'+escapeHtml(item.subjectKind)+'</strong></div>'+fields+'<div class="kv"><span>Instruction</span><strong>'+escapeHtml(item.note||'—')+'</strong></div><div class="kv"><span>Created</span><strong>'+escapeHtml(item.createdAt)+'</strong></div>';}
+
+  function reasonRows(group,label){var entries=Object.entries(group||{});if(!entries.length)return '';return '<div class="eyebrow">'+escapeHtml(label)+'</div><div class="reason-list">'+entries.map(function(entry){return '<div><span>'+escapeHtml(entry[0])+'</span><strong>'+entry[1]+'</strong></div>';}).join('')+'</div>';}
+  function ratio(value){return (Number(value||0)*100).toFixed(1)+'%';}
+  function telemetryCard(data,windowDays,kind){var metric=data[kind];var title=kind==='adoption'?'Adoption':'Writeback';var extra=kind==='adoption'?'<div class="stat"><strong>'+metric.unobservable+'</strong>unobservable</div>':'';return '<article class="telemetry-card"><div class="eyebrow">'+windowDays+' day · '+kind+'</div><h2>'+title+' '+ratio(metric.ratio)+'</h2><div class="stats"><div class="stat"><strong>'+metric.numerator+'/'+metric.eligibleDenominator+'</strong>eligible</div><div class="stat"><strong>'+metric.ineligible+'</strong>ineligible</div>'+extra+'</div>'+reasonRows(metric.reasons.eligible,'Eligible reasons')+reasonRows(metric.reasons.ineligible,'Ineligible reasons')+(kind==='adoption'?reasonRows(metric.reasons.unobservable,'Unobservable reasons'):'')+'</article>';}
+  async function loadTelemetry(){var grid=document.getElementById('telemetryGrid');grid.innerHTML='<p class="muted">Loading telemetry…</p>';try{var results=await Promise.all([api('/v1/metrics/adoption',{windowDays:7},false),api('/v1/metrics/adoption',{windowDays:30},false)]);grid.innerHTML=telemetryCard(results[0],7,'adoption')+telemetryCard(results[0],7,'writeback')+telemetryCard(results[1],30,'adoption')+telemetryCard(results[1],30,'writeback');}catch(error){grid.innerHTML='<div class="empty">Telemetry unavailable: '+escapeHtml(error.message)+'</div>';}}
+  document.getElementById('reloadTelemetry').addEventListener('click',loadTelemetry);
 
   authenticate().catch(function(error){document.getElementById('status').textContent='Open from the Boron menu bar to authenticate';document.getElementById('status').className='status';toast(error.message,true);});
 </script>

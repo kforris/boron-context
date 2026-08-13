@@ -95,7 +95,7 @@ curl -sS http://127.0.0.1:41635/v1/context/resolve \
 | `get_context_meter`          | Summarize context reuse, filtering, source compression, latency, and Boron-owned model use. |
 | `inspect_context_meter`      | Inspect recent Retrieval Plans and evidence-level metric composition.                       |
 | `get_context_quality_health` | Audit project scope, lifecycle, time integrity, source coverage, and corrections.           |
-| `get_adoption_health`        | Measure coverage among hook- or MCP-observed agent tasks.                                   |
+| `get_adoption_health`        | Audit v2 adoption/writeback eligibility, exclusions, reasons, and observability boundaries. |
 | `get_codex_sync_health`      | Inspect privacy-safe historical task ownership synchronization.                             |
 | `list_manual_corrections`    | Read human-authored review requests from Boron Content.                                     |
 | `resolve_manual_correction`  | Resolve or dismiss a request after evidence-backed review.                                  |
@@ -157,6 +157,13 @@ single intelligence score. It reports project resolution, session lifecycle, exp
 legacy implicit writeback scope, timestamps more than five minutes ahead of observation, source
 coverage, and current manual corrections. These fields audit continuity quality; they do not prove
 that an agent's semantic judgment improved.
+
+`get_adoption_health` returns `contractVersion: 2`. Its `adoption` and `writeback` objects each
+contain `numerator`, `eligibleDenominator`, `ratio`, `ineligible`, and reason maps. Adoption also
+contains `unobservable` plus `plugin_not_observed`; read-only context is adoption-eligible but not
+writeback-eligible. Lifecycle/intent and contract-v1 legacy records are excluded for explicit
+reasons. The historical top-level coverage fields are unchanged for older clients but must not be
+reported as eligible adoption.
 
 See the [operating manual](operating-manual.md) for interpretation and the
 [system design](architecture/system-design.md) for the underlying retrieval contract.

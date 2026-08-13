@@ -142,8 +142,10 @@ read-only and credential-redacted. Distinguish re-explanation avoided context fr
 savings, and report the latter as not covered when no real `sourceTokenEstimate` was recorded.
 
 Call `get_adoption_health` when the user asks whether Boron is being used automatically. Its
-denominator is Boron-observed hook or MCP agent threads, not every conversation on the machine;
-agents that never load the plugin remain explicitly outside observability.
+version-2 contract reports adoption and semantic writeback separately, each with an explicit
+numerator, eligible denominator, excluded count, and reason breakdown. It also reports Codex tasks
+without a matching hook or MCP observation as `unobservable`; never fold those tasks into either
+denominator. The old top-level mixed coverage fields remain only for backward compatibility.
 
 Call `get_codex_sync_health` when the user asks whether historical Codex task ownership is current.
 This reports Boron's privacy-safe thread-to-project index, not Codex sidebar folder state. The

@@ -65,6 +65,7 @@ async function handleSessionStart(input, request, collectThreadSync) {
   await observe(request, {
     clientInstanceId,
     client: 'codex',
+    integration: 'codex_hook',
     event: 'initialized',
     metadata: { integration: 'codex_hook', hookEvent: 'SessionStart' }
   })
@@ -93,6 +94,7 @@ async function handleSessionStart(input, request, collectThreadSync) {
   await observe(request, {
     clientInstanceId,
     client: 'codex',
+    integration: 'codex_hook',
     event: 'session_started',
     sessionId: result.session.id,
     metadata: { integration: 'codex_hook', hookEvent: 'SessionStart' }
@@ -251,6 +253,7 @@ async function handleSessionEnd(input, request) {
     await observe(request, {
       clientInstanceId: input.session_id,
       client: 'codex',
+      integration: 'codex_hook',
       event: 'session_completed',
       sessionId: result.sessionId,
       metadata: { integration: 'codex_hook', hookEvent: 'SessionEnd' }

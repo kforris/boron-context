@@ -75,7 +75,7 @@ describe('agent continuity contracts', () => {
         client: 'codex',
         event: 'initialized'
       })
-    ).toMatchObject({ event: 'initialized', metadata: {} })
+    ).toMatchObject({ event: 'initialized', integration: 'other', metadata: {} })
   })
 
   it('requires only external identity for lifecycle ending', () => {

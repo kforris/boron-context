@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## [0.7.3] - 2026-08-13
+
+### Added
+
+- telemetry eligibility contract v2 with separate adoption and semantic-writeback numerators,
+  eligible denominators, exclusions, unobservable Codex tasks, and reason counts;
+- contract-version labels for observations and activities, preserving historical payloads while
+  keeping legacy implicit records outside the new denominator;
+- 7-day and 30-day eligibility cards in the authenticated local Inspector;
+- temporary-PostgreSQL fixtures for semantic, lifecycle-only, read-only, legacy implicit, hook,
+  MCP-only, and plugin-unobservable categories.
+
+### Changed
+
+- hook and MCP observations now identify their integration source without capturing prompt or
+  transcript content;
+- `get_adoption_health` and `/v1/metrics/adoption` retain the old top-level mixed fields for
+  compatibility, but the v2 nested contract is authoritative for product health.
+
 ## [0.7.2] - 2026-08-12
 
 ### Added
