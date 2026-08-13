@@ -185,7 +185,7 @@ const tools = [
   {
     name: 'get_adoption_health',
     description:
-      'Report observable Boron coverage across hook- or MCP-observed agent threads, session closure, and stale leased sessions. Agents that never load this plugin remain outside the denominator.',
+      'Report telemetry contract v2 for adoption and semantic writeback with explicit numerators, eligible denominators, ineligible exclusions, unobservable tasks, and reason counts. Legacy mixed fields remain for compatibility.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -366,6 +366,7 @@ async function observe(event, sessionId) {
       body: {
         clientInstanceId,
         client: observedClient,
+        integration: 'mcp',
         ...(observedClientVersion ? { clientVersion: observedClientVersion } : {}),
         ...(observedProtocolVersion ? { protocolVersion: observedProtocolVersion } : {}),
         event,
@@ -398,7 +399,7 @@ async function handle(message) {
       result: {
         protocolVersion: params.protocolVersion ?? '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'boron-context', version: '0.7.2' },
+        serverInfo: { name: 'boron-context', version: '0.7.3' },
         instructions:
           'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule and pending human corrections before project work, record only verified semantic milestones, resolve corrections only after evidence-backed repair, and close the session with verified outcomes. Never store secrets or raw transcripts.'
       }

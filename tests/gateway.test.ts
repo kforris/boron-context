@@ -254,9 +254,25 @@ describe('gateway', () => {
           calls.push('observe')
         },
         adoptionHealth: async () => ({
+          contractVersion: 2,
           windowDays: 7,
           observedAgentThreads: 1,
-          contextThreads: 1
+          contextThreads: 1,
+          adoption: {
+            numerator: 1,
+            eligibleDenominator: 1,
+            ratio: 1,
+            ineligible: 0,
+            unobservable: 0,
+            reasons: { eligible: { semantic_context_work: 1 }, ineligible: {}, unobservable: {} }
+          },
+          writeback: {
+            numerator: 1,
+            eligibleDenominator: 1,
+            ratio: 1,
+            ineligible: 0,
+            reasons: { eligible: { explicit_project: 1 }, ineligible: {} }
+          }
         })
       } as never,
       codexThreads: codexThreadsStub(calls),
@@ -418,7 +434,12 @@ describe('gateway', () => {
         body: JSON.stringify({ windowDays: 7 })
       })
       expect(adoption.status).toBe(200)
-      expect(await adoption.json()).toMatchObject({ observedAgentThreads: 1 })
+      expect(await adoption.json()).toMatchObject({
+        contractVersion: 2,
+        observedAgentThreads: 1,
+        adoption: { numerator: 1, eligibleDenominator: 1 },
+        writeback: { numerator: 1, eligibleDenominator: 1 }
+      })
       const codexSyncHealth = await fetch(`${gateway.url}/v1/metrics/codex-sync`, {
         method: 'POST',
         headers,
@@ -472,6 +493,8 @@ describe('gateway', () => {
       expect(shell.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
       const shellHtml = await shell.text()
       expect(shellHtml).toContain('Boron Content Inspector')
+      expect(shellHtml).toContain('Adoption + writeback telemetry')
+      expect(shellHtml).toContain('/v1/metrics/adoption')
       expect(shellHtml).toContain('loadOntology(project.sourceUri)')
       expect(shellHtml).toContain('Spatial MR')
 

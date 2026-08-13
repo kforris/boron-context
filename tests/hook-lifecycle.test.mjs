@@ -59,6 +59,8 @@ describe('Codex lifecycle hook', () => {
       externalSessionId: 'thread-hook-test',
       client: 'codex'
     })
+    expect(calls[0].body).toMatchObject({ integration: 'codex_hook' })
+    expect(calls[2].body).toMatchObject({ integration: 'codex_hook' })
     expect(output.hookSpecificOutput.additionalContext).toContain(
       'Boron automatic project context is loaded'
     )
@@ -96,6 +98,7 @@ describe('Codex lifecycle hook', () => {
       '/v1/sessions/lifecycle-end',
       '/v1/clients/observe'
     ])
+    expect(calls[1].body).toMatchObject({ integration: 'codex_hook' })
     expect(JSON.stringify(calls)).not.toContain('session-end-transcript')
   })
 

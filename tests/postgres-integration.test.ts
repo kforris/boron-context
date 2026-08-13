@@ -172,6 +172,145 @@ describeDatabase('PostgreSQL continuity integration', () => {
     })
   })
 
+  it('separates eligible, ineligible, legacy, read-only, hook/MCP, and unobservable telemetry', async () => {
+    const suffix = randomUUID()
+    const before = await repository.adoptionHealth({ windowDays: 7 })
+
+    const semantic = await repository.startSession({
+      objective: 'Perform explicit semantic context work.',
+      projectHint: 'Boron Context',
+      externalSessionId: `telemetry-semantic-${suffix}`,
+      client: 'codex',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    await repository.recordActivity({
+      sessionId: semantic.id,
+      projectHint: 'Boron Context',
+      activityType: 'integration.telemetry_semantic',
+      summary: 'Record one explicitly scoped semantic milestone.',
+      confidence: 1,
+      metadata: { integrationTest: true },
+      relationEffects: [],
+      evidence: []
+    })
+    await repository.observeAgentClient({
+      clientInstanceId: `telemetry-semantic-${suffix}`,
+      client: 'codex',
+      integration: 'mcp',
+      event: 'session_started',
+      sessionId: semantic.id,
+      metadata: { integrationTest: true }
+    })
+
+    const lifecycle = await repository.startSession({
+      objective: 'Load lifecycle context only.',
+      projectHint: 'Boron Context',
+      externalSessionId: `telemetry-lifecycle-${suffix}`,
+      client: 'codex',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true, automaticLifecycleHook: true }
+    })
+    await repository.observeAgentClient({
+      clientInstanceId: `telemetry-lifecycle-${suffix}`,
+      client: 'codex',
+      integration: 'codex_hook',
+      event: 'session_started',
+      sessionId: lifecycle.id,
+      metadata: { integrationTest: true }
+    })
+    await repository.observeAgentClient({
+      clientInstanceId: `telemetry-read-${suffix}`,
+      client: 'codex',
+      integration: 'mcp',
+      event: 'context_read',
+      metadata: { integrationTest: true }
+    })
+    await repository.observeAgentClient({
+      clientInstanceId: `telemetry-mcp-init-${suffix}`,
+      client: 'codex',
+      integration: 'mcp',
+      event: 'initialized',
+      metadata: { integrationTest: true }
+    })
+    await repository.observeAgentClient({
+      clientInstanceId: `telemetry-hook-miss-${suffix}`,
+      client: 'codex',
+      integration: 'codex_hook',
+      event: 'initialized',
+      metadata: { integrationTest: true }
+    })
+    await pool.query(
+      `
+        INSERT INTO agent_client_observations (
+          client_instance_id, client, context_mode, telemetry_contract_version, metadata
+        )
+        VALUES ($1, 'codex', 'none', 1, '{"integrationTest":true}'::jsonb)
+      `,
+      [`telemetry-legacy-${suffix}`]
+    )
+    await pool.query(
+      `
+        INSERT INTO activities (
+          session_id, project_id, activity_type, summary, source, confidence, payload,
+          occurred_at, telemetry_contract_version
+        )
+        SELECT id, project_id, 'integration.legacy_implicit',
+          'Preserve a legacy implicit record as labelled history.', 'integration-test', 1,
+          '{"writebackScope":{"verification":"implicit_session"}}'::jsonb, now(), 1
+        FROM agent_sessions WHERE id = $1::uuid
+      `,
+      [lifecycle.id]
+    )
+    await codexThreads.sync({
+      snapshotId: createHash('sha256').update(`telemetry-unobservable-${suffix}`).digest('hex'),
+      client: 'codex',
+      source: 'integration_test',
+      observedAt: new Date().toISOString(),
+      observations: [
+        {
+          externalThreadId: `telemetry-unobservable-${suffix}`,
+          classificationState: 'projectless',
+          authority: 'user_approved_plan',
+          confidence: 1,
+          evidenceDigest: createHash('sha256').update(`unobservable-${suffix}`).digest('hex'),
+          metadata: { contentRead: false }
+        }
+      ],
+      metadata: { integrationTest: true }
+    })
+
+    const after = await repository.adoptionHealth({ windowDays: 7 })
+    expect(after.contractVersion).toBe(2)
+    expect(after.adoption.numerator - before.adoption.numerator).toBe(2)
+    expect(after.adoption.eligibleDenominator - before.adoption.eligibleDenominator).toBe(3)
+    expect(after.adoption.ineligible - before.adoption.ineligible).toBe(3)
+    expect(after.adoption.unobservable - before.adoption.unobservable).toBe(1)
+    expect(after.adoption.reasons.eligible).toMatchObject({
+      semantic_context_work: expect.any(Number),
+      read_only_context: expect.any(Number),
+      hook_task_without_context: expect.any(Number)
+    })
+    expect(after.adoption.reasons.ineligible).toMatchObject({
+      lifecycle_only: expect.any(Number),
+      mcp_initialization_only: expect.any(Number),
+      legacy_unclassified_observation: expect.any(Number)
+    })
+    expect(after.adoption.reasons.unobservable).toMatchObject({
+      plugin_not_observed: expect.any(Number)
+    })
+    expect(after.writeback.numerator - before.writeback.numerator).toBe(1)
+    expect(after.writeback.eligibleDenominator - before.writeback.eligibleDenominator).toBe(1)
+    expect(after.writeback.reasons.ineligible).toMatchObject({
+      lifecycle_or_intent: expect.any(Number),
+      legacy_implicit_record: expect.any(Number)
+    })
+  })
+
   it('rejects resuming one external session under a different project identity', async () => {
     const suffix = randomUUID()
     const externalSessionId = `resume-scope-${suffix}`

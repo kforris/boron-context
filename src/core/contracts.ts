@@ -286,6 +286,7 @@ export const agentClientObservationSchema = z.object({
   client: z.string().trim().min(1).max(200).default('unknown'),
   clientVersion: z.string().trim().min(1).max(200).optional(),
   protocolVersion: z.string().trim().min(1).max(200).optional(),
+  integration: z.enum(['codex_hook', 'mcp', 'other']).default('other'),
   event: z.enum(['initialized', 'context_read', 'session_started', 'session_completed']),
   sessionId: z.string().uuid().optional(),
   metadata: z.record(z.string(), z.unknown()).default({})

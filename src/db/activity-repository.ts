@@ -49,6 +49,7 @@ export interface LifecycleSessionEndResult {
 }
 
 export interface AdoptionHealthSummary {
+  readonly contractVersion: 2
   readonly windowDays: number
   readonly observedAgentThreads: number
   readonly contextThreads: number
@@ -59,6 +60,28 @@ export interface AdoptionHealthSummary {
   readonly completedSessionThreads: number
   readonly activeSessionThreads: number
   readonly staleActiveSessions: number
+  readonly adoption: {
+    readonly numerator: number
+    readonly eligibleDenominator: number
+    readonly ratio: number
+    readonly ineligible: number
+    readonly unobservable: number
+    readonly reasons: {
+      readonly eligible: Readonly<Record<string, number>>
+      readonly ineligible: Readonly<Record<string, number>>
+      readonly unobservable: Readonly<Record<string, number>>
+    }
+  }
+  readonly writeback: {
+    readonly numerator: number
+    readonly eligibleDenominator: number
+    readonly ratio: number
+    readonly ineligible: number
+    readonly reasons: {
+      readonly eligible: Readonly<Record<string, number>>
+      readonly ineligible: Readonly<Record<string, number>>
+    }
+  }
   readonly caveats: readonly string[]
 }
 
@@ -1127,14 +1150,18 @@ export class PostgresActivityRepository {
       `
         INSERT INTO agent_client_observations (
           client_instance_id, client, client_version, protocol_version, context_mode,
-          session_id, first_context_at, completed_at, metadata
+          session_id, first_context_at, completed_at, metadata,
+          telemetry_contract_version, observed_by_hook, observed_by_mcp
         )
         VALUES (
           $1, $2, $3, $4, $5,
           $6::uuid,
           CASE WHEN $5 = 'none' THEN NULL ELSE now() END,
           CASE WHEN $7 = 'session_completed' THEN now() ELSE NULL END,
-          $8::jsonb
+          $8::jsonb,
+          2,
+          $9,
+          $10
         )
         ON CONFLICT (client_instance_id)
         DO UPDATE SET
@@ -1158,7 +1185,13 @@ export class PostgresActivityRepository {
           ),
           completed_at = coalesce(EXCLUDED.completed_at, agent_client_observations.completed_at),
           last_seen_at = now(),
-          metadata = agent_client_observations.metadata || EXCLUDED.metadata
+          metadata = agent_client_observations.metadata || EXCLUDED.metadata,
+          telemetry_contract_version = greatest(
+            agent_client_observations.telemetry_contract_version,
+            EXCLUDED.telemetry_contract_version
+          ),
+          observed_by_hook = agent_client_observations.observed_by_hook OR EXCLUDED.observed_by_hook,
+          observed_by_mcp = agent_client_observations.observed_by_mcp OR EXCLUDED.observed_by_mcp
       `,
       [
         input.clientInstanceId,
@@ -1168,7 +1201,9 @@ export class PostgresActivityRepository {
         mode,
         input.sessionId ?? null,
         input.event,
-        JSON.stringify(input.metadata)
+        JSON.stringify(input.metadata),
+        input.integration === 'codex_hook',
+        input.integration === 'mcp'
       ]
     )
   }
@@ -1183,8 +1218,110 @@ export class PostgresActivityRepository {
       completed_session_threads: string
       active_session_threads: string
       stale_active_sessions: string
+      adoption_numerator: string
+      adoption_eligible: string
+      adoption_ineligible: string
+      adoption_unobservable: string
+      adoption_eligible_reasons: Record<string, number> | null
+      adoption_ineligible_reasons: Record<string, number> | null
+      adoption_unobservable_reasons: Record<string, number> | null
+      writeback_numerator: string
+      writeback_eligible: string
+      writeback_ineligible: string
+      writeback_eligible_reasons: Record<string, number> | null
+      writeback_ineligible_reasons: Record<string, number> | null
     }>(
       `
+        WITH semantic_sessions AS (
+          SELECT DISTINCT session_id
+          FROM activities
+          WHERE telemetry_contract_version = 2
+            AND activity_type <> 'intent.captured'
+            AND activity_type NOT LIKE 'session.%'
+        ),
+        observations AS (
+          SELECT
+            o.*,
+            CASE
+              WHEN o.telemetry_contract_version < 2 THEN 'ineligible'
+              WHEN o.context_mode = 'read' THEN 'eligible'
+              WHEN o.context_mode = 'session'
+                AND (
+                  coalesce(s.metadata->>'automaticLifecycleHook', 'false') <> 'true'
+                  OR ss.session_id IS NOT NULL
+                )
+                THEN 'eligible'
+              WHEN o.context_mode = 'session' THEN 'ineligible'
+              WHEN o.observed_by_hook THEN 'eligible'
+              ELSE 'ineligible'
+            END AS eligibility,
+            CASE
+              WHEN o.telemetry_contract_version < 2 THEN 'legacy_unclassified_observation'
+              WHEN o.context_mode = 'read' THEN 'read_only_context'
+              WHEN o.context_mode = 'session' AND ss.session_id IS NOT NULL
+                THEN 'semantic_context_work'
+              WHEN o.context_mode = 'session'
+                AND coalesce(s.metadata->>'automaticLifecycleHook', 'false') <> 'true'
+                THEN 'explicit_context_session'
+              WHEN o.context_mode = 'session' THEN 'lifecycle_only'
+              WHEN o.observed_by_hook THEN 'hook_task_without_context'
+              ELSE 'mcp_initialization_only'
+            END AS eligibility_reason
+          FROM agent_client_observations o
+          LEFT JOIN agent_sessions s ON s.id = o.session_id
+          LEFT JOIN semantic_sessions ss ON ss.session_id = o.session_id
+          WHERE o.initialized_at >= now() - make_interval(days => $1)
+        ),
+        adoption_reason_counts AS (
+          SELECT eligibility, eligibility_reason, count(*)::integer AS count
+          FROM observations
+          GROUP BY eligibility, eligibility_reason
+        ),
+        unobservable AS (
+          SELECT count(*)::integer AS count
+          FROM codex_thread_project_state t
+          WHERE t.last_observed_at >= now() - make_interval(days => $1)
+            AND NOT EXISTS (
+              SELECT 1
+              FROM agent_client_observations o
+              WHERE o.client_instance_id = t.external_thread_id
+                AND o.initialized_at >= now() - make_interval(days => $1)
+            )
+        ),
+        writeback_rows AS (
+          SELECT
+            CASE
+              WHEN telemetry_contract_version = 2
+                AND activity_type <> 'intent.captured'
+                AND activity_type NOT LIKE 'session.%'
+                THEN 'eligible'
+              ELSE 'ineligible'
+            END AS eligibility,
+            CASE
+              WHEN telemetry_contract_version = 2
+                AND activity_type <> 'intent.captured'
+                AND activity_type NOT LIKE 'session.%'
+                AND payload #>> '{writebackScope,verification}' = 'explicit_project'
+                THEN 'explicit_project'
+              WHEN telemetry_contract_version = 2
+                AND activity_type <> 'intent.captured'
+                AND activity_type NOT LIKE 'session.%'
+                THEN 'missing_explicit_project'
+              WHEN telemetry_contract_version = 1
+                AND coalesce(payload #>> '{writebackScope,verification}', 'implicit_session') = 'implicit_session'
+                THEN 'legacy_implicit_record'
+              WHEN telemetry_contract_version = 1 THEN 'legacy_contract_record'
+              ELSE 'lifecycle_or_intent'
+            END AS eligibility_reason,
+            payload #>> '{writebackScope,verification}' = 'explicit_project' AS explicit_project
+          FROM activities
+          WHERE occurred_at >= now() - make_interval(days => $1)
+        ),
+        writeback_reason_counts AS (
+          SELECT eligibility, eligibility_reason, count(*)::integer AS count
+          FROM writeback_rows
+          GROUP BY eligibility, eligibility_reason
+        )
         SELECT
           count(*)::text AS observed,
           count(*) FILTER (WHERE o.context_mode <> 'none')::text AS context_threads,
@@ -1198,17 +1335,48 @@ export class PostgresActivityRepository {
             SELECT count(*)::text
             FROM agent_sessions stale
             WHERE stale.status = 'active' AND stale.lease_expires_at <= now()
-          ) AS stale_active_sessions
-        FROM agent_client_observations o
+          ) AS stale_active_sessions,
+          count(*) FILTER (WHERE o.eligibility = 'eligible' AND o.context_mode <> 'none')::text
+            AS adoption_numerator,
+          count(*) FILTER (WHERE o.eligibility = 'eligible')::text AS adoption_eligible,
+          count(*) FILTER (WHERE o.eligibility = 'ineligible')::text AS adoption_ineligible,
+          (SELECT count::text FROM unobservable) AS adoption_unobservable,
+          coalesce((
+            SELECT jsonb_object_agg(eligibility_reason, count)
+            FROM adoption_reason_counts WHERE eligibility = 'eligible'
+          ), '{}'::jsonb) AS adoption_eligible_reasons,
+          coalesce((
+            SELECT jsonb_object_agg(eligibility_reason, count)
+            FROM adoption_reason_counts WHERE eligibility = 'ineligible'
+          ), '{}'::jsonb) AS adoption_ineligible_reasons,
+          jsonb_build_object('plugin_not_observed', (SELECT count FROM unobservable))
+            AS adoption_unobservable_reasons,
+          (SELECT count(*)::text FROM writeback_rows
+            WHERE eligibility = 'eligible' AND explicit_project) AS writeback_numerator,
+          (SELECT count(*)::text FROM writeback_rows
+            WHERE eligibility = 'eligible') AS writeback_eligible,
+          (SELECT count(*)::text FROM writeback_rows
+            WHERE eligibility = 'ineligible') AS writeback_ineligible,
+          coalesce((
+            SELECT jsonb_object_agg(eligibility_reason, count)
+            FROM writeback_reason_counts WHERE eligibility = 'eligible'
+          ), '{}'::jsonb) AS writeback_eligible_reasons,
+          coalesce((
+            SELECT jsonb_object_agg(eligibility_reason, count)
+            FROM writeback_reason_counts WHERE eligibility = 'ineligible'
+          ), '{}'::jsonb) AS writeback_ineligible_reasons
+        FROM observations o
         LEFT JOIN agent_sessions s ON s.id = o.session_id
-        WHERE o.initialized_at >= now() - make_interval(days => $1)
       `,
       [input.windowDays]
     )
     const row = result.rows[0]!
     const observed = Number(row.observed)
     const contextThreads = Number(row.context_threads)
+    const adoptionEligible = Number(row.adoption_eligible)
+    const writebackEligible = Number(row.writeback_eligible)
     return {
+      contractVersion: 2,
       windowDays: input.windowDays,
       observedAgentThreads: observed,
       contextThreads,
@@ -1219,10 +1387,34 @@ export class PostgresActivityRepository {
       completedSessionThreads: Number(row.completed_session_threads),
       activeSessionThreads: Number(row.active_session_threads),
       staleActiveSessions: Number(row.stale_active_sessions),
+      adoption: {
+        numerator: Number(row.adoption_numerator),
+        eligibleDenominator: adoptionEligible,
+        ratio: adoptionEligible > 0 ? Number(row.adoption_numerator) / adoptionEligible : 0,
+        ineligible: Number(row.adoption_ineligible),
+        unobservable: Number(row.adoption_unobservable),
+        reasons: {
+          eligible: row.adoption_eligible_reasons ?? {},
+          ineligible: row.adoption_ineligible_reasons ?? {},
+          unobservable: row.adoption_unobservable_reasons ?? {}
+        }
+      },
+      writeback: {
+        numerator: Number(row.writeback_numerator),
+        eligibleDenominator: writebackEligible,
+        ratio: writebackEligible > 0 ? Number(row.writeback_numerator) / writebackEligible : 0,
+        ineligible: Number(row.writeback_ineligible),
+        reasons: {
+          eligible: row.writeback_eligible_reasons ?? {},
+          ineligible: row.writeback_ineligible_reasons ?? {}
+        }
+      },
       caveats: [
-        'Coverage uses Boron hook or MCP observations as the denominator; agents that never load the plugin remain outside the denominator.',
+        'Legacy top-level coverage fields remain for backward compatibility and retain their historical mixed denominator; use adoption and writeback for the v2 eligibility contract.',
+        'Eligible, ineligible, and unobservable counts are reported separately; no category is silently folded into either denominator.',
         'A Codex hook or MCP client instance normally maps to one thread when the shared session identity is available, but other clients may use a different process lifecycle.',
-        'Read-only context queries count as covered without creating a durable writeback session.'
+        'Read-only context is eligible for adoption but ineligible for writeback; lifecycle and intent records are never counted as semantic writeback.',
+        'Historical contract-v1 records are labelled as legacy rather than rewritten, and Codex tasks without a matching hook or MCP observation are unobservable.'
       ]
     }
   }
@@ -1492,10 +1684,10 @@ async function insertActivity(
     `
       INSERT INTO activities (
         session_id, project_id, activity_type, actor_uri, target_uri, summary,
-        source, idempotency_key, confidence, payload, occurred_at
+        source, idempotency_key, confidence, payload, occurred_at, telemetry_contract_version
       )
       VALUES (
-        $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::timestamptz
+        $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::timestamptz, 2
       )
       RETURNING id::text
     `,
