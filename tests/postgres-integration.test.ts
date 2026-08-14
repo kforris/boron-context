@@ -5,8 +5,13 @@ import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { PostgresActivityRepository } from '../src/db/activity-repository.js'
-import { ActivityTimestampError, ProjectScopeError } from '../src/core/errors.js'
+import {
+  ActivityTimestampError,
+  OntologyGovernanceError,
+  ProjectScopeError
+} from '../src/core/errors.js'
 import { PostgresCodexThreadRepository } from '../src/db/codex-thread-repository.js'
+import { PostgresInspectorRepository } from '../src/db/inspector-repository.js'
 import { reconcileCodexRegistry, type CodexRegistry } from '../src/db/project-registry.js'
 import { reconcileProjectSupersessions } from '../src/db/project-supersession.js'
 
@@ -17,11 +22,13 @@ describeDatabase('PostgreSQL continuity integration', () => {
   let pool: Pool
   let repository: PostgresActivityRepository
   let codexThreads: PostgresCodexThreadRepository
+  let inspector: PostgresInspectorRepository
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: databaseUrl })
     repository = new PostgresActivityRepository(pool)
     codexThreads = new PostgresCodexThreadRepository(pool)
+    inspector = new PostgresInspectorRepository(pool, '/tmp')
     await pool.query(
       `
         INSERT INTO projects (name, source_uri, status, metadata)
@@ -51,9 +58,9 @@ describeDatabase('PostgreSQL continuity integration', () => {
       metadata: { integrationTest: true }
     })
     const relation = {
-      subject: { kind: 'TestSubject', name: 'Candidate subject', canonicalUri: subjectUri },
+      subject: { kind: 'Project', name: 'Candidate subject', canonicalUri: subjectUri },
       relationType: 'VERIFIES',
-      target: { kind: 'TestTarget', name: 'Candidate target', canonicalUri: targetUri },
+      target: { kind: 'Artifact', name: 'Candidate target', canonicalUri: targetUri },
       operation: 'assert' as const,
       confidence: 1,
       rationale: 'Database integration verification.'
@@ -65,7 +72,9 @@ describeDatabase('PostgreSQL continuity integration', () => {
       summary: 'Record an uncertain relation.',
       confidence: 1,
       metadata: {},
-      relationEffects: [{ ...relation, confirmationState: 'candidate' }],
+      relationEffects: [
+        { ...relation, confirmationState: 'candidate', authority: 'agent_inference' }
+      ],
       evidence: []
     })
     const candidate = await pool.query<{ confirmation_state: string }>(
@@ -80,7 +89,9 @@ describeDatabase('PostgreSQL continuity integration', () => {
       summary: 'Explicitly confirm the verified relation.',
       confidence: 1,
       metadata: {},
-      relationEffects: [{ ...relation, confirmationState: 'confirmed' }],
+      relationEffects: [
+        { ...relation, confirmationState: 'confirmed', authority: 'deterministic_source' }
+      ],
       evidence: []
     })
     const confirmed = await pool.query<{ confirmation_state: string }>(
@@ -109,6 +120,228 @@ describeDatabase('PostgreSQL continuity integration', () => {
       evidence: [],
       metadata: { integrationTest: true }
     })
+  })
+
+  it('rejects unknown ontology types, audits deprecated types, and enforces relation authority', async () => {
+    const suffix = randomUUID()
+    const session = await repository.startSession({
+      objective: 'Verify ontology governance contract v1',
+      projectHint: 'Boron Context',
+      externalSessionId: `ontology-governance-${suffix}`,
+      client: 'postgres-integration-test',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    await pool.query(
+      `
+        INSERT INTO ontology_type_registry (
+          type_family, type_name, status, replacement_type, owner, source_authority, source_uri
+        )
+        VALUES
+          ('entity_kind', $1, 'deprecated', 'Artifact', 'integration-test', 'operator', $2),
+          ('relation_type', $3, 'deprecated', 'RELATED_TO', 'integration-test', 'operator', $4)
+        ON CONFLICT (type_family, type_name) DO UPDATE SET
+          status = EXCLUDED.status,
+          replacement_type = EXCLUDED.replacement_type,
+          owner = EXCLUDED.owner,
+          source_authority = EXCLUDED.source_authority,
+          source_uri = EXCLUDED.source_uri,
+          updated_at = now()
+      `,
+      [
+        `DeprecatedArtifact-${suffix}`,
+        `integration://registry/entity/${suffix}`,
+        `DEPRECATED_RELATION_${suffix}`,
+        `integration://registry/relation/${suffix}`
+      ]
+    )
+    const base = {
+      sessionId: session.id,
+      projectHint: 'Boron Context',
+      activityType: 'integration.ontology_governance',
+      summary: 'Exercise ontology governance decisions.',
+      confidence: 1,
+      metadata: { integrationTest: true },
+      evidence: []
+    }
+    const unknownUri = `integration://unknown/${suffix}`
+    await expect(
+      repository.recordActivity({
+        ...base,
+        relationEffects: [
+          {
+            subject: { kind: `UnknownKind-${suffix}`, name: 'Unknown', canonicalUri: unknownUri },
+            relationType: 'VERIFIES',
+            target: {
+              kind: 'Artifact',
+              name: 'Known target',
+              canonicalUri: `integration://known-target/${suffix}`
+            },
+            operation: 'assert',
+            confidence: 0.7,
+            confirmationState: 'candidate',
+            authority: 'agent_inference',
+            rationale: 'Unknown kinds must fail closed.'
+          }
+        ]
+      })
+    ).rejects.toBeInstanceOf(OntologyGovernanceError)
+    const unknownObject = await pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM objects WHERE canonical_uri = $1',
+      [unknownUri]
+    )
+    expect(Number(unknownObject.rows[0]!.count)).toBe(0)
+
+    await expect(
+      repository.recordActivity({
+        ...base,
+        relationEffects: [
+          {
+            subject: {
+              kind: 'Project',
+              name: 'Known source',
+              canonicalUri: `integration://unknown-relation-source/${suffix}`
+            },
+            relationType: `UNKNOWN_RELATION_${suffix}`,
+            target: {
+              kind: 'Artifact',
+              name: 'Known target',
+              canonicalUri: `integration://unknown-relation-target/${suffix}`
+            },
+            operation: 'assert',
+            confidence: 0.7,
+            confirmationState: 'candidate',
+            authority: 'agent_inference',
+            rationale: 'Unknown relation types must fail closed.'
+          }
+        ]
+      })
+    ).rejects.toMatchObject({ reason: 'unknown_relation_type' })
+
+    await expect(
+      repository.recordActivity({
+        ...base,
+        relationEffects: [
+          {
+            subject: {
+              kind: 'Project',
+              name: 'Authority subject',
+              canonicalUri: `integration://authority-subject/${suffix}`
+            },
+            relationType: 'VERIFIES',
+            target: {
+              kind: 'Artifact',
+              name: 'Authority target',
+              canonicalUri: `integration://authority-target/${suffix}`
+            },
+            operation: 'assert',
+            confidence: 1,
+            confirmationState: 'confirmed',
+            authority: 'agent_inference',
+            rationale: 'Inference alone cannot confirm a relation.'
+          }
+        ]
+      })
+    ).rejects.toMatchObject({ reason: 'confirmed_requires_authority' })
+
+    const deprecated = await repository.recordActivity({
+      ...base,
+      relationEffects: [
+        {
+          subject: {
+            kind: `DeprecatedArtifact-${suffix}`,
+            name: 'Deprecated subject',
+            canonicalUri: `integration://deprecated-subject/${suffix}`
+          },
+          relationType: `DEPRECATED_RELATION_${suffix}`,
+          target: {
+            kind: 'Artifact',
+            name: 'Current target',
+            canonicalUri: `integration://deprecated-target/${suffix}`
+          },
+          operation: 'assert',
+          confidence: 0.8,
+          confirmationState: 'candidate',
+          authority: 'agent_inference',
+          rationale: 'Deprecated vocabulary remains compatible but auditable.'
+        }
+      ]
+    })
+    expect(deprecated.ontologyGovernance).toMatchObject({
+      contractVersion: 1,
+      deprecated: 2
+    })
+    await pool.query(
+      `
+        INSERT INTO objects (
+          project_id, kind, name, canonical_uri, confirmation_state, ontology_contract_version
+        )
+        SELECT id, 'Artifact', 'Labelled legacy fixture', $1, 'confirmed', 0
+        FROM projects WHERE name = 'Boron Context'
+      `,
+      [`integration://legacy-contract/${suffix}`]
+    )
+    const health = await repository.ontologyGovernanceHealth({
+      projectHint: 'Boron Context',
+      windowDays: 30
+    })
+    expect(health.contractVersion).toBe(1)
+    expect(health.decisions.rejected).toBeGreaterThanOrEqual(2)
+    expect(health.decisions.deprecated).toBeGreaterThanOrEqual(2)
+    expect(health.decisions.reasons.rejected).toMatchObject({
+      unknown_entity_kind: expect.any(Number),
+      unknown_relation_type: expect.any(Number),
+      confirmed_requires_authority: expect.any(Number)
+    })
+    expect(health.registry.entityKinds.deprecated).toBeGreaterThanOrEqual(1)
+    expect(health.registry.relationTypes.deprecated).toBeGreaterThanOrEqual(1)
+    expect(health.stored.objects.contractV1).toBeGreaterThanOrEqual(2)
+    expect(health.stored.objects.legacyContract).toBeGreaterThanOrEqual(1)
+
+    await expect(
+      repository.recordActivity({
+        ...base,
+        relationEffects: [
+          {
+            subject: {
+              kind: 'Project',
+              name: 'Missing relation source',
+              canonicalUri: `integration://missing-relation-source/${suffix}`
+            },
+            relationType: 'RELATED_TO',
+            target: {
+              kind: 'Artifact',
+              name: 'Missing relation target',
+              canonicalUri: `integration://missing-relation-target/${suffix}`
+            },
+            operation: 'retract',
+            confidence: 1,
+            confirmationState: 'confirmed',
+            authority: 'operator',
+            rationale: 'Retraction must reference an active relation.'
+          }
+        ]
+      })
+    ).rejects.toMatchObject({ reason: 'relation_not_active' })
+
+    const correction = await inspector.createCorrection({
+      projectHint: 'Boron Context',
+      layer: 'ontology',
+      subjectKind: 'entity',
+      subjectUri: unknownUri,
+      fields: { kind: 'Artifact' },
+      note: 'Operator review fixture for an unknown kind.'
+    })
+    expect(correction.status).toBe('pending')
+    const resolved = await inspector.resolveCorrection({
+      correctionId: correction.id,
+      outcome: 'resolved',
+      summary: 'Fixture verified the governance rejection and proposed registered replacement.',
+      resolvedBy: 'postgres-integration-test'
+    })
+    expect(resolved).toMatchObject({ status: 'resolved' })
   })
 
   it('rejects cross-project and future-skewed writeback while auditing explicit scope', async () => {

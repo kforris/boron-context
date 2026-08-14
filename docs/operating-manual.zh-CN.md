@@ -152,6 +152,13 @@ source/cache 漂移。手工拼接路径时漏掉 marketplace 或 plugin 任一�
 只有直接人工决策或确定性权威来源可以标记为 `confirmed`。模型推断与拟议关系保持
 `candidate`。
 
+ontology governance contract v1 会在写入前用机器可读 registry 校验每个 endpoint kind 和
+relation type。未知类型以 HTTP 422 和明确原因 fail closed；已注册的 deprecated 类型为兼容仍
+可写入，但必须单独计数，并可给出 replacement。relation 的 `authority` 应填写
+`agent_inference`、`user_confirmation`、`deterministic_source` 或 `operator`。agent inference
+不能直接创建 confirmed relation；retract 必须命中当前 active relation。旧 contract-v0 行只
+保留标签，不改写历史事实。
+
 ## 6. Context Meter 与 Inspector
 
 需要有边界的汇总时调用 `get_context_meter`；需要审计数字或来源选择如何组成时调用
@@ -174,6 +181,11 @@ source/cache 漂移。手工拼接路径时漏掉 marketplace 或 plugin 任一�
 顶层的 `observedAgentThreads`、`contextThreads` 与 `observableCoverageRatio` 仅为向后兼容，仍是
 旧版混合分母，不能称为 eligible adoption。contract-v1 历史行只做 legacy 标注，不改写语义
 payload。
+
+使用 `get_ontology_governance_health` 检查 registry 与写入决策。分别报告 contract version、
+entity/relation registry 的 active/legacy/deprecated 数量、accepted/rejected/deprecated 决策及
+原因、registry source authority，以及 contract-v1 与 contract-v0 存量。registry 是全局词汇
+统计；决策和存量行按请求项目范围过滤。
 
 使用 `get_codex_sync_health` 检查历史 task 归属。健康状态应无冲突、无异常增长的 candidate。
 该索引只保存 ID、分类、authority、confidence 与证据摘要；它不修改 Codex 侧边栏或私有全局
@@ -342,6 +354,7 @@ codex plugin list
 - `/health` 在实时查询可用时把 Codebase Memory 和 OpenWiki 标成 `live`，并保留
   PostgreSQL snapshot fallback；
 - adoption health 明确报告可观测分母，且 stale active session 为 0；
+- ontology governance 报告 contract v1、明确决策原因，并且未知类型不会被静默接受；
 - 菜单栏分别显示 `R` 与 `S`，无来源覆盖时显示 `S—`。
 - `/inspector/spatial` 可以显示本地 3D 预览；局域网入口只暴露 `41636/41637` 的配对只读服务，
   `41635` 仍为 loopback；ADB 入口仍可作为开发兜底。

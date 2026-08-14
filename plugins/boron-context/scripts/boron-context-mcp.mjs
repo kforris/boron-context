@@ -34,6 +34,10 @@ const relationEffectSchema = {
     operation: { type: 'string', enum: ['assert', 'retract'] },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     confirmationState: { type: 'string', enum: ['candidate', 'confirmed'] },
+    authority: {
+      type: 'string',
+      enum: ['agent_inference', 'user_confirmation', 'deterministic_source', 'operator']
+    },
     rationale: { type: 'string' }
   }
 }
@@ -201,6 +205,19 @@ const tools = [
     inputSchema: { type: 'object', additionalProperties: false, properties: {} }
   },
   {
+    name: 'get_ontology_governance_health',
+    description:
+      'Report ontology governance contract v1: versioned entity/relation registry counts, accepted/rejected/deprecated write decisions and reasons, source authority, and legacy contract boundaries.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        projectHint: { type: 'string' },
+        windowDays: { type: 'integer', minimum: 1, maximum: 365, default: 30 }
+      }
+    }
+  },
+  {
     name: 'list_manual_corrections',
     description:
       'List human-authored pending, resolved, or dismissed corrections from Boron Content. At session start, inspect pending corrections for the resolved project and treat them as high-priority review requests, not automatically verified facts.',
@@ -295,6 +312,8 @@ async function callTool(name, args) {
       return request('/v1/metrics/adoption', { method: 'POST', body: args })
     case 'get_codex_sync_health':
       return request('/v1/metrics/codex-sync', { method: 'POST', body: args })
+    case 'get_ontology_governance_health':
+      return request('/v1/metrics/ontology-governance', { method: 'POST', body: args })
     case 'list_manual_corrections':
       return request('/v1/inspector/corrections/list', { method: 'POST', body: args })
     case 'resolve_manual_correction':
@@ -399,7 +418,7 @@ async function handle(message) {
       result: {
         protocolVersion: params.protocolVersion ?? '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'boron-context', version: '0.7.3' },
+        serverInfo: { name: 'boron-context', version: '0.7.4' },
         instructions:
           'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule and pending human corrections before project work, record only verified semantic milestones, resolve corrections only after evidence-backed repair, and close the session with verified outcomes. Never store secrets or raw transcripts.'
       }

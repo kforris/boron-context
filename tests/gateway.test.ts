@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
 import { ContextResolver } from '../src/core/resolver.js'
-import { ProjectScopeError } from '../src/core/errors.js'
+import { OntologyGovernanceError, ProjectScopeError } from '../src/core/errors.js'
 import { startGateway } from '../src/gateway/server.js'
 
 function inspectorStub() {
@@ -144,6 +144,9 @@ describe('gateway', () => {
         contextQualityHealth: async () => {
           throw new Error('not used')
         },
+        ontologyGovernanceHealth: async () => {
+          throw new Error('not used')
+        },
         observeAgentClient: async () => {},
         adoptionHealth: async () => ({ observedAgentThreads: 0 })
       } as never,
@@ -230,9 +233,42 @@ describe('gateway', () => {
           writebackScope: { explicitVerificationRatio: 1 },
           timeIntegrity: { futureSkewedActivities: 0 }
         }),
-        recordActivity: async (input: { projectHint?: string }) => {
+        ontologyGovernanceHealth: async () => ({
+          contractVersion: 1,
+          windowDays: 30,
+          registry: {
+            entityKinds: { active: 20, legacy: 4, deprecated: 1 },
+            relationTypes: { active: 12, legacy: 3, deprecated: 1 },
+            sourceAuthorities: { system: 32, migration: 7, operator: 2 }
+          },
+          decisions: {
+            accepted: 8,
+            rejected: 1,
+            deprecated: 2,
+            reasons: {
+              accepted: { active_registered_type: 8 },
+              rejected: { unknown_entity_kind: 1 },
+              deprecated: { deprecated_registered_type: 2 }
+            }
+          }
+        }),
+        recordActivity: async (input: { projectHint?: string; activityType?: string }) => {
           if (input.projectHint === 'Wrong Project') {
             throw new ProjectScopeError('project_mismatch', 'Wrong project')
+          }
+          if (input.activityType === 'governance.rejected') {
+            throw new OntologyGovernanceError(
+              'unknown_relation_type',
+              [
+                {
+                  outcome: 'rejected',
+                  reason: 'unknown_relation_type',
+                  typeFamily: 'relation_type',
+                  typeName: 'UNKNOWN'
+                }
+              ],
+              'Unknown relation type'
+            )
           }
           calls.push('activity')
           return { id: randomUUID(), relationEffects: 0, evidence: 1, duplicate: false }
@@ -374,6 +410,23 @@ describe('gateway', () => {
       expect(mismatchedActivity.status).toBe(409)
       expect(await mismatchedActivity.json()).toMatchObject({ error: 'project_mismatch' })
 
+      const governedActivity = await fetch(`${gateway.url}/v1/activity/record`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          sessionId: session.id,
+          projectHint: 'Boron Context',
+          activityType: 'governance.rejected',
+          summary: 'Unknown ontology vocabulary must be explicit.'
+        })
+      })
+      expect(governedActivity.status).toBe(422)
+      expect(await governedActivity.json()).toMatchObject({
+        error: 'unknown_relation_type',
+        contractVersion: 1,
+        decisions: [{ outcome: 'rejected', reason: 'unknown_relation_type' }]
+      })
+
       const completed = await fetch(`${gateway.url}/v1/sessions/complete`, {
         method: 'POST',
         headers,
@@ -427,6 +480,16 @@ describe('gateway', () => {
         project: 'Boron Context',
         writebackScope: { explicitVerificationRatio: 1 },
         timeIntegrity: { futureSkewedActivities: 0 }
+      })
+      const governance = await fetch(`${gateway.url}/v1/metrics/ontology-governance`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ projectHint: 'Boron Context', windowDays: 30 })
+      })
+      expect(governance.status).toBe(200)
+      expect(await governance.json()).toMatchObject({
+        contractVersion: 1,
+        decisions: { accepted: 8, rejected: 1, deprecated: 2 }
       })
       const adoption = await fetch(`${gateway.url}/v1/metrics/adoption`, {
         method: 'POST',
@@ -493,8 +556,9 @@ describe('gateway', () => {
       expect(shell.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
       const shellHtml = await shell.text()
       expect(shellHtml).toContain('Boron Content Inspector')
-      expect(shellHtml).toContain('Adoption + writeback telemetry')
+      expect(shellHtml).toContain('Auditable product health')
       expect(shellHtml).toContain('/v1/metrics/adoption')
+      expect(shellHtml).toContain('/v1/metrics/ontology-governance')
       expect(shellHtml).toContain('loadOntology(project.sourceUri)')
       expect(shellHtml).toContain('Spatial MR')
 

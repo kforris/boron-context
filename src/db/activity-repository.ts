@@ -15,13 +15,19 @@ import type {
   ContextMeterSummaryRequest,
   EntityReference,
   LifecycleSessionEndRequest,
+  OntologyGovernanceHealthRequest,
   RecordActivityRequest,
   RelationEffect,
   ResolvedProject,
   StartSessionRequest
 } from '../core/contracts.js'
 import { MAX_FUTURE_ACTIVITY_SKEW_MS } from '../core/contracts.js'
-import { ActivityTimestampError, ProjectScopeError } from '../core/errors.js'
+import {
+  ActivityTimestampError,
+  OntologyGovernanceError,
+  type OntologyGovernanceDecision,
+  ProjectScopeError
+} from '../core/errors.js'
 import { resolveProjectIdentity } from './project-identity.js'
 import { discoverProjectRoot } from '../platform/project-root.js'
 
@@ -39,6 +45,37 @@ export interface RecordedActivity {
   readonly relationEffects: number
   readonly evidence: number
   readonly duplicate: boolean
+  readonly ontologyGovernance: {
+    readonly contractVersion: 1
+    readonly accepted: number
+    readonly deprecated: number
+  }
+}
+
+export interface OntologyGovernanceHealthSummary {
+  readonly contractVersion: 1
+  readonly windowDays: number
+  readonly project: string | null
+  readonly registry: {
+    readonly entityKinds: Readonly<Record<'active' | 'legacy' | 'deprecated', number>>
+    readonly relationTypes: Readonly<Record<'active' | 'legacy' | 'deprecated', number>>
+    readonly sourceAuthorities: Readonly<Record<string, number>>
+  }
+  readonly decisions: {
+    readonly accepted: number
+    readonly rejected: number
+    readonly deprecated: number
+    readonly reasons: {
+      readonly accepted: Readonly<Record<string, number>>
+      readonly rejected: Readonly<Record<string, number>>
+      readonly deprecated: Readonly<Record<string, number>>
+    }
+  }
+  readonly stored: {
+    readonly objects: { readonly contractV1: number; readonly legacyContract: number }
+    readonly relations: { readonly contractV1: number; readonly legacyContract: number }
+  }
+  readonly caveats: readonly string[]
 }
 
 export interface LifecycleSessionEndResult {
@@ -368,6 +405,11 @@ export class PostgresActivityRepository {
     source = 'boron-client'
   ): Promise<RecordedActivity> {
     const client = await this.pool.connect()
+    let governanceContext: {
+      readonly sessionId: string
+      readonly projectId: string | null
+      readonly decisions: readonly OntologyGovernanceDecision[]
+    } | null = null
     try {
       await client.query('BEGIN')
       const session = await loadSession(client, input.sessionId)
@@ -376,6 +418,20 @@ export class PostgresActivityRepository {
       const writebackScope = input.projectHint
         ? await verifyActivityProjectScope(client, session.projectId, input.projectHint)
         : { verification: 'implicit_session' as const }
+      const governanceDecisions = await assessRelationEffects(client, input.relationEffects)
+      governanceContext = {
+        sessionId: input.sessionId,
+        projectId: session.projectId,
+        decisions: governanceDecisions
+      }
+      const rejected = governanceDecisions.find((decision) => decision.outcome === 'rejected')
+      if (rejected) {
+        throw new OntologyGovernanceError(
+          rejected.reason as OntologyGovernanceError['reason'],
+          governanceDecisions,
+          `Ontology governance rejected ${rejected.typeFamily} ${rejected.typeName}: ${rejected.reason}`
+        )
+      }
       const activity = await insertActivity(client, {
         sessionId: input.sessionId,
         projectId: session.projectId,
@@ -392,12 +448,25 @@ export class PostgresActivityRepository {
       if (activity.duplicate) {
         await renewSessionLease(client, input.sessionId, session.leaseDurationMinutes)
         await client.query('COMMIT')
-        return { id: activity.id, relationEffects: 0, evidence: 0, duplicate: true }
+        return {
+          id: activity.id,
+          relationEffects: 0,
+          evidence: 0,
+          duplicate: true,
+          ontologyGovernance: { contractVersion: 1, accepted: 0, deprecated: 0 }
+        }
       }
 
       for (const effect of input.relationEffects) {
         await applyRelationEffect(client, activity.id, session.projectId, occurredAt, effect)
       }
+      await insertGovernanceDecisions(
+        client,
+        input.sessionId,
+        session.projectId,
+        activity.id,
+        governanceDecisions
+      )
       let evidenceCount = 0
       await insertEvidence(client, activity.id, session.projectId, {
         layer: 'ontology',
@@ -424,13 +493,154 @@ export class PostgresActivityRepository {
         id: activity.id,
         relationEffects: input.relationEffects.length,
         evidence: evidenceCount,
-        duplicate: false
+        duplicate: false,
+        ontologyGovernance: {
+          contractVersion: 1,
+          accepted: governanceDecisions.filter((decision) => decision.outcome === 'accepted')
+            .length,
+          deprecated: governanceDecisions.filter((decision) => decision.outcome === 'deprecated')
+            .length
+        }
       }
     } catch (error) {
       await client.query('ROLLBACK')
+      if (error instanceof OntologyGovernanceError && governanceContext) {
+        await insertGovernanceDecisions(
+          this.pool,
+          governanceContext.sessionId,
+          governanceContext.projectId,
+          null,
+          governanceContext.decisions
+        )
+      }
       throw error
     } finally {
       client.release()
+    }
+  }
+
+  async ontologyGovernanceHealth(
+    input: OntologyGovernanceHealthRequest
+  ): Promise<OntologyGovernanceHealthSummary> {
+    const project = await resolveProjectIdentity(this.pool, input.projectHint)
+    const projectScopeRequested = input.projectHint !== undefined
+    const [registry, decisions, stored] = await Promise.all([
+      this.pool.query<{
+        type_family: 'entity_kind' | 'relation_type'
+        status: 'active' | 'legacy' | 'deprecated'
+        source_authority: string
+        count: string
+      }>(
+        `
+          SELECT type_family, status, source_authority, count(*)::text AS count
+          FROM ontology_type_registry
+          WHERE contract_version = 1
+          GROUP BY type_family, status, source_authority
+        `
+      ),
+      this.pool.query<{
+        outcome: 'accepted' | 'rejected' | 'deprecated'
+        reason: string
+        count: string
+      }>(
+        `
+          SELECT outcome, reason, count(*)::text AS count
+          FROM ontology_governance_events
+          WHERE created_at >= now() - make_interval(days => $1)
+            AND (NOT $3::boolean OR project_id = $2::uuid)
+          GROUP BY outcome, reason
+        `,
+        [input.windowDays, project?.id ?? null, projectScopeRequested]
+      ),
+      this.pool.query<{
+        object_v1: string
+        object_legacy: string
+        relation_v1: string
+        relation_legacy: string
+      }>(
+        `
+          SELECT
+            (SELECT count(*) FROM objects o
+              WHERE (NOT $2::boolean OR o.project_id = $1::uuid)
+                AND o.ontology_contract_version = 1)::text AS object_v1,
+            (SELECT count(*) FROM objects o
+              WHERE (NOT $2::boolean OR o.project_id = $1::uuid)
+                AND o.ontology_contract_version = 0)::text AS object_legacy,
+            (SELECT count(*) FROM relations r
+              JOIN objects o ON o.id = r.source_object_id
+              WHERE (NOT $2::boolean OR o.project_id = $1::uuid)
+                AND r.ontology_contract_version = 1)::text AS relation_v1,
+            (SELECT count(*) FROM relations r
+              JOIN objects o ON o.id = r.source_object_id
+              WHERE (NOT $2::boolean OR o.project_id = $1::uuid)
+                AND r.ontology_contract_version = 0)::text AS relation_legacy
+        `,
+        [project?.id ?? null, projectScopeRequested]
+      )
+    ])
+    const registryCounts = (family: 'entity_kind' | 'relation_type') => ({
+      active: registry.rows
+        .filter((row) => row.type_family === family && row.status === 'active')
+        .reduce((sum, row) => sum + Number(row.count), 0),
+      legacy: registry.rows
+        .filter((row) => row.type_family === family && row.status === 'legacy')
+        .reduce((sum, row) => sum + Number(row.count), 0),
+      deprecated: registry.rows
+        .filter((row) => row.type_family === family && row.status === 'deprecated')
+        .reduce((sum, row) => sum + Number(row.count), 0)
+    })
+    const reasonCounts = (outcome: 'accepted' | 'rejected' | 'deprecated') =>
+      Object.fromEntries(
+        decisions.rows
+          .filter((row) => row.outcome === outcome)
+          .map((row) => [row.reason, Number(row.count)])
+      )
+    const decisionTotal = (outcome: 'accepted' | 'rejected' | 'deprecated') =>
+      decisions.rows
+        .filter((row) => row.outcome === outcome)
+        .reduce((sum, row) => sum + Number(row.count), 0)
+    const storedRow = stored.rows[0]!
+    return {
+      contractVersion: 1,
+      windowDays: input.windowDays,
+      project: project?.name ?? null,
+      registry: {
+        entityKinds: registryCounts('entity_kind'),
+        relationTypes: registryCounts('relation_type'),
+        sourceAuthorities: Object.fromEntries(
+          [...new Set(registry.rows.map((row) => row.source_authority))].map((authority) => [
+            authority,
+            registry.rows
+              .filter((row) => row.source_authority === authority)
+              .reduce((sum, row) => sum + Number(row.count), 0)
+          ])
+        )
+      },
+      decisions: {
+        accepted: decisionTotal('accepted'),
+        rejected: decisionTotal('rejected'),
+        deprecated: decisionTotal('deprecated'),
+        reasons: {
+          accepted: reasonCounts('accepted'),
+          rejected: reasonCounts('rejected'),
+          deprecated: reasonCounts('deprecated')
+        }
+      },
+      stored: {
+        objects: {
+          contractV1: Number(storedRow.object_v1),
+          legacyContract: Number(storedRow.object_legacy)
+        },
+        relations: {
+          contractV1: Number(storedRow.relation_v1),
+          legacyContract: Number(storedRow.relation_legacy)
+        }
+      },
+      caveats: [
+        'Registry counts are global vocabulary counts; decision and stored-row counts honor the requested project scope.',
+        'Contract-v0 rows remain labelled history and are not rewritten.',
+        'Deprecated registered types remain writable for compatibility but are surfaced as deprecated decisions; unknown types are rejected.'
+      ]
     }
   }
 
@@ -1708,6 +1918,152 @@ async function insertActivity(
   return { id: result.rows[0]!.id, duplicate: false }
 }
 
+type GovernanceQueryable = Pick<Pool, 'query'>
+
+async function assessRelationEffects(
+  client: GovernanceQueryable,
+  effects: readonly RelationEffect[]
+): Promise<readonly OntologyGovernanceDecision[]> {
+  const decisions: OntologyGovernanceDecision[] = []
+  for (const effect of effects) {
+    for (const item of [
+      { family: 'entity_kind' as const, name: effect.subject.kind },
+      { family: 'relation_type' as const, name: effect.relationType },
+      { family: 'entity_kind' as const, name: effect.target.kind }
+    ]) {
+      const registry = await client.query<{
+        status: 'active' | 'legacy' | 'deprecated'
+        replacement_type: string | null
+        owner: string
+        source_authority: string
+        source_uri: string
+      }>(
+        `
+          SELECT status, replacement_type, owner, source_authority, source_uri
+          FROM ontology_type_registry
+          WHERE contract_version = 1 AND type_family = $1 AND type_name = $2
+        `,
+        [item.family, item.name]
+      )
+      const row = registry.rows[0]
+      if (!row) {
+        decisions.push({
+          outcome: 'rejected',
+          reason: item.family === 'entity_kind' ? 'unknown_entity_kind' : 'unknown_relation_type',
+          typeFamily: item.family,
+          typeName: item.name
+        })
+        continue
+      }
+      decisions.push({
+        outcome: row.status === 'deprecated' ? 'deprecated' : 'accepted',
+        reason:
+          row.status === 'deprecated'
+            ? 'deprecated_registered_type'
+            : row.status === 'legacy'
+              ? 'legacy_registered_type'
+              : 'active_registered_type',
+        typeFamily: item.family,
+        typeName: item.name,
+        registryStatus: row.status,
+        metadata: {
+          replacementType: row.replacement_type,
+          owner: row.owner,
+          sourceAuthority: row.source_authority,
+          sourceUri: row.source_uri
+        }
+      })
+    }
+
+    const authority = effect.authority ?? 'legacy_unspecified'
+    if (effect.confirmationState === 'confirmed' && authority === 'agent_inference') {
+      decisions.push({
+        outcome: 'rejected',
+        reason: 'confirmed_requires_authority',
+        typeFamily: 'relation_rule',
+        typeName: effect.relationType,
+        relationAuthority: authority
+      })
+    } else if (effect.confirmationState === 'confirmed' && authority === 'legacy_unspecified') {
+      decisions.push({
+        outcome: 'deprecated',
+        reason: 'legacy_unspecified_authority',
+        typeFamily: 'relation_rule',
+        typeName: effect.relationType,
+        relationAuthority: authority
+      })
+    } else {
+      decisions.push({
+        outcome: 'accepted',
+        reason:
+          effect.confirmationState === 'candidate'
+            ? 'candidate_relation'
+            : 'confirmed_authority_verified',
+        typeFamily: 'relation_rule',
+        typeName: effect.relationType,
+        relationAuthority: authority
+      })
+    }
+
+    if (effect.operation === 'retract') {
+      const active = await client.query<{ exists: boolean }>(
+        `
+          SELECT EXISTS (
+            SELECT 1
+            FROM current_relations r
+            JOIN objects source ON source.id = r.source_object_id
+            JOIN objects target ON target.id = r.target_object_id
+            WHERE source.canonical_uri = $1
+              AND r.relation_type = $2
+              AND target.canonical_uri = $3
+          ) AS exists
+        `,
+        [effect.subject.canonicalUri, effect.relationType, effect.target.canonicalUri]
+      )
+      decisions.push({
+        outcome: active.rows[0]?.exists ? 'accepted' : 'rejected',
+        reason: active.rows[0]?.exists ? 'active_relation_retraction' : 'relation_not_active',
+        typeFamily: 'relation_rule',
+        typeName: effect.relationType,
+        relationAuthority: authority
+      })
+    }
+  }
+  return decisions
+}
+
+async function insertGovernanceDecisions(
+  client: GovernanceQueryable,
+  sessionId: string,
+  projectId: string | null,
+  activityId: string | null,
+  decisions: readonly OntologyGovernanceDecision[]
+): Promise<void> {
+  for (const decision of decisions) {
+    await client.query(
+      `
+        INSERT INTO ontology_governance_events (
+          contract_version, session_id, project_id, activity_id, outcome, reason,
+          type_family, type_name, registry_status, relation_authority, metadata
+        )
+        VALUES (1, $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::jsonb)
+      `,
+      [
+        sessionId,
+        projectId,
+        activityId,
+        decision.outcome,
+        decision.reason,
+        decision.typeFamily,
+        decision.typeName,
+        decision.registryStatus ?? null,
+        decision.relationAuthority ?? null,
+        JSON.stringify(decision.metadata ?? {})
+      ]
+    )
+  }
+}
+
 async function applyRelationEffect(
   client: PoolClient,
   activityId: string,
@@ -1732,15 +2088,17 @@ async function applyRelationEffect(
   const provenance = {
     activityId,
     rationale: effect.rationale,
-    modelProposed: effect.confirmationState === 'candidate'
+    modelProposed: effect.confirmationState === 'candidate',
+    ontologyContractVersion: 1,
+    relationAuthority: effect.authority ?? 'legacy_unspecified'
   }
   await client.query(
     `
       INSERT INTO relation_effects (
         activity_id, source_object_id, relation_type, target_object_id, operation,
-        confidence, confirmation_state, effective_at, provenance
+        confidence, confirmation_state, effective_at, provenance, ontology_contract_version
       )
-      VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8::timestamptz, $9::jsonb)
+      VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8::timestamptz, $9::jsonb, 1)
     `,
     [
       activityId,
@@ -1793,6 +2151,7 @@ async function applyRelationEffect(
           END,
           provenance = provenance || $4::jsonb,
           asserted_by_activity_id = $5::uuid,
+          ontology_contract_version = greatest(ontology_contract_version, 1),
           updated_at = now()
         WHERE id = $1::uuid
       `,
@@ -1820,9 +2179,10 @@ async function applyRelationEffect(
     `
       INSERT INTO relations (
         source_object_id, relation_type, target_object_id, confidence,
-        confirmation_state, provenance, version, valid_from, asserted_by_activity_id
+        confirmation_state, provenance, version, valid_from, asserted_by_activity_id,
+        ontology_contract_version
       )
-      VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6::jsonb, $7, $8::timestamptz, $9::uuid)
+      VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6::jsonb, $7, $8::timestamptz, $9::uuid, 1)
     `,
     [
       subjectId,
@@ -1854,8 +2214,11 @@ async function ensureObject(
       : {}
   const result = await client.query<{ id: string; confirmation_state: string }>(
     `
-      INSERT INTO objects (project_id, kind, name, canonical_uri, confirmation_state, metadata)
-      VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)
+      INSERT INTO objects (
+        project_id, kind, name, canonical_uri, confirmation_state, metadata,
+        ontology_contract_version
+      )
+      VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb, 1)
       ON CONFLICT (canonical_uri)
       DO UPDATE SET
         project_id = COALESCE(objects.project_id, EXCLUDED.project_id),
@@ -1867,6 +2230,7 @@ async function ensureObject(
           ELSE objects.confirmation_state
         END,
         metadata = objects.metadata || EXCLUDED.metadata,
+        ontology_contract_version = greatest(objects.ontology_contract_version, 1),
         updated_at = now()
       RETURNING id::text, confirmation_state
     `,
