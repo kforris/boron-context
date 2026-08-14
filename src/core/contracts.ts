@@ -211,6 +211,9 @@ export const relationEffectSchema = z.object({
   operation: z.enum(['assert', 'retract']),
   confidence: z.number().min(0).max(1).default(0.7),
   confirmationState: z.enum(['candidate', 'confirmed']).default('candidate'),
+  authority: z
+    .enum(['agent_inference', 'user_confirmation', 'deterministic_source', 'operator'])
+    .optional(),
   rationale: z.string().trim().min(1).max(4_000)
 })
 export type RelationEffect = z.infer<typeof relationEffectSchema>
@@ -344,6 +347,12 @@ export const adoptionHealthRequestSchema = z.object({
   windowDays: z.number().int().min(1).max(365).default(30)
 })
 export type AdoptionHealthRequest = z.infer<typeof adoptionHealthRequestSchema>
+
+export const ontologyGovernanceHealthRequestSchema = z.object({
+  projectHint: z.string().trim().min(1).max(1_000).optional(),
+  windowDays: z.number().int().min(1).max(365).default(30)
+})
+export type OntologyGovernanceHealthRequest = z.infer<typeof ontologyGovernanceHealthRequestSchema>
 
 export const contextMeterSummaryRequestSchema = z.object({
   projectHint: z.string().trim().min(1).max(1_000).optional(),

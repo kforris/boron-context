@@ -160,6 +160,14 @@ Do not store:
 Use `confirmed` only for a direct human decision or deterministic authoritative source. Keep model
 inference and proposed relationships as `candidate`.
 
+Ontology governance contract v1 validates every relation endpoint kind and relation type against
+the machine-readable registry. Unknown types fail closed with HTTP 422 and an auditable reason;
+deprecated registered types remain writable for compatibility but are counted separately and may
+name a replacement. Set relation `authority` to `agent_inference`, `user_confirmation`,
+`deterministic_source`, or `operator`. Agent inference cannot directly confirm a relation, and a
+retraction must match an active relation. Existing contract-v0 rows remain labelled history rather
+than being rewritten.
+
 ## 6. Context Meter and Inspector
 
 Call `get_context_meter` for a bounded summary. Call `inspect_context_meter` when a user needs to
@@ -182,6 +190,12 @@ Call `get_adoption_health` to read telemetry contract v2. For both 7-day and 30-
 The top-level `observedAgentThreads`, `contextThreads`, and `observableCoverageRatio` fields remain
 for backward compatibility and retain the old mixed denominator. Do not use them as eligible
 adoption. Contract-v1 rows are labelled as legacy; their semantic payloads are not rewritten.
+
+Call `get_ontology_governance_health` for registry and write-decision health. Report the contract
+version; active, legacy, and deprecated entity/relation registry counts; accepted, rejected, and
+deprecated decisions with reasons; registry source authority; and stored contract-v1 versus
+contract-v0 rows. Registry counts are global, while decision and stored-row counts honor the
+requested project scope.
 
 Call `get_codex_sync_health` to inspect historical ownership. Healthy state has no conflicts and no
 unexpected candidate growth. The index stores only IDs, classification, authority, confidence, and
@@ -362,12 +376,14 @@ Expected release behavior:
 
 - `/health` reports the current daemon version and adapter source types;
 - `plugin:check` confirms the manifest cache key matches the full bundled plugin payload;
-- the Codex plugin exposes continuity, Meter, correction, and `get_adoption_health` tools;
+- the Codex plugin exposes continuity, Meter, correction, adoption, and ontology-governance tools;
 - a code-oriented query shows Ontology before Codebase in `retrievalPlan`;
 - a continuity query shows Ontology before Wiki;
 - `/health` labels the local Codebase Memory and OpenWiki adapters as `live` when current queries
   are available, with PostgreSQL snapshots retained as fallback;
 - adoption health reports its observable denominator and stale active sessions are zero;
+- ontology governance reports contract v1, explicit decision reasons, and no silently accepted
+  unknown types;
 - the menu item shows separate `R` and `S` values, with `S—` when source coverage is absent.
 - `/inspector/spatial` renders a local 3D preview. The LAN route exposes only the paired read-only
   service on `41636/41637`, while `41635` stays on loopback; ADB remains a development fallback.

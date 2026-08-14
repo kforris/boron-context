@@ -148,9 +148,12 @@ describe('agent continuity contracts', () => {
     })
     const confirmed = recordActivityRequestSchema.parse({
       ...activity,
-      relationEffects: [{ ...relation, confirmationState: 'confirmed' }]
+      relationEffects: [
+        { ...relation, confirmationState: 'confirmed', authority: 'deterministic_source' }
+      ]
     })
     expect(candidate.relationEffects[0]?.confirmationState).toBe('candidate')
     expect(confirmed.relationEffects[0]?.confirmationState).toBe('confirmed')
+    expect(confirmed.relationEffects[0]?.authority).toBe('deterministic_source')
   })
 })

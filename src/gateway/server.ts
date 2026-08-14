@@ -15,13 +15,18 @@ import {
   lifecycleSessionEndRequestSchema,
   listManualCorrectionsSchema,
   manualCorrectionSchema,
+  ontologyGovernanceHealthRequestSchema,
   recordActivityRequestSchema,
   resolveManualCorrectionSchema,
   spatialCodebaseExpandRequestSchema,
   spatialCodebaseGraphRequestSchema,
   startSessionRequestSchema
 } from '../core/contracts.js'
-import { ActivityTimestampError, ProjectScopeError } from '../core/errors.js'
+import {
+  ActivityTimestampError,
+  OntologyGovernanceError,
+  ProjectScopeError
+} from '../core/errors.js'
 import type { ContextResolver } from '../core/resolver.js'
 import type { PostgresActivityRepository } from '../db/activity-repository.js'
 import type { PostgresCodexThreadRepository } from '../db/codex-thread-repository.js'
@@ -371,6 +376,11 @@ async function routeRequest(
       json(response, 200, await options.activity.adoptionHealth(body))
       return
     }
+    if (request.method === 'POST' && pathname === '/v1/metrics/ontology-governance') {
+      const body = ontologyGovernanceHealthRequestSchema.parse(await readJson(request))
+      json(response, 200, await options.activity.ontologyGovernanceHealth(body))
+      return
+    }
     if (request.method === 'POST' && pathname === '/v1/metrics/codex-sync') {
       json(response, 200, await options.codexThreads.health())
       return
@@ -398,6 +408,15 @@ async function routeRequest(
     }
     if (error instanceof ActivityTimestampError) {
       json(response, 400, { error: 'invalid_activity_timestamp', traceId })
+      return
+    }
+    if (error instanceof OntologyGovernanceError) {
+      json(response, 422, {
+        error: error.reason,
+        traceId,
+        contractVersion: 1,
+        decisions: error.decisions
+      })
       return
     }
     json(response, 500, { error: 'internal_error', traceId })

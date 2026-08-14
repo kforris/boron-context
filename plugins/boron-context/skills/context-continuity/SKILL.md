@@ -103,6 +103,13 @@ Represent changing state as relation effects instead of duplicated status prose.
 `Patient A left Bed B` and retract `A OCCUPIES B`; let current occupancy be derived from active
 relations.
 
+Ontology writeback is governed by contract v1. Use registered entity kinds and relation types;
+unknown vocabulary is rejected instead of being silently inserted. Mark relation authority as
+`agent_inference`, `user_confirmation`, `deterministic_source`, or `operator`. Agent inference may
+create candidates but cannot directly create confirmed relations. Retractions must identify an
+active relation. Deprecated registered vocabulary remains compatible but is reported as deprecated
+and should be replaced using the registry's suggested type.
+
 Leave model-inferred relations as `candidate`. Use `confirmed` only when the user directly stated or
 approved the relation, or when a deterministic authoritative source establishes it.
 
@@ -152,3 +159,8 @@ This reports Boron's privacy-safe thread-to-project index, not Codex sidebar fol
 SessionStart hook imports only thread IDs, project IDs, confidence, authority, and evidence digests;
 it does not copy task titles, prompts, previews, or transcripts. Treat `candidate` and `conflicted`
 rows as review work, never as confirmed project context.
+
+Call `get_ontology_governance_health` when reviewing ontology write safety or vocabulary drift.
+Report contract version, registry active/legacy/deprecated counts, accepted/rejected/deprecated
+decisions and reason counts, authority distribution, and contract-v0 history separately. These are
+governance indicators, not a semantic quality score.

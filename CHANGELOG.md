@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## [0.7.4] - 2026-08-14
+
+### Added
+
+- ontology governance contract v1 with a versioned, machine-readable entity-kind and
+  relation-type registry, ownership/source authority, deprecation metadata, and additive legacy
+  labels;
+- auditable accepted, rejected, and deprecated write decisions with reason counts through HTTP,
+  MCP, and the authenticated Inspector;
+- temporary-PostgreSQL fixtures for known, unknown, deprecated, candidate, confirmed, retraction,
+  manual-correction, cross-project, and legacy-contract boundaries.
+
+### Changed
+
+- activity relation writeback rejects unregistered vocabulary, inference-only confirmation, and
+  retraction of a non-active relation before ontology facts are created;
+- deprecated registered vocabulary remains compatible but returns explicit governance counts and
+  replacement metadata; historical objects and relations remain contract-v0 rows without semantic
+  rewrites.
+
 ## [0.7.3] - 2026-08-13
 
 ### Added

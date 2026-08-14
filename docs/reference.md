@@ -25,6 +25,7 @@ require the daemon bearer.
 - `POST /v1/metrics/context/inspect`
 - `POST /v1/metrics/context/quality`
 - `POST /v1/metrics/adoption`
+- `POST /v1/metrics/ontology-governance`
 - `POST /v1/metrics/codex-sync`
 
 ### Agent lifecycle
@@ -86,19 +87,20 @@ curl -sS http://127.0.0.1:41635/v1/context/resolve \
 
 ## Codex plugin tools
 
-| Tool                         | Purpose                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------------- |
-| `begin_context_session`      | Retrieve a project capsule and open or resume a durable session.                            |
-| `query_context`              | Retrieve a read-only capsule without opening a writeback session.                           |
-| `record_activity`            | Store a milestone after verifying its target project against the open session.              |
-| `complete_context_session`   | Close a session with its verified outcome and durable decisions.                            |
-| `get_context_meter`          | Summarize context reuse, filtering, source compression, latency, and Boron-owned model use. |
-| `inspect_context_meter`      | Inspect recent Retrieval Plans and evidence-level metric composition.                       |
-| `get_context_quality_health` | Audit project scope, lifecycle, time integrity, source coverage, and corrections.           |
-| `get_adoption_health`        | Audit v2 adoption/writeback eligibility, exclusions, reasons, and observability boundaries. |
-| `get_codex_sync_health`      | Inspect privacy-safe historical task ownership synchronization.                             |
-| `list_manual_corrections`    | Read human-authored review requests from Boron Content.                                     |
-| `resolve_manual_correction`  | Resolve or dismiss a request after evidence-backed review.                                  |
+| Tool                             | Purpose                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| `begin_context_session`          | Retrieve a project capsule and open or resume a durable session.                            |
+| `query_context`                  | Retrieve a read-only capsule without opening a writeback session.                           |
+| `record_activity`                | Store a milestone after verifying its target project against the open session.              |
+| `complete_context_session`       | Close a session with its verified outcome and durable decisions.                            |
+| `get_context_meter`              | Summarize context reuse, filtering, source compression, latency, and Boron-owned model use. |
+| `inspect_context_meter`          | Inspect recent Retrieval Plans and evidence-level metric composition.                       |
+| `get_context_quality_health`     | Audit project scope, lifecycle, time integrity, source coverage, and corrections.           |
+| `get_adoption_health`            | Audit v2 adoption/writeback eligibility, exclusions, reasons, and observability boundaries. |
+| `get_ontology_governance_health` | Audit registry status, authority, write decisions, reasons, and legacy boundaries.          |
+| `get_codex_sync_health`          | Inspect privacy-safe historical task ownership synchronization.                             |
+| `list_manual_corrections`        | Read human-authored review requests from Boron Content.                                     |
+| `resolve_manual_correction`      | Resolve or dismiss a request after evidence-backed review.                                  |
 
 The context-continuity skill reuses an automatically injected session when present. It records
 semantic turning points, not every tool call or raw conversation content.
@@ -164,6 +166,13 @@ contains `unobservable` plus `plugin_not_observed`; read-only context is adoptio
 writeback-eligible. Lifecycle/intent and contract-v1 legacy records are excluded for explicit
 reasons. The historical top-level coverage fields are unchanged for older clients but must not be
 reported as eligible adoption.
+
+`get_ontology_governance_health` returns `contractVersion: 1`. Registry entries are classified as
+`active`, `legacy`, or `deprecated` with owner, source authority, and source URI. Activity writeback
+rejects unknown entity kinds and relation types, rejects inference-only confirmation, and rejects
+retraction of a non-active relation. Deprecated registered vocabulary stays compatible but is
+counted separately. The response separates global registry counts from project-scoped decisions and
+stored contract-v1/contract-v0 rows.
 
 See the [operating manual](operating-manual.md) for interpretation and the
 [system design](architecture/system-design.md) for the underlying retrieval contract.
