@@ -85,6 +85,14 @@ curl -sS http://127.0.0.1:41635/v1/context/resolve \
   }'
 ```
 
+## Offline evaluation
+
+`npm run eval:continuity` runs the versioned synthetic fixture suite and exits nonzero when
+recall@5, MRR, relevant fixture source coverage, routing, or project-scope checks fall below the
+minimum or frozen baseline. It performs no network request, production database query, or
+Boron-owned model call. See the [evaluation contract](continuity-evaluation.md) for metric and
+baseline governance details.
+
 ## Codex plugin tools
 
 | Tool                             | Purpose                                                                                     |

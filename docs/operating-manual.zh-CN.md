@@ -337,6 +337,7 @@ Boron Content 运营手册验证了一条可以复用的模式：
 
 ```bash
 npm run check
+npm run eval:continuity
 npm audit --omit=dev --audit-level=high
 swift test --package-path apps/BoronMenuBar
 swift build -c release --package-path apps/BoronMenuBar
@@ -347,6 +348,8 @@ codex plugin list
 预期行为：
 
 - `/health` 报告当前 daemon 版本和 adapter source type；
+- `eval:continuity` 通过冻结的 recall@5、MRR、fixture source coverage 与 wrong-project
+  retrieval/writeback=0 门禁；fixture coverage 必须与 live source-estimate coverage 分开报告；
 - `plugin:check` 确认 manifest 缓存键与完整内置 plugin payload 一致；
 - Codex plugin 暴露 continuity、Meter、correction 和 `get_adoption_health` 工具；
 - 代码类请求的 `retrievalPlan` 中 Ontology 位于 Codebase 之前；

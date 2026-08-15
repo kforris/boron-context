@@ -28,6 +28,7 @@ import {
   type OntologyGovernanceDecision,
   ProjectScopeError
 } from '../core/errors.js'
+import { verifyResolvedActivityProjectScope } from '../core/project-scope.js'
 import { resolveProjectIdentity } from './project-identity.js'
 import { discoverProjectRoot } from '../platform/project-root.js'
 
@@ -1821,23 +1822,7 @@ async function verifyActivityProjectScope(
   readonly resolvedProjectId: string
 }> {
   const project = await resolveProjectIdentity(client, projectHint)
-  if (!project) {
-    throw new ProjectScopeError(
-      'project_unresolved',
-      `Activity target project could not be resolved: ${projectHint}`
-    )
-  }
-  if (!sessionProjectId || project.id !== sessionProjectId) {
-    throw new ProjectScopeError(
-      'project_mismatch',
-      `Activity target project ${project.name} does not match the open session`
-    )
-  }
-  return {
-    verification: 'explicit_project',
-    projectHint,
-    resolvedProjectId: project.id
-  }
+  return verifyResolvedActivityProjectScope(sessionProjectId, projectHint, project)
 }
 
 function assertActivityTimestamp(occurredAt: string, observedAtMs = Date.now()): void {

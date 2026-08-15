@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "suite": "boron-context-continuity-held-out",
+  "fixtureVersion": "1.0.0",
+  "topK": 5,
+  "minimum": {
+    "recallAt5": 0.8,
+    "meanReciprocalRank": 0.8,
+    "relevantSourceCoverage": 0.8,
+    "wrongProjectRetrieval": 0,
+    "wrongProjectWriteback": 0
+  },
+  "frozen": {
+    "recallAt5": 1,
+    "meanReciprocalRank": 1,
+    "relevantSourceCoverage": 1,
+    "wrongProjectRetrieval": 0,
+    "wrongProjectWriteback": 0
+  }
+}

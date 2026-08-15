@@ -193,7 +193,8 @@ roadmap 中。
 | 理解上下文工程方法            | [方法论](docs/context-engineering-methodology.zh-CN.md) · [English](docs/context-engineering-methodology.md) |
 | 审阅 task-to-project 归属     | [Codex task context](docs/codex-thread-project-reconciliation.md)                                            |
 | 安全修复项目身份              | [Project identity repair](docs/project-identity-repair.md)                                                   |
-| 查看 v0.7.4 变化              | [Release notes](docs/releases/v0.7.4.md) · [Changelog](CHANGELOG.md)                                         |
+| 运行 held-out continuity 评测 | [Evaluation contract](docs/continuity-evaluation.md)                                                         |
+| 查看 v0.7.5 变化              | [Release notes](docs/releases/v0.7.5.md) · [Changelog](CHANGELOG.md)                                         |
 | 查看产品方向                  | [Roadmap](docs/architecture/product-roadmap.md)                                                              |
 | 参与贡献                      | [Contributing guide](CONTRIBUTING.md)                                                                        |
 
@@ -201,6 +202,7 @@ roadmap 中。
 
 ```bash
 npm run check
+npm run eval:continuity
 npm run format:check
 npm audit --omit=dev --audit-level=high
 ```
