@@ -202,7 +202,8 @@ configurable inference/confirmation rules remain roadmap work.
 | Understand the context-engineering method     | [Methodology](docs/context-engineering-methodology.md) · [简体中文](docs/context-engineering-methodology.zh-CN.md) |
 | Review task-to-project ownership              | [Codex task context](docs/codex-thread-project-reconciliation.md)                                                  |
 | Repair project identity safely                | [Project identity repair](docs/project-identity-repair.md)                                                         |
-| See what changed in v0.7.4                    | [Release notes](docs/releases/v0.7.4.md) · [Changelog](CHANGELOG.md)                                               |
+| Run the held-out continuity evaluation        | [Evaluation contract](docs/continuity-evaluation.md)                                                               |
+| See what changed in v0.7.5                    | [Release notes](docs/releases/v0.7.5.md) · [Changelog](CHANGELOG.md)                                               |
 | Follow the product direction                  | [Roadmap](docs/architecture/product-roadmap.md)                                                                    |
 | Contribute                                    | [Contributing guide](CONTRIBUTING.md)                                                                              |
 
@@ -210,6 +211,7 @@ configurable inference/confirmation rules remain roadmap work.
 
 ```bash
 npm run check
+npm run eval:continuity
 npm run format:check
 npm audit --omit=dev --audit-level=high
 ```

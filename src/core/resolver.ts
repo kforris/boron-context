@@ -90,6 +90,7 @@ export class ContextResolver {
             sourceAnchors: blueprint.sourceAnchors
           })
           for (const item of evidence) {
+            if (project && item.projectId && item.projectId !== project.id) continue
             candidates.push({
               ...item,
               retrieval: {

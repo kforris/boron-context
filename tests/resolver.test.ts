@@ -93,6 +93,26 @@ describe('ContextResolver', () => {
     expect(capsule.evidence[0]?.id).toBe('high')
   })
 
+  it('excludes evidence explicitly scoped to a different resolved project', async () => {
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [
+        adapter('ontology', [
+          evidence('same-project', 0.8),
+          { ...evidence('wrong-project', 1), projectId: 'project-2', uri: 'boron://wrong/1' },
+          { ...evidence('unscoped', 0.7), projectId: undefined, uri: 'boron://shared/1' }
+        ])
+      ]
+    })
+
+    const capsule = await resolver.resolve({
+      objective: 'Inspect context',
+      projectHint: 'Boron Context'
+    })
+
+    expect(capsule.evidence.map((item) => item.id)).toEqual(['same-project', 'unscoped'])
+  })
+
   it('reports an unresolved project instead of silently binding one', async () => {
     const resolver = new ContextResolver({
       projects: { resolve: async () => null },

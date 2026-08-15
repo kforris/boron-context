@@ -1,0 +1,252 @@
+{
+  "schemaVersion": 1,
+  "suite": "boron-context-continuity-held-out",
+  "fixtureVersion": "1.0.0",
+  "generatedFromPrivateData": false,
+  "projects": [
+    { "id": "project-boron-context", "name": "Boron Context", "aliases": ["boron-context"] },
+    { "id": "project-boron-marketing", "name": "Boron Marketing", "aliases": [] },
+    { "id": "project-build123d", "name": "build123d", "aliases": [] }
+  ],
+  "evidence": [
+    {
+      "id": "bc-release-boundary",
+      "layer": "ontology",
+      "title": "Boron Context release boundary",
+      "uri": "boron://policy/release-boundary",
+      "excerpt": "Public release and Marketplace submission require separate user approval; productization stops at release-candidate go-no-go.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-context",
+      "metadata": { "sourceTokenEstimate": 420, "evalPurposes": ["policy"] }
+    },
+    {
+      "id": "bc-v074-outcome",
+      "layer": "ontology",
+      "title": "Boron Context 0.7.4 governance outcome",
+      "uri": "boron://activity/release-0.7.4",
+      "excerpt": "Version 0.7.4 deployed ontology governance; the next milestone is a held-out continuity recall evaluation.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-context",
+      "metadata": { "sourceTokenEstimate": 380 }
+    },
+    {
+      "id": "bc-telemetry-contract",
+      "layer": "ontology",
+      "title": "Eligible adoption telemetry contract",
+      "uri": "boron://contract/adoption-v2",
+      "excerpt": "Report numerator over eligible denominator, with ineligible and unobservable observations kept separate.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-context",
+      "metadata": { "sourceTokenEstimate": 360 }
+    },
+    {
+      "id": "marketing-release-decoy",
+      "layer": "ontology",
+      "title": "Boron Marketing release plan",
+      "uri": "boron://marketing/release-plan",
+      "excerpt": "Publish the Boron campaign after brand review and Marketplace launch.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-marketing",
+      "metadata": { "sourceTokenEstimate": 300, "evalPurposes": ["policy"] }
+    },
+    {
+      "id": "build-font-decoy",
+      "layer": "ontology",
+      "title": "build123d FontManager work",
+      "uri": "boron://build123d/font-manager",
+      "excerpt": "The build123d font manager parallel test needs isolated validation.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-build123d",
+      "metadata": { "sourceTokenEstimate": 280 }
+    },
+    {
+      "id": "bc-scope-guard-code",
+      "layer": "codebase",
+      "title": "verifyResolvedActivityProjectScope",
+      "uri": "file:///workspace/src/core/project-scope.ts",
+      "excerpt": "The writeback scope guard compares the resolved activity project with the open session project and rejects project_mismatch.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-context",
+      "metadata": { "sourceTokenEstimate": 760 }
+    },
+    {
+      "id": "bc-resolver-code",
+      "layer": "codebase",
+      "title": "ContextResolver scoped ranking",
+      "uri": "file:///workspace/src/core/resolver.ts",
+      "excerpt": "ContextResolver filters evidence carrying a different project ID before ranking and packing a Context Capsule.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-context",
+      "metadata": { "sourceTokenEstimate": 1680 }
+    },
+    {
+      "id": "marketing-router-decoy",
+      "layer": "codebase",
+      "title": "Marketing release router",
+      "uri": "file:///marketing/src/release-router.ts",
+      "excerpt": "Route marketing publication requests to the selected campaign project.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-marketing",
+      "metadata": { "sourceTokenEstimate": 900 }
+    },
+    {
+      "id": "build-font-code-decoy",
+      "layer": "codebase",
+      "title": "FontManager available fonts",
+      "uri": "file:///build123d/src/font_manager.py",
+      "excerpt": "Lazy font manager import prevents parallel test races in build123d.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-build123d",
+      "metadata": { "sourceTokenEstimate": 880 }
+    },
+    {
+      "id": "bc-eval-guide",
+      "layer": "wiki",
+      "title": "Held-out continuity evaluation runbook",
+      "uri": "wiki://boron-context/continuity-evaluation",
+      "excerpt": "Run deterministic secret-free fixtures, report recall at five, mean reciprocal rank, scope violations, source coverage, and regression failures.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-context",
+      "metadata": { "sourceTokenEstimate": 620 }
+    },
+    {
+      "id": "bc-operating-guide",
+      "layer": "wiki",
+      "title": "Boron Context operating manual",
+      "uri": "wiki://boron-context/operations",
+      "excerpt": "After upgrade, verify runtime health, adapters, project scope, source coverage, latency, and zero Boron-owned LLM calls.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-context",
+      "metadata": { "sourceTokenEstimate": 720 }
+    },
+    {
+      "id": "marketing-guide-decoy",
+      "layer": "wiki",
+      "title": "Boron Marketing operating guide",
+      "uri": "wiki://boron-marketing/operations",
+      "excerpt": "Prepare a campaign packet and wait for publishing approval.",
+      "confidence": 1,
+      "authority": 1,
+      "projectId": "project-boron-marketing",
+      "metadata": { "sourceTokenEstimate": 540 }
+    }
+  ],
+  "cases": [
+    {
+      "id": "resume-after-governance",
+      "request": {
+        "objective": "Resume Boron Context after the 0.7.4 governance outcome and identify the held-out continuity evaluation milestone.",
+        "projectHint": "Boron Context",
+        "layers": ["ontology", "wiki"],
+        "tokenBudget": 6000,
+        "client": "held-out-eval",
+        "workflow": "session_start"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantEvidenceIds": ["bc-v074-outcome", "bc-eval-guide"],
+      "forbiddenEvidenceIds": ["marketing-release-decoy", "marketing-guide-decoy"],
+      "expectedStageIds": ["ontology-locate", "wiki-continuity"]
+    },
+    {
+      "id": "inspect-writeback-scope",
+      "request": {
+        "objective": "Inspect the TypeScript activity writeback project mismatch guard.",
+        "projectHint": "Boron Context",
+        "objectHints": ["src/core/project-scope.ts", "verifyResolvedActivityProjectScope"],
+        "layers": ["ontology", "codebase"],
+        "tokenBudget": 6000,
+        "client": "held-out-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantEvidenceIds": ["bc-scope-guard-code"],
+      "forbiddenEvidenceIds": ["marketing-router-decoy", "build-font-code-decoy"],
+      "expectedStageIds": ["ontology-locate", "codebase-source"],
+      "writebackScope": {
+        "sessionProjectId": "project-boron-context",
+        "projectHint": "Boron Marketing",
+        "resolvedProjectId": "project-boron-marketing",
+        "expected": "project_mismatch"
+      }
+    },
+    {
+      "id": "audit-eligible-adoption",
+      "request": {
+        "objective": "Audit eligible adoption numerator and denominator without mixing ineligible or unobservable tasks.",
+        "projectHint": "boron-context",
+        "layers": ["ontology"],
+        "tokenBudget": 6000,
+        "client": "held-out-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantEvidenceIds": ["bc-telemetry-contract"],
+      "forbiddenEvidenceIds": ["marketing-release-decoy"],
+      "expectedStageIds": ["ontology-locate"]
+    },
+    {
+      "id": "release-policy-boundary",
+      "request": {
+        "objective": "Prepare the Boron Context release candidate but do not publish or submit to Marketplace.",
+        "projectHint": "Boron Context",
+        "constraints": ["Separate approval is required for public release"],
+        "layers": ["ontology"],
+        "tokenBudget": 6000,
+        "client": "held-out-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantEvidenceIds": ["bc-release-boundary"],
+      "forbiddenEvidenceIds": ["marketing-release-decoy"],
+      "expectedStageIds": ["ontology-locate", "ontology-policy"]
+    },
+    {
+      "id": "read-upgrade-health",
+      "request": {
+        "objective": "Read the Boron Context operating guide for post-upgrade adapter, latency, and source coverage checks.",
+        "projectHint": "Boron Context",
+        "layers": ["ontology", "wiki"],
+        "tokenBudget": 6000,
+        "client": "held-out-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantEvidenceIds": ["bc-operating-guide"],
+      "forbiddenEvidenceIds": ["marketing-guide-decoy"],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "writebackScope": {
+        "sessionProjectId": "project-boron-context",
+        "projectHint": "Boron Context",
+        "resolvedProjectId": "project-boron-context",
+        "expected": "accepted"
+      }
+    },
+    {
+      "id": "resolver-project-filter",
+      "request": {
+        "objective": "Verify the ContextResolver excludes evidence from a different project before ranking.",
+        "projectHint": "Boron Context",
+        "objectHints": ["src/core/resolver.ts"],
+        "layers": ["ontology", "codebase"],
+        "tokenBudget": 6000,
+        "client": "held-out-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantEvidenceIds": ["bc-resolver-code"],
+      "forbiddenEvidenceIds": ["marketing-router-decoy", "build-font-code-decoy"],
+      "expectedStageIds": ["ontology-locate", "codebase-source"]
+    }
+  ]
+}

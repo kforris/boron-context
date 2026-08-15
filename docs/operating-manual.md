@@ -365,6 +365,7 @@ Verify source, runtime, and installed artifacts separately:
 
 ```bash
 npm run check
+npm run eval:continuity
 npm audit --omit=dev --audit-level=high
 swift test --package-path apps/BoronMenuBar
 swift build -c release --package-path apps/BoronMenuBar
@@ -375,6 +376,9 @@ codex plugin list
 Expected release behavior:
 
 - `/health` reports the current daemon version and adapter source types;
+- `eval:continuity` passes the frozen recall@5, MRR, fixture source-coverage, and zero
+  wrong-project retrieval/writeback gates; fixture coverage is reported separately from live
+  source-estimate coverage;
 - `plugin:check` confirms the manifest cache key matches the full bundled plugin payload;
 - the Codex plugin exposes continuity, Meter, correction, adoption, and ontology-governance tools;
 - a code-oriented query shows Ontology before Codebase in `retrievalPlan`;

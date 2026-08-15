@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## [0.7.5] - 2026-08-15
+
+### Added
+
+- a versioned, synthetic, secret-free held-out continuity suite with deterministic recall@5, mean
+  reciprocal rank, relevant fixture source coverage, wrong-project retrieval/writeback, and stable
+  failure-category reporting;
+- CI regression gates against both release-candidate minimums and a frozen 0.7.5 baseline that the
+  runner cannot update.
+
+### Changed
+
+- evidence explicitly scoped to a different resolved project is excluded before ranking and
+  packing;
+- activity writeback and the offline suite share the same resolved-project scope guard.
+
 ## [0.7.4] - 2026-08-14
 
 ### Added
