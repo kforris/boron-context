@@ -200,6 +200,9 @@ entity/relation registry 的 active/legacy/deprecated 数量、accepted/rejected
   `sourceTokenEstimate` 时为 `null`。
 - `sourceWindowCoverageRatio`：有真实来源大小估算的已选证据比例；不得把部分覆盖说成整个
   session 的节省。
+- `sourceWindow.eligibility`：v2 合约，分别报告已测量分子、eligible 分母、ineligible 排除项、
+  unobservable 证据与原因计数。产品健康只使用这个比例；旧的混合
+  `sourceWindowCoverageRatio` 仅为兼容保留。
 - `filteredTokens`：确定性排序和打包所省略的候选 capsule 内容。
 - `boronLlm.calls`：Boron 自己拥有的调用数，目前为 0。
 

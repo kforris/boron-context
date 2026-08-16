@@ -14,6 +14,9 @@ import { PostgresCodexThreadRepository } from '../src/db/codex-thread-repository
 import { PostgresInspectorRepository } from '../src/db/inspector-repository.js'
 import { reconcileCodexRegistry, type CodexRegistry } from '../src/db/project-registry.js'
 import { reconcileProjectSupersessions } from '../src/db/project-supersession.js'
+import { ContextResolver } from '../src/core/resolver.js'
+import type { ContextAdapter } from '../src/core/context-adapter.js'
+import type { Evidence } from '../src/core/contracts.js'
 
 const databaseUrl = process.env.BORON_TEST_DATABASE_URL
 const describeDatabase = databaseUrl ? describe : describe.skip
@@ -403,6 +406,91 @@ describeDatabase('PostgreSQL continuity integration', () => {
       evidence: [],
       metadata: { integrationTest: true }
     })
+  })
+
+  it('reports source coverage against an eligible denominator without rewriting legacy evidence', async () => {
+    const suffix = randomUUID()
+    const projectName = `Source coverage ${suffix}`
+    const projectUri = `integration://source-coverage/${suffix}`
+    const projectResult = await pool.query<{ id: string }>(
+      `
+        INSERT INTO projects (name, source_uri, status, metadata)
+        VALUES ($1, $2, 'confirmed', '{"integrationTest":true}'::jsonb)
+        RETURNING id::text
+      `,
+      [projectName, projectUri]
+    )
+    const project = { id: projectResult.rows[0]!.id, name: projectName, confidence: 1 }
+    const resolve = async (adapters: readonly ContextAdapter[]) =>
+      new ContextResolver({
+        projects: { resolve: async () => project },
+        adapters
+      }).resolveWithAudit({
+        objective: 'Inspect source coverage fixtures',
+        projectHint: projectName,
+        layers: [adapters[0]!.layer],
+        tokenBudget: 4_000,
+        client: 'postgres-integration-test'
+      })
+
+    const ontology = await resolve([
+      fixtureAdapter('ontology', 'ontology', [
+        coverageEvidence(project.id, 'ontology-measured', { sourceTokenEstimate: 400 }),
+        coverageEvidence(project.id, 'ontology-derived', { ontologyKind: 'relation' }),
+        coverageEvidence(
+          project.id,
+          'legacy-activity',
+          { activityId: 'legacy' },
+          'boron://activity/legacy'
+        )
+      ])
+    ])
+    const live = await resolve([
+      fixtureAdapter('codebase', 'live', [
+        coverageEvidence(project.id, 'live-measured', { sourceTokenEstimate: 500 }),
+        coverageEvidence(project.id, 'live-missing')
+      ])
+    ])
+    const snapshot = await resolve([
+      fixtureAdapter('wiki', 'snapshot', [
+        coverageEvidence(project.id, 'snapshot-measured', { sourceTokenEstimate: 300 }),
+        coverageEvidence(project.id, 'snapshot-legacy')
+      ])
+    ])
+    for (const resolution of [ontology, live, snapshot]) {
+      await repository.saveMeter(resolution.capsule, resolution.evidenceAudit)
+    }
+
+    const summary = await repository.contextMeterSummary({
+      projectHint: projectName,
+      windowDays: 7,
+      typingWordsPerMinute: 40
+    })
+    expect(summary.sourceWindow.eligibility).toMatchObject({
+      contractVersion: 2,
+      numerator: 3,
+      eligibleDenominator: 4,
+      ratio: 0.75,
+      ineligible: 1,
+      unobservable: 2
+    })
+    expect(summary.sourceWindow.eligibility.reasons).toMatchObject({
+      eligible: {
+        recorded_source_measured: 1,
+        live_source_measured: 1,
+        live_source_size_unavailable: 1,
+        snapshot_source_measured: 1
+      },
+      ineligible: { ontology_derived: 1 },
+      unobservable: { legacy_unknown_size: 1, legacy_snapshot_unknown_size: 1 }
+    })
+    expect(summary.sourceWindow.selectedEvidenceCount).toBe(7)
+
+    const quality = await repository.contextQualityHealth({
+      projectHint: projectName,
+      windowDays: 7
+    })
+    expect(quality.sourceCoverage.eligibility).toEqual(summary.sourceWindow.eligibility)
   })
 
   it('separates eligible, ineligible, legacy, read-only, hook/MCP, and unobservable telemetry', async () => {
@@ -1057,3 +1145,36 @@ describeDatabase('PostgreSQL continuity integration', () => {
     expect(previewAgain.plan).toHaveLength(1)
   })
 })
+
+function fixtureAdapter(
+  layer: 'ontology' | 'codebase' | 'wiki',
+  sourceType: 'ontology' | 'live' | 'snapshot',
+  evidence: readonly Evidence[]
+): ContextAdapter {
+  return {
+    layer,
+    name: `${sourceType}-${layer}-fixture`,
+    sourceType,
+    health: async () => ({ ok: true }),
+    search: async () => evidence
+  }
+}
+
+function coverageEvidence(
+  projectId: string,
+  id: string,
+  metadata: Record<string, unknown> = {},
+  uri = `integration://source-coverage-evidence/${id}`
+): Evidence {
+  return {
+    id,
+    layer: id.startsWith('live') ? 'codebase' : id.startsWith('snapshot') ? 'wiki' : 'ontology',
+    title: id,
+    uri,
+    excerpt: `Source coverage fixture ${id}`,
+    confidence: 1,
+    authority: 1,
+    projectId,
+    metadata
+  }
+}

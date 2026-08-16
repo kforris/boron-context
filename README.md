@@ -203,7 +203,7 @@ configurable inference/confirmation rules remain roadmap work.
 | Review task-to-project ownership              | [Codex task context](docs/codex-thread-project-reconciliation.md)                                                  |
 | Repair project identity safely                | [Project identity repair](docs/project-identity-repair.md)                                                         |
 | Run the held-out continuity evaluation        | [Evaluation contract](docs/continuity-evaluation.md)                                                               |
-| See what changed in v0.7.5                    | [Release notes](docs/releases/v0.7.5.md) · [Changelog](CHANGELOG.md)                                               |
+| See what changed in v0.7.6                    | [Release notes](docs/releases/v0.7.6.md) · [Changelog](CHANGELOG.md)                                               |
 | Follow the product direction                  | [Roadmap](docs/architecture/product-roadmap.md)                                                                    |
 | Contribute                                    | [Contributing guide](CONTRIBUTING.md)                                                                              |
 

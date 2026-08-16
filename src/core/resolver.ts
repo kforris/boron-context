@@ -15,6 +15,7 @@ import {
   type RetrievalStage,
   resolveContextRequestSchema
 } from './contracts.js'
+import { classifySourceCoverage, summarizeSourceCoverage } from './source-coverage.js'
 
 export interface ProjectResolver {
   resolve(request: ResolveContextRequest): Promise<ResolvedProject | null>
@@ -304,6 +305,18 @@ function buildContextMeter(
     0
   )
   const sourceCovered = selected.filter((item) => sourceTokenEstimate(item) !== null)
+  const eligibility = summarizeSourceCoverage(
+    selected
+      .map((item) => ({
+        selected: true,
+        ...classifySourceCoverage(item)
+      }))
+      .map((item) => ({
+        selected: item.selected,
+        sourceCoverageStatus: item.status,
+        sourceCoverageReason: item.reason
+      }))
+  )
   const sourceWindowOriginalTokens =
     sourceCovered.length > 0
       ? sourceCovered.reduce((total, item) => total + (sourceTokenEstimate(item) ?? 0), 0)
@@ -346,6 +359,7 @@ function buildContextMeter(
       sourceWindowOriginalTokens && sourceWindowSavingsTokens !== null
         ? sourceWindowSavingsTokens / sourceWindowOriginalTokens
         : null,
+    sourceWindowEligibility: eligibility,
     retrievalLatencyMs,
     tokenEstimator: 'characters_divided_by_4',
     boronLlm: {
@@ -441,19 +455,24 @@ function buildEvidenceAudit(
   selected: readonly CapsuleEvidence[]
 ): readonly ContextMeterEvidenceAudit[] {
   const selectedIds = new Set(selected.map(auditIdentity))
-  return ranked.map((item) => ({
-    evidenceId: item.id,
-    layer: item.layer,
-    title: item.title,
-    uri: item.uri,
-    adapter: item.retrieval.adapter,
-    sourceType: item.retrieval.sourceType,
-    stageId: item.retrieval.stageId,
-    candidateTokens: item.estimatedTokens,
-    selected: selectedIds.has(auditIdentity(item)),
-    score: item.score,
-    sourceTokenEstimate: sourceTokenEstimate(item)
-  }))
+  return ranked.map((item) => {
+    const coverage = classifySourceCoverage(item)
+    return {
+      evidenceId: item.id,
+      layer: item.layer,
+      title: item.title,
+      uri: item.uri,
+      adapter: item.retrieval.adapter,
+      sourceType: item.retrieval.sourceType,
+      stageId: item.retrieval.stageId,
+      candidateTokens: item.estimatedTokens,
+      selected: selectedIds.has(auditIdentity(item)),
+      score: item.score,
+      sourceTokenEstimate: sourceTokenEstimate(item),
+      sourceCoverageStatus: coverage.status,
+      sourceCoverageReason: coverage.reason
+    }
+  })
 }
 
 function finalizeWireTokenMeter(capsule: ContextCapsule, ranked: readonly CapsuleEvidence[]): void {

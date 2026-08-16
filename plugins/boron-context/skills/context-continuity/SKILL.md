@@ -137,7 +137,10 @@ read or writeback in the final handoff.
 Call `get_context_meter` when the user asks about saved context, token efficiency, manual
 explanation, latency, or Boron model cost. Preserve the returned caveats: re-explanation avoided
 tokens were not re-provided by the user or agent but still enter the agent model, while
-source-window savings require explicit source-size coverage.
+source-window savings require explicit source-size coverage. Use the source-window eligibility v2
+numerator and eligible denominator for product health; report ontology-derived exclusions and
+legacy or unavailable-source observations separately. The historical selected-evidence ratio is
+retained only for compatibility.
 
 Call `get_context_quality_health` when the user asks whether Boron is healthier, more reliable, or
 "smarter" over time. Report the separate project-resolution, lifecycle, writeback-scope,

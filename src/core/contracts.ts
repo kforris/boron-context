@@ -132,6 +132,19 @@ export const contextMeterSchema = z.object({
   sourceWindowCapsuleTokens: z.number().int().nonnegative().nullable(),
   sourceWindowSavingsTokens: z.number().int().nonnegative().nullable(),
   sourceWindowSavingsRatio: z.number().min(0).max(1).nullable(),
+  sourceWindowEligibility: z.object({
+    contractVersion: z.literal(2),
+    numerator: z.number().int().nonnegative(),
+    eligibleDenominator: z.number().int().nonnegative(),
+    ratio: z.number().min(0).max(1),
+    ineligible: z.number().int().nonnegative(),
+    unobservable: z.number().int().nonnegative(),
+    reasons: z.object({
+      eligible: z.record(z.string(), z.number().int().nonnegative()),
+      ineligible: z.record(z.string(), z.number().int().nonnegative()),
+      unobservable: z.record(z.string(), z.number().int().nonnegative())
+    })
+  }),
   retrievalLatencyMs: z.number().int().nonnegative(),
   tokenEstimator: z.literal('characters_divided_by_4'),
   boronLlm: z.object({
@@ -384,6 +397,8 @@ export interface ContextMeterEvidenceAudit {
   readonly selected: boolean
   readonly score: number
   readonly sourceTokenEstimate: number | null
+  readonly sourceCoverageStatus: 'measured' | 'eligible_unmeasured' | 'ineligible' | 'unobservable'
+  readonly sourceCoverageReason: string
 }
 
 export interface ContextResolution {

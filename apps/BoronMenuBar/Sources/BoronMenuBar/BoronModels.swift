@@ -84,8 +84,25 @@ struct SourceWindowMetric: Decodable, Sendable {
     let capsuleTokens: Int?
     let savingsTokens: Int?
     let savingsRatio: Double?
+    let eligibility: SourceCoverageEligibility?
 
     var isCovered: Bool { status != "not_covered" }
+}
+
+struct SourceCoverageEligibility: Decodable, Sendable {
+    let contractVersion: Int
+    let numerator: Int
+    let eligibleDenominator: Int
+    let ratio: Double
+    let ineligible: Int
+    let unobservable: Int
+    let reasons: SourceCoverageReasonGroups
+}
+
+struct SourceCoverageReasonGroups: Decodable, Sendable {
+    let eligible: [String: Int]
+    let ineligible: [String: Int]
+    let unobservable: [String: Int]
 }
 
 struct ContextMeterAudit: Decodable, Sendable {
@@ -112,6 +129,7 @@ struct ContextMeterAuditSample: Decodable, Identifiable, Sendable {
     let sourceWindowOriginalTokens: Int?
     let sourceWindowCapsuleTokens: Int?
     let sourceWindowSavingsTokens: Int?
+    let sourceWindowEligibility: SourceCoverageEligibility?
     let retrievalLatencyMs: Int
     let evidence: [EvidenceAuditPreview]
 }
@@ -157,6 +175,8 @@ struct EvidenceAuditPreview: Decodable, Identifiable, Sendable {
     let selected: Bool
     let score: Double
     let sourceTokenEstimate: Int?
+    let sourceCoverageStatus: String?
+    let sourceCoverageReason: String?
 
     var id: String { "\(evidenceId):\(stageId):\(adapter)" }
 }

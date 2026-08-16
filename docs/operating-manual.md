@@ -211,6 +211,9 @@ Interpret the metrics separately:
   real `sourceTokenEstimate` exists.
 - `sourceWindowCoverageRatio`: the fraction of selected evidence covered by real source-size
   estimates. Never present a partial estimate as whole-session savings.
+- `sourceWindow.eligibility`: contract v2 with a measured numerator, eligible denominator,
+  ineligible exclusions, unobservable evidence, and reason counts. Use this ratio for product
+  health; the historical mixed `sourceWindowCoverageRatio` remains compatibility-only.
 - `filteredTokens`: candidate capsule content omitted by deterministic ranking and packing.
 - `boronLlm.calls`: calls owned by Boron, currently zero.
 

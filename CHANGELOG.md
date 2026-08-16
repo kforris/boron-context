@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## [0.7.6] - 2026-08-16
+
+### Added
+
+- source-window eligibility contract v2 with a measured numerator, eligible denominator,
+  ineligible exclusions, unobservable evidence, and auditable reason counts across HTTP, MCP,
+  Inspector, context-quality health, and the native menu bar;
+- explicit source-size provenance for live Codebase Memory files, local Markdown, and HTTP adapter
+  evidence, plus temporary-PostgreSQL fixtures for live, snapshot, ontology-derived, legacy, and
+  unavailable-source categories.
+
+### Changed
+
+- ontology-derived evidence no longer dilutes source-window coverage, while legacy unknown-size
+  evidence remains labelled rather than rewritten;
+- historical mixed source-coverage fields remain available for older clients, but the nested v2
+  eligibility contract is authoritative for release-candidate health.
+
 ## [0.7.5] - 2026-08-15
 
 ### Added

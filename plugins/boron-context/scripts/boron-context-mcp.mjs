@@ -137,7 +137,7 @@ const tools = [
   {
     name: 'get_context_meter',
     description:
-      'Report auditable Boron context metrics: re-explanation avoided context, source-window coverage and savings only where sourceTokenEstimate exists, candidate filtering, retrieval latency, and Boron-owned LLM usage.',
+      'Report auditable Boron context metrics: re-explanation avoided context; source-window numerator, eligible denominator, exclusions, unobservable reasons, and measured savings; candidate filtering; retrieval latency; and Boron-owned LLM usage.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -156,7 +156,7 @@ const tools = [
   {
     name: 'get_context_quality_health',
     description:
-      'Read deterministic context quality indicators for project resolution, session lifecycle, explicit writeback scope, timestamp integrity, source coverage, and manual corrections. This does not produce a scalar intelligence score.',
+      'Read deterministic context quality indicators for project resolution, session lifecycle, explicit writeback scope, timestamp integrity, eligibility-corrected source coverage, and manual corrections. This does not produce a scalar intelligence score.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -169,7 +169,7 @@ const tools = [
   {
     name: 'inspect_context_meter',
     description:
-      'Read a credential-redacted audit preview of recent Context Meter samples, retrieval plans, adapters, candidate/selected evidence, token estimates, and source coverage. This is read-only.',
+      'Read a credential-redacted audit preview of recent Context Meter samples, retrieval plans, adapters, candidate/selected evidence, token estimates, and source-coverage eligibility reasons. This is read-only.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -418,7 +418,7 @@ async function handle(message) {
       result: {
         protocolVersion: params.protocolVersion ?? '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'boron-context', version: '0.7.5' },
+        serverInfo: { name: 'boron-context', version: '0.7.6' },
         instructions:
           'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule and pending human corrections before project work, record only verified semantic milestones, resolve corrections only after evidence-backed repair, and close the session with verified outcomes. Never store secrets or raw transcripts.'
       }

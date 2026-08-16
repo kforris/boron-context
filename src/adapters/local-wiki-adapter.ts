@@ -62,7 +62,12 @@ export class LocalWikiAdapter implements ContextAdapter {
           ...(input.projectId ? { projectId: input.projectId } : {}),
           metadata: {
             path: localPath,
-            sourceTokenEstimate: Math.max(1, Math.ceil(content.length / 4))
+            sourceTokenEstimate: Math.max(1, Math.ceil(content.length / 4)),
+            sourceSize: {
+              status: 'measured',
+              tokenEstimate: Math.max(1, Math.ceil(content.length / 4)),
+              basis: 'utf16_characters_divided_by_4'
+            }
           }
         }
       })
