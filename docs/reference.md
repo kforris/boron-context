@@ -162,6 +162,14 @@ Boron runs but are not provider invoices.
 need to re-enter. Those compact excerpts still enter the client model. `sourceWindow.savingsTokens`
 is reported only for evidence with a real `sourceTokenEstimate`, always alongside coverage.
 
+Source-window eligibility contract v2 is available at `sourceWindow.eligibility`. It reports
+`numerator`, `eligibleDenominator`, `ratio`, `ineligible`, `unobservable`, and reason maps. Measured
+live, snapshot, or explicitly recorded source sizes contribute to the numerator. Live or external
+sources whose size is unavailable remain in the eligible denominator. Ontology-derived facts are
+ineligible; legacy activity/snapshot records with unknown size are unobservable. The older
+`selectedEvidenceCount`, `coveredEvidenceCount`, and `coverageRatio` fields keep their historical
+mixed denominator for compatibility and are not the release-candidate metric.
+
 `get_context_quality_health` deliberately returns separate deterministic indicators rather than a
 single intelligence score. It reports project resolution, session lifecycle, explicit versus
 legacy implicit writeback scope, timestamps more than five minutes ahead of observation, source

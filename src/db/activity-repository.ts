@@ -29,6 +29,7 @@ import {
   ProjectScopeError
 } from '../core/errors.js'
 import { verifyResolvedActivityProjectScope } from '../core/project-scope.js'
+import { summarizeSourceCoverage, type SourceCoverageEligibility } from '../core/source-coverage.js'
 import { resolveProjectIdentity } from './project-identity.js'
 import { discoverProjectRoot } from '../platform/project-root.js'
 
@@ -148,6 +149,7 @@ export interface ContextMeterSummary {
     readonly capsuleTokens: number | null
     readonly savingsTokens: number | null
     readonly savingsRatio: number | null
+    readonly eligibility: SourceCoverageEligibility
   }
   readonly averageRetrievalLatencyMs: number
   readonly boronLlm: {
@@ -192,6 +194,7 @@ export interface ContextQualityHealthSummary {
     readonly selectedEvidence: number
     readonly coveredEvidence: number
     readonly coverageRatio: number
+    readonly eligibility: SourceCoverageEligibility
   }
   readonly manualCorrections: {
     readonly pending: number
@@ -221,6 +224,7 @@ export interface ContextMeterAuditSample {
   readonly sourceWindowOriginalTokens: number | null
   readonly sourceWindowCapsuleTokens: number | null
   readonly sourceWindowSavingsTokens: number | null
+  readonly sourceWindowEligibility: SourceCoverageEligibility
   readonly retrievalLatencyMs: number
   readonly evidence: readonly ContextMeterEvidenceAudit[]
 }
@@ -238,6 +242,8 @@ interface AuditEvidenceRow {
   readonly selected: boolean
   readonly score: number
   readonly source_token_estimate: number | null
+  readonly source_coverage_status: ContextMeterEvidenceAudit['sourceCoverageStatus']
+  readonly source_coverage_reason: string
 }
 
 export class PostgresActivityRepository {
@@ -898,7 +904,7 @@ export class PostgresActivityRepository {
         INSERT INTO context_meter_evidence_samples (
           meter_sample_id, evidence_id, layer, title, uri, adapter_name,
           adapter_source_type, stage_id, candidate_tokens, selected, score,
-          source_token_estimate
+          source_token_estimate, source_coverage_status, source_coverage_reason
         )
         SELECT
           $1::uuid,
@@ -915,13 +921,17 @@ export class PostgresActivityRepository {
           CASE
             WHEN item->'sourceTokenEstimate' = 'null'::jsonb THEN NULL
             ELSE (item->>'sourceTokenEstimate')::integer
-          END
+          END,
+          item->>'sourceCoverageStatus',
+          item->>'sourceCoverageReason'
         FROM jsonb_array_elements($2::jsonb) item
         ON CONFLICT (meter_sample_id, evidence_id, uri, stage_id, adapter_name)
         DO UPDATE SET
           selected = EXCLUDED.selected,
           score = EXCLUDED.score,
-          source_token_estimate = EXCLUDED.source_token_estimate
+          source_token_estimate = EXCLUDED.source_token_estimate,
+          source_coverage_status = EXCLUDED.source_coverage_status,
+          source_coverage_reason = EXCLUDED.source_coverage_reason
       `,
       [sampleId, JSON.stringify(evidenceAudit)]
     )
@@ -979,6 +989,12 @@ export class PostgresActivityRepository {
       `,
       [input.windowDays, project?.id ?? null, input.projectHint ?? null]
     )
+    const eligibility = await querySourceCoverageEligibility(
+      this.pool,
+      input.windowDays,
+      project?.id ?? null,
+      input.projectHint ?? null
+    )
     const row = result.rows[0]!
     const candidateTokens = Number(row.candidate_tokens)
     const capsuleTokens = Number(row.capsule_tokens)
@@ -1020,7 +1036,8 @@ export class PostgresActivityRepository {
         capsuleTokens: sourceCovered > 0 ? sourceCapsule : null,
         savingsTokens: sourceCovered > 0 ? sourceSavings : null,
         savingsRatio:
-          sourceCovered > 0 && sourceOriginal > 0 ? sourceSavings / sourceOriginal : null
+          sourceCovered > 0 && sourceOriginal > 0 ? sourceSavings / sourceOriginal : null,
+        eligibility
       },
       averageRetrievalLatencyMs: Number(row.average_retrieval_latency_ms ?? 0),
       boronLlm: {
@@ -1034,6 +1051,7 @@ export class PostgresActivityRepository {
         'Re-explanation avoided tokens count selected excerpts from prior verified Boron activities; those capsule tokens still enter the agent model.',
         'Filtered tokens measure candidate excerpts omitted by Boron, not the size of repositories or documents the agent might otherwise inspect.',
         'Source-window savings are calculated only for selected evidence with a recorded sourceTokenEstimate; uncovered evidence is excluded and coverage is shown.',
+        'Source-window eligibility contract v2 excludes ontology-derived evidence, labels legacy unknown-size evidence as unobservable, and keeps the historical mixed coverage fields for compatibility.',
         'Manual re-entry time is an equivalent at the supplied typing speed, not observed human time.'
       ]
     }
@@ -1119,7 +1137,9 @@ export class PostgresActivityRepository {
                 candidate_tokens,
                 selected,
                 score,
-                source_token_estimate
+                source_token_estimate,
+                source_coverage_status,
+                source_coverage_reason
               FROM context_meter_evidence_samples
               WHERE meter_sample_id = ANY($1::uuid[])
               ORDER BY meter_sample_id, selected DESC, score DESC, title
@@ -1141,43 +1161,53 @@ export class PostgresActivityRepository {
         selected: row.selected,
         score: Number(row.score),
         sourceTokenEstimate:
-          row.source_token_estimate === null ? null : Number(row.source_token_estimate)
+          row.source_token_estimate === null ? null : Number(row.source_token_estimate),
+        sourceCoverageStatus: row.source_coverage_status,
+        sourceCoverageReason: row.source_coverage_reason
       })
       evidenceBySample.set(row.meter_sample_id, items)
     }
     return {
       summary,
-      samples: samples.rows.map((row) => ({
-        id: row.id,
-        capsuleId: row.capsule_id,
-        traceId: row.trace_id,
-        project: row.project_name,
-        client: row.client,
-        createdAt: row.created_at.toISOString(),
-        retrievalPlan: row.retrieval_plan,
-        candidateEvidenceCount: Number(row.candidate_evidence_count),
-        selectedEvidenceCount: Number(row.selected_evidence_count),
-        candidateTokens: Number(row.candidate_tokens),
-        capsuleTokens: Number(row.capsule_tokens),
-        filteredTokens: Number(row.filtered_tokens),
-        reExplanationAvoidedTokens: Number(row.re_explanation_avoided_tokens),
-        sourceWindowStatus: row.source_window_status,
-        sourceWindowCoveredEvidenceCount: Number(row.source_window_covered_evidence_count),
-        sourceWindowOriginalTokens:
-          row.source_window_original_tokens === null
-            ? null
-            : Number(row.source_window_original_tokens),
-        sourceWindowCapsuleTokens:
-          row.source_window_capsule_tokens === null
-            ? null
-            : Number(row.source_window_capsule_tokens),
-        sourceWindowSavingsTokens:
-          row.source_window_savings_tokens === null
-            ? null
-            : Number(row.source_window_savings_tokens),
-        retrievalLatencyMs: Number(row.retrieval_latency_ms),
-        evidence: evidenceBySample.get(row.id) ?? []
-      }))
+      samples: samples.rows.map((row) => {
+        const sampleEvidence = evidenceBySample.get(row.id) ?? []
+        const auditedSelected = sampleEvidence.filter((item) => item.selected).length
+        return {
+          id: row.id,
+          capsuleId: row.capsule_id,
+          traceId: row.trace_id,
+          project: row.project_name,
+          client: row.client,
+          createdAt: row.created_at.toISOString(),
+          retrievalPlan: row.retrieval_plan,
+          candidateEvidenceCount: Number(row.candidate_evidence_count),
+          selectedEvidenceCount: Number(row.selected_evidence_count),
+          candidateTokens: Number(row.candidate_tokens),
+          capsuleTokens: Number(row.capsule_tokens),
+          filteredTokens: Number(row.filtered_tokens),
+          reExplanationAvoidedTokens: Number(row.re_explanation_avoided_tokens),
+          sourceWindowStatus: row.source_window_status,
+          sourceWindowCoveredEvidenceCount: Number(row.source_window_covered_evidence_count),
+          sourceWindowOriginalTokens:
+            row.source_window_original_tokens === null
+              ? null
+              : Number(row.source_window_original_tokens),
+          sourceWindowCapsuleTokens:
+            row.source_window_capsule_tokens === null
+              ? null
+              : Number(row.source_window_capsule_tokens),
+          sourceWindowSavingsTokens:
+            row.source_window_savings_tokens === null
+              ? null
+              : Number(row.source_window_savings_tokens),
+          sourceWindowEligibility: summarizeSourceCoverage(
+            sampleEvidence,
+            Math.max(0, Number(row.selected_evidence_count) - auditedSelected)
+          ),
+          retrievalLatencyMs: Number(row.retrieval_latency_ms),
+          evidence: sampleEvidence
+        }
+      })
     }
   }
 
@@ -1198,19 +1228,20 @@ export class PostgresActivityRepository {
       project?.id ?? null,
       input.projectHint ?? null
     ]
-    const [sessions, activities, sourceCoverage, corrections] = await Promise.all([
-      this.pool.query<{
-        sessions: string
-        scoped_sessions: string
-        projectless_sessions: string
-        active: string
-        completed: string
-        partial: string
-        failed: string
-        cancelled: string
-        stale_active: string
-      }>(
-        `
+    const [sessions, activities, sourceCoverage, corrections, sourceEligibility] =
+      await Promise.all([
+        this.pool.query<{
+          sessions: string
+          scoped_sessions: string
+          projectless_sessions: string
+          active: string
+          completed: string
+          partial: string
+          failed: string
+          cancelled: string
+          stale_active: string
+        }>(
+          `
           SELECT
             count(*)::text AS sessions,
             count(*) FILTER (WHERE s.project_id IS NOT NULL)::text AS scoped_sessions,
@@ -1227,16 +1258,16 @@ export class PostgresActivityRepository {
           WHERE s.started_at >= now() - make_interval(days => $1)
             AND ($3::text IS NULL OR s.project_id = $2::uuid)
         `,
-        parameters
-      ),
-      this.pool.query<{
-        activities: string
-        explicit_project: string
-        implicit_session: string
-        future_skewed: string
-        maximum_future_skew_minutes: string | null
-      }>(
-        `
+          parameters
+        ),
+        this.pool.query<{
+          activities: string
+          explicit_project: string
+          implicit_session: string
+          future_skewed: string
+          maximum_future_skew_minutes: string | null
+        }>(
+          `
           SELECT
             count(*)::text AS activities,
             count(*) FILTER (
@@ -1259,13 +1290,13 @@ export class PostgresActivityRepository {
           WHERE a.observed_at >= now() - make_interval(days => $1)
             AND ($3::text IS NULL OR a.project_id = $2::uuid)
         `,
-        parameters
-      ),
-      this.pool.query<{
-        selected_evidence: string
-        covered_evidence: string
-      }>(
-        `
+          parameters
+        ),
+        this.pool.query<{
+          selected_evidence: string
+          covered_evidence: string
+        }>(
+          `
           SELECT
             coalesce(sum(m.source_window_selected_evidence_count), 0)::text
               AS selected_evidence,
@@ -1275,14 +1306,14 @@ export class PostgresActivityRepository {
           WHERE m.created_at >= now() - make_interval(days => $1)
             AND ($3::text IS NULL OR m.project_id = $2::uuid)
         `,
-        parameters
-      ),
-      this.pool.query<{
-        pending: string
-        resolved: string
-        dismissed: string
-      }>(
-        `
+          parameters
+        ),
+        this.pool.query<{
+          pending: string
+          resolved: string
+          dismissed: string
+        }>(
+          `
           SELECT
             count(*) FILTER (WHERE c.status = 'pending')::text AS pending,
             count(*) FILTER (WHERE c.status = 'resolved')::text AS resolved,
@@ -1290,9 +1321,15 @@ export class PostgresActivityRepository {
           FROM manual_corrections c
           WHERE $2::text IS NULL OR c.project_id = $1::uuid
         `,
-        [project?.id ?? null, input.projectHint ?? null]
-      )
-    ])
+          [project?.id ?? null, input.projectHint ?? null]
+        ),
+        querySourceCoverageEligibility(
+          this.pool,
+          input.windowDays,
+          project?.id ?? null,
+          input.projectHint ?? null
+        )
+      ])
     const sessionRow = sessions.rows[0]!
     const activityRow = activities.rows[0]!
     const sourceRow = sourceCoverage.rows[0]!
@@ -1334,7 +1371,8 @@ export class PostgresActivityRepository {
       sourceCoverage: {
         selectedEvidence,
         coveredEvidence,
-        coverageRatio: selectedEvidence > 0 ? coveredEvidence / selectedEvidence : 0
+        coverageRatio: selectedEvidence > 0 ? coveredEvidence / selectedEvidence : 0,
+        eligibility: sourceEligibility
       },
       manualCorrections: {
         pending: Number(correctionRow.pending),
@@ -1345,7 +1383,8 @@ export class PostgresActivityRepository {
       caveats: [
         'These deterministic indicators audit continuity plumbing and evidence coverage; they do not claim a scalar intelligence score or prove semantic correctness.',
         'Activities created before explicit project verification was introduced are classified as implicit session scope.',
-        'Manual correction counts are current totals for the selected scope rather than windowed events.'
+        'Manual correction counts are current totals for the selected scope rather than windowed events.',
+        'Source coverage eligibility contract v2 is authoritative; selectedEvidence and coverageRatio retain the historical mixed denominator for compatibility.'
       ]
     }
   }
@@ -2293,6 +2332,53 @@ async function insertEvidence(
         activityId
       })
     ]
+  )
+}
+
+async function querySourceCoverageEligibility(
+  pool: Pool,
+  windowDays: number,
+  projectId: string | null,
+  projectHint: string | null
+): Promise<SourceCoverageEligibility> {
+  const [evidence, gap] = await Promise.all([
+    pool.query<{
+      source_coverage_status: ContextMeterEvidenceAudit['sourceCoverageStatus']
+      source_coverage_reason: string
+    }>(
+      `
+        SELECT e.source_coverage_status, e.source_coverage_reason
+        FROM context_meter_evidence_samples e
+        JOIN context_meter_samples m ON m.id = e.meter_sample_id
+        WHERE e.selected = true
+          AND m.created_at >= now() - make_interval(days => $1)
+          AND ($3::text IS NULL OR m.project_id = $2::uuid)
+      `,
+      [windowDays, projectId, projectHint]
+    ),
+    pool.query<{ missing_audit_rows: string }>(
+      `
+        SELECT coalesce(sum(greatest(m.selected_evidence_count - coalesce(a.selected_rows, 0), 0)), 0)::text
+          AS missing_audit_rows
+        FROM context_meter_samples m
+        LEFT JOIN (
+          SELECT meter_sample_id, count(*) FILTER (WHERE selected = true)::integer AS selected_rows
+          FROM context_meter_evidence_samples
+          GROUP BY meter_sample_id
+        ) a ON a.meter_sample_id = m.id
+        WHERE m.created_at >= now() - make_interval(days => $1)
+          AND ($3::text IS NULL OR m.project_id = $2::uuid)
+      `,
+      [windowDays, projectId, projectHint]
+    )
+  ])
+  return summarizeSourceCoverage(
+    evidence.rows.map((row) => ({
+      selected: true,
+      sourceCoverageStatus: row.source_coverage_status,
+      sourceCoverageReason: row.source_coverage_reason
+    })),
+    Number(gap.rows[0]?.missing_audit_rows ?? 0)
   )
 }
 

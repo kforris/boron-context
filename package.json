@@ -1,6 +1,6 @@
 {
   "name": "boron-context",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "Open-source intention and context layer for agentic work",
   "type": "module",
   "main": "./dist/cli.js",

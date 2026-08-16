@@ -29,7 +29,20 @@ import Testing
             "originalTokens": 2994,
             "capsuleTokens": 62,
             "savingsTokens": 2932,
-            "savingsRatio": 0.9793
+            "savingsRatio": 0.9793,
+            "eligibility": {
+              "contractVersion": 2,
+              "numerator": 1,
+              "eligibleDenominator": 1,
+              "ratio": 1,
+              "ineligible": 9,
+              "unobservable": 2,
+              "reasons": {
+                "eligible": {"live_source_measured": 1},
+                "ineligible": {"ontology_derived": 9},
+                "unobservable": {"legacy_unknown_size": 2}
+              }
+            }
           },
           "averageRetrievalLatencyMs": 16.67,
           "boronLlm": {
@@ -49,6 +62,7 @@ import Testing
     #expect(summary.filteredTokens == 771)
     #expect(summary.reExplanation.avoidedTokens == 1447)
     #expect(summary.sourceWindow.coveredEvidenceCount == 1)
+    #expect(summary.sourceWindow.eligibility?.eligibleDenominator == 1)
     #expect(summary.boronLlm.calls == 0)
 }
 

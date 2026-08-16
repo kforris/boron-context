@@ -76,6 +76,7 @@ audit rows in PostgreSQL:
 | `reExplanationAvoidedTokens` | Selected tokens originating from earlier verified Boron activities    |
 | `sourceWindowSavingsTokens`  | Original-source estimate minus capsule excerpt, for covered evidence  |
 | `sourceWindowCoverageRatio`  | Selected evidence with a real source estimate divided by all selected |
+| `sourceWindow.eligibility`   | Measured numerator divided by eligible source-window evidence         |
 | `retrievalLatencyMs`         | Time spent resolving and packing the capsule                          |
 | `boronLlm.calls`             | LLM calls performed and owned by Boron; currently always zero         |
 
@@ -85,6 +86,12 @@ serialized provenance wrapper. Manual re-entry time is presented only as an equi
 typing speed. It is not observed human time. Source-window reduction remains `null`/not covered
 unless ingestion provides `sourceTokenEstimate`; partial aggregates exclude uncovered evidence and
 report coverage beside the result.
+
+Eligibility contract v2 classifies each selected audit row as `measured`,
+`eligible_unmeasured`, `ineligible`, or `unobservable`. Live or external sources with an
+unavailable size stay in the denominator; ontology-derived facts are excluded; and legacy
+unknown-size activity/snapshot rows remain unobservable. Historical mixed fields are preserved for
+wire compatibility but are not release-candidate evidence.
 
 ## Retrieval planning and adapter truth
 

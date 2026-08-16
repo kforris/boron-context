@@ -81,7 +81,14 @@ export class CodebaseMemoryAdapter implements ContextAdapter {
         indexProject: project.name,
         qualifiedName,
         filePath: file,
-        ...(source?.sourceTokenEstimate ? { sourceTokenEstimate: source.sourceTokenEstimate } : {})
+        ...(source?.sourceTokenEstimate ? { sourceTokenEstimate: source.sourceTokenEstimate } : {}),
+        sourceSize: source
+          ? {
+              status: 'measured',
+              tokenEstimate: source.sourceTokenEstimate,
+              basis: 'filesystem_bytes_divided_by_4'
+            }
+          : { status: 'unavailable', reason: 'source_file_unavailable' }
       }
     }
   }

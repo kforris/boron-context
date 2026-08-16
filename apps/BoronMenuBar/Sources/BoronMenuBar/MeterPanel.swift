@@ -228,11 +228,12 @@ struct MeterPanel: View {
 
     private func sourceWindowCard(_ meter: ContextMeterSummary) -> some View {
         let source = meter.sourceWindow
-        let ratio = source.savingsRatio ?? 0
+        let eligibility = source.eligibility
+        let ratio = eligibility?.ratio ?? source.coverageRatio
         return VStack(alignment: .leading, spacing: 6) {
             sectionTitle(
-                "SOURCE-WINDOW SAVINGS",
-                trailing: source.savingsRatio.map(MetricFormatting.percentage) ?? "not covered"
+                "ELIGIBLE SOURCE COVERAGE",
+                trailing: MetricFormatting.percentage(ratio)
             )
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -247,11 +248,11 @@ struct MeterPanel: View {
             .frame(height: 7)
 
             Text(
-                source.isCovered
-                    ? "\(MetricFormatting.compactTokens(source.originalTokens ?? 0)) original → "
-                        + "\(MetricFormatting.compactTokens(source.capsuleTokens ?? 0)) capsule tokens · "
-                        + "coverage \(source.coveredEvidenceCount)/\(source.selectedEvidenceCount)"
-                    : "Uncovered / not calculable: no selected evidence recorded a sourceTokenEstimate."
+                eligibility.map {
+                    "\($0.numerator)/\($0.eligibleDenominator) eligible measured · "
+                        + "\($0.ineligible) ineligible · \($0.unobservable) unobservable"
+                }
+                    ?? "Legacy mixed coverage \(source.coveredEvidenceCount)/\(source.selectedEvidenceCount)"
             )
             .font(.system(size: 9))
             .foregroundStyle(BoronPalette.muted)
@@ -288,7 +289,7 @@ struct MeterPanel: View {
                 let selected = sample.evidence.filter(\.selected)
                 Text(
                     "\(sample.candidateEvidenceCount) candidate / \(sample.selectedEvidenceCount) selected · "
-                        + "\(sample.sourceWindowCoveredEvidenceCount) source estimates covered"
+                        + "\(sample.sourceWindowEligibility?.numerator ?? sample.sourceWindowCoveredEvidenceCount) source estimates covered"
                 )
                 .font(.caption)
                 .foregroundStyle(BoronPalette.muted)

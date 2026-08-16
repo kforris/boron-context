@@ -64,7 +64,24 @@ export class HttpContextAdapter implements ContextAdapter {
     if (!response.ok) throw new Error(`${this.name} search failed with HTTP ${response.status}`)
     const body = (await response.json()) as unknown
     const parsed = evidenceSchema.array().parse(body)
-    return parsed.map((item) => ({ ...item, layer: this.layer }))
+    return parsed.map((item) => {
+      const estimate = item.metadata.sourceTokenEstimate
+      const measured = typeof estimate === 'number' && Number.isFinite(estimate) && estimate > 0
+      return {
+        ...item,
+        layer: this.layer,
+        metadata: {
+          ...item.metadata,
+          sourceSize: measured
+            ? {
+                status: 'measured',
+                tokenEstimate: Math.round(estimate),
+                basis: 'upstream_reported_token_estimate'
+              }
+            : { status: 'unavailable', reason: 'upstream_source_size_unavailable' }
+        }
+      }
+    })
   }
 }
 
