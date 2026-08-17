@@ -21,6 +21,7 @@ import type {
   ResolvedProject,
   StartSessionRequest
 } from '../core/contracts.js'
+import { instrumentActivityEvidenceSourceSize } from '../core/source-size.js'
 import { MAX_FUTURE_ACTIVITY_SKEW_MS } from '../core/contracts.js'
 import {
   ActivityTimestampError,
@@ -464,6 +465,7 @@ export class PostgresActivityRepository {
         }
       }
 
+      const registeredProjectRoots = await loadRegisteredProjectRoots(client, session.projectId)
       for (const effect of input.relationEffects) {
         await applyRelationEffect(client, activity.id, session.projectId, occurredAt, effect)
       }
@@ -475,23 +477,29 @@ export class PostgresActivityRepository {
         governanceDecisions
       )
       let evidenceCount = 0
-      await insertEvidence(client, activity.id, session.projectId, {
-        layer: 'ontology',
-        title: `Activity: ${input.activityType}`,
-        excerpt: input.summary,
-        confidence: input.confidence,
-        authority: 0.8,
-        metadata: {
-          activityId: activity.id,
-          actorUri: input.actorUri,
-          targetUri: input.targetUri,
-          occurredAt,
-          writebackScope
-        }
-      })
+      await insertEvidence(
+        client,
+        activity.id,
+        session.projectId,
+        {
+          layer: 'ontology',
+          title: `Activity: ${input.activityType}`,
+          excerpt: input.summary,
+          confidence: input.confidence,
+          authority: 0.8,
+          metadata: {
+            activityId: activity.id,
+            actorUri: input.actorUri,
+            targetUri: input.targetUri,
+            occurredAt,
+            writebackScope
+          }
+        },
+        registeredProjectRoots
+      )
       evidenceCount += 1
       for (const item of input.evidence) {
-        await insertEvidence(client, activity.id, session.projectId, item)
+        await insertEvidence(client, activity.id, session.projectId, item, registeredProjectRoots)
         evidenceCount += 1
       }
       await renewSessionLease(client, input.sessionId, session.leaseDurationMinutes)
@@ -2299,8 +2307,10 @@ async function insertEvidence(
   client: PoolClient,
   activityId: string,
   projectId: string | null,
-  input: ActivityEvidenceInput
+  input: ActivityEvidenceInput,
+  registeredProjectRoots: readonly string[] = []
 ): Promise<void> {
+  input = await instrumentActivityEvidenceSourceSize(input, registeredProjectRoots)
   const uri = input.uri ?? `boron://activity/${activityId}/evidence/${randomUUID()}`
   const contentHash = createHash('sha256').update(`${input.title}\n${input.excerpt}`).digest('hex')
   await client.query(
@@ -2333,6 +2343,32 @@ async function insertEvidence(
       })
     ]
   )
+}
+
+async function loadRegisteredProjectRoots(
+  client: PoolClient,
+  projectId: string | null
+): Promise<readonly string[]> {
+  if (!projectId) return []
+  const result = await client.query<{ path: string }>(
+    `
+      SELECT DISTINCT root.metadata->>'path' AS path
+      FROM objects owner
+      JOIN relations relation ON relation.source_object_id = owner.id
+      JOIN objects root ON root.id = relation.target_object_id
+      WHERE owner.project_id = $1::uuid
+        AND owner.kind IN ('project', 'project_group')
+        AND owner.confirmation_state = 'confirmed'
+        AND relation.relation_type = 'HAS_REGISTERED_ROOT'
+        AND relation.confirmation_state = 'confirmed'
+        AND relation.valid_to IS NULL
+        AND root.kind = 'local_root'
+        AND root.confirmation_state = 'confirmed'
+        AND jsonb_typeof(root.metadata->'path') = 'string'
+    `,
+    [projectId]
+  )
+  return result.rows.map((row) => row.path)
 }
 
 async function querySourceCoverageEligibility(

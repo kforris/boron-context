@@ -150,6 +150,12 @@ Store:
 - the correct layer: `ontology`, `codebase`, or `wiki`;
 - `sourceTokenEstimate` only when the approximate original source size is genuinely known.
 
+For newly recorded `file://` evidence that names a supported local text file inside the current
+project's confirmed registered roots, Boron records the file's byte size and derives the same
+conservative `bytes / 4` estimate without reading the file body. Paths outside those roots are not
+inspected. Directory references are not source windows. Remote URLs are never fetched merely to
+fill a metric; pass `sourceTokenEstimate` only when the client already observed a trustworthy size.
+
 Do not store:
 
 - credentials, tokens, credential references, private keys, or raw audit payloads;

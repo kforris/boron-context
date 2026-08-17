@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## [0.7.7] - 2026-08-17
+
+### Added
+
+- write-time source-size instrumentation for explicitly referenced local text files inside the
+  current project's confirmed registered roots, using file metadata only and an auditable
+  byte-count estimation basis;
+- specific unavailable and not-applicable reasons for local directories, missing or inaccessible
+  files, unsupported local types, non-local file URIs, and remote sources that Boron does not fetch.
+
+### Changed
+
+- local directory references are excluded from the eligible source-window denominator instead of
+  being counted as missing source documents;
+- paths outside a confirmed project root are not inspected; remote HTTP, GitHub, GitLab, and
+  Bitbucket evidence remains eligible but unmeasured unless the caller supplies a real source-size
+  estimate, and Boron does not issue arbitrary network requests.
+
 ## [0.7.6] - 2026-08-16
 
 ### Added

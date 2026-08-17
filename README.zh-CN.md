@@ -194,7 +194,7 @@ roadmap 中。
 | 审阅 task-to-project 归属     | [Codex task context](docs/codex-thread-project-reconciliation.md)                                            |
 | 安全修复项目身份              | [Project identity repair](docs/project-identity-repair.md)                                                   |
 | 运行 held-out continuity 评测 | [Evaluation contract](docs/continuity-evaluation.md)                                                         |
-| 查看 v0.7.6 变化              | [Release notes](docs/releases/v0.7.6.md) · [Changelog](CHANGELOG.md)                                         |
+| 查看 v0.7.7 变化              | [Release notes](docs/releases/v0.7.7.md) · [Changelog](CHANGELOG.md)                                         |
 | 查看产品方向                  | [Roadmap](docs/architecture/product-roadmap.md)                                                              |
 | 参与贡献                      | [Contributing guide](CONTRIBUTING.md)                                                                        |
 
