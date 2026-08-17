@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { resolve } from 'node:path'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { PostgresActivityRepository } from '../src/db/activity-repository.js'
@@ -406,6 +407,146 @@ describeDatabase('PostgreSQL continuity integration', () => {
       evidence: [],
       metadata: { integrationTest: true }
     })
+  })
+
+  it('instruments new local-file evidence while preserving directory and remote boundaries', async () => {
+    const suffix = randomUUID()
+    const root = await mkdtemp(join(tmpdir(), 'boron-postgres-source-size-'))
+    const sourcePath = join(root, 'verified.md')
+    await writeFile(sourcePath, '12345678')
+    const fileUri = pathToFileURL(sourcePath).href
+    const directoryUri = pathToFileURL(root).href
+    const remoteUri = `https://example.test/${suffix}`
+    const session = await repository.startSession({
+      objective: 'Verify source-size ingestion boundaries',
+      projectHint: 'Boron Context',
+      projectRoot: process.cwd(),
+      externalSessionId: `source-size-${suffix}`,
+      client: 'postgres-integration-test',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    const owner = await pool.query<{ id: string }>(
+      `
+        INSERT INTO objects (
+          project_id, kind, name, canonical_uri, confirmation_state,
+          ontology_contract_version, metadata
+        )
+        VALUES ($1::uuid, 'project', 'Source-size project', $2, 'confirmed', 1, '{}'::jsonb)
+        RETURNING id::text
+      `,
+      [session.project!.id, `integration://source-size-project/${suffix}`]
+    )
+    const registeredRoot = await pool.query<{ id: string }>(
+      `
+        INSERT INTO objects (
+          project_id, kind, name, canonical_uri, confirmation_state,
+          ontology_contract_version, metadata
+        )
+        VALUES ($1::uuid, 'local_root', 'Source-size root', $2, 'confirmed', 1, $3::jsonb)
+        RETURNING id::text
+      `,
+      [
+        session.project!.id,
+        `integration://source-size-root/${suffix}`,
+        JSON.stringify({ path: root })
+      ]
+    )
+    await pool.query(
+      `
+        INSERT INTO relations (
+          source_object_id, relation_type, target_object_id, confidence,
+          confirmation_state, provenance, ontology_contract_version
+        )
+        VALUES ($1::uuid, 'HAS_REGISTERED_ROOT', $2::uuid, 1, 'confirmed',
+          '{"source":"integration_test"}'::jsonb, 1)
+      `,
+      [owner.rows[0]!.id, registeredRoot.rows[0]!.id]
+    )
+
+    await repository.recordActivity({
+      sessionId: session.id,
+      projectHint: 'Boron Context',
+      activityType: 'integration.source_size',
+      summary: 'Record bounded source-size fixtures.',
+      confidence: 1,
+      metadata: { integrationTest: true },
+      relationEffects: [],
+      evidence: [
+        {
+          layer: 'codebase',
+          title: 'Measured file',
+          uri: fileUri,
+          excerpt: 'Measured from file metadata.',
+          confidence: 1,
+          authority: 1,
+          metadata: {}
+        },
+        {
+          layer: 'codebase',
+          title: 'Directory reference',
+          uri: directoryUri,
+          excerpt: 'Directory references have no source window.',
+          confidence: 1,
+          authority: 1,
+          metadata: {}
+        },
+        {
+          layer: 'wiki',
+          title: 'Remote reference',
+          uri: remoteUri,
+          excerpt: 'Remote content is not fetched during writeback.',
+          confidence: 1,
+          authority: 1,
+          metadata: {}
+        }
+      ]
+    })
+
+    const stored = await pool.query<{
+      uri: string
+      source_token_estimate: string | null
+      source_size_status: string | null
+      source_size_reason: string | null
+      source_size_basis: string | null
+    }>(
+      `
+        SELECT uri,
+          metadata->>'sourceTokenEstimate' AS source_token_estimate,
+          metadata->'sourceSize'->>'status' AS source_size_status,
+          metadata->'sourceSize'->>'reason' AS source_size_reason,
+          metadata->'sourceSize'->>'basis' AS source_size_basis
+        FROM evidence
+        WHERE uri = ANY($1::text[])
+        ORDER BY uri
+      `,
+      [[fileUri, directoryUri, remoteUri]]
+    )
+    expect(stored.rows).toEqual([
+      {
+        uri: directoryUri,
+        source_token_estimate: null,
+        source_size_status: 'not_applicable',
+        source_size_reason: 'local_directory_reference',
+        source_size_basis: null
+      },
+      {
+        uri: fileUri,
+        source_token_estimate: '2',
+        source_size_status: 'measured',
+        source_size_reason: null,
+        source_size_basis: 'local_file_bytes_divided_by_4'
+      },
+      {
+        uri: remoteUri,
+        source_token_estimate: null,
+        source_size_status: 'unavailable',
+        source_size_reason: 'remote_source_not_fetched',
+        source_size_basis: null
+      }
+    ])
   })
 
   it('reports source coverage against an eligible denominator without rewriting legacy evidence', async () => {

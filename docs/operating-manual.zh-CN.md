@@ -142,6 +142,12 @@ source/cache 漂移。手工拼接路径时漏掉 marketplace 或 plugin 任一�
 - 正确的 `ontology`、`codebase` 或 `wiki` layer；
 - 只有在确实知道原始资料大致大小时才填写 `sourceTokenEstimate`。
 
+对于新写入、明确指向当前项目 confirmed registered root 内受支持本地文本文件的
+`file://` 证据，Boron 只读取文件元数据，记录真实字节数并用保守的 `bytes / 4` 生成估算，
+不读取正文；根目录之外的路径不会被探测。目录引用不属于 source window，系统也不会为了
+补指标而自动抓取远程 URL。只有客户端已经观察到可信大小时，才传入
+`sourceTokenEstimate`。
+
 不得存储：
 
 - 凭据、token、credential reference、私钥或原始审计 payload；

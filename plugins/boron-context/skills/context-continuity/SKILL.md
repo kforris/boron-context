@@ -99,6 +99,12 @@ When a selected source's approximate original size is known, pass `sourceTokenEs
 evidence. Do not invent it. This enables Boron to measure excerpt compression separately from
 candidate filtering.
 
+New activity evidence that references a supported local text `file://` URI inside the current
+project's confirmed registered roots is measured from file metadata by the daemon without reading
+the body. Paths outside those roots are not inspected. Directory references are not source
+windows, and the daemon never fetches remote URLs merely to fill telemetry. For remote evidence,
+pass `sourceTokenEstimate` only when the source size was already observed by the client.
+
 Represent changing state as relation effects instead of duplicated status prose. For example, record
 `Patient A left Bed B` and retract `A OCCUPIES B`; let current occupancy be derived from active
 relations.

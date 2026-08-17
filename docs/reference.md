@@ -170,6 +170,15 @@ ineligible; legacy activity/snapshot records with unknown size are unobservable.
 `selectedEvidenceCount`, `coveredEvidenceCount`, and `coverageRatio` fields keep their historical
 mixed denominator for compatibility and are not the release-candidate metric.
 
+For new activity evidence, supported local text `file://` references inside the current project's
+confirmed registered roots are instrumented from file metadata as
+`local_file_bytes_divided_by_4`; Boron does not read their body for this measurement and does not
+inspect paths outside those roots. Directories report `local_directory_reference` and are
+ineligible because they are not a source window. Missing, inaccessible, non-local, unsupported, or
+out-of-root files remain unmeasured with a specific reason. Remote sources report
+`remote_source_not_fetched` unless the caller supplies a real `sourceTokenEstimate`; metric
+collection never triggers arbitrary URL fetching.
+
 `get_context_quality_health` deliberately returns separate deterministic indicators rather than a
 single intelligence score. It reports project resolution, session lifecycle, explicit versus
 legacy implicit writeback scope, timestamps more than five minutes ahead of observation, source

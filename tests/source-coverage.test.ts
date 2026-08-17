@@ -11,7 +11,24 @@ describe('source coverage eligibility', () => {
       item('snapshot-legacy', 'wiki', 'snapshot'),
       item('relation', 'ontology', 'ontology', { ontologyKind: 'relation' }),
       item('activity', 'ontology', 'ontology', { activityId: 'legacy' }, 'boron://activity/legacy'),
-      item('external', 'ontology', 'ontology', {}, 'https://example.test/source')
+      item('external', 'ontology', 'ontology', {}, 'https://example.test/source'),
+      item(
+        'directory',
+        'codebase',
+        'ontology',
+        { sourceSize: { status: 'not_applicable', reason: 'local_directory_reference' } },
+        'file:///example/project'
+      ),
+      item(
+        'remote',
+        'wiki',
+        'ontology',
+        {
+          activityId: 'current-contract-activity',
+          sourceSize: { status: 'unavailable', reason: 'remote_source_not_fetched' }
+        },
+        'https://example.test/remote'
+      )
     ]
     const audit = fixtures.map((fixture) => {
       const coverage = classifySourceCoverage(fixture)
@@ -25,18 +42,19 @@ describe('source coverage eligibility', () => {
     expect(summarizeSourceCoverage(audit, 2)).toEqual({
       contractVersion: 2,
       numerator: 2,
-      eligibleDenominator: 4,
-      ratio: 0.5,
-      ineligible: 1,
+      eligibleDenominator: 5,
+      ratio: 0.4,
+      ineligible: 2,
       unobservable: 4,
       reasons: {
         eligible: {
           live_source_measured: 1,
           live_source_size_unavailable: 1,
           snapshot_source_measured: 1,
-          external_source_size_unavailable: 1
+          external_source_size_unavailable: 1,
+          remote_source_not_fetched: 1
         },
-        ineligible: { ontology_derived: 1 },
+        ineligible: { ontology_derived: 1, local_directory_reference: 1 },
         unobservable: {
           legacy_sample_without_audit: 2,
           legacy_snapshot_unknown_size: 1,

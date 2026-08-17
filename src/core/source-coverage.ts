@@ -27,6 +27,7 @@ export function classifySourceCoverage(
 ): SourceCoverageClassification {
   const estimate = item.metadata.sourceTokenEstimate
   const measured = typeof estimate === 'number' && Number.isFinite(estimate) && estimate > 0
+  const sourceSize = sourceSizeMetadata(item.metadata.sourceSize)
 
   if (measured) {
     return {
@@ -48,6 +49,12 @@ export function classifySourceCoverage(
   if (item.metadata.manualCorrection === true) {
     return { status: 'ineligible', reason: 'internal_manual_correction' }
   }
+  if (sourceSize?.status === 'not_applicable') {
+    return {
+      status: 'ineligible',
+      reason: sourceSize.reason ?? 'source_size_not_applicable'
+    }
+  }
   if (
     item.metadata.ontologyKind === 'project' ||
     item.metadata.ontologyKind === 'entity' ||
@@ -55,13 +62,31 @@ export function classifySourceCoverage(
   ) {
     return { status: 'ineligible', reason: 'ontology_derived' }
   }
+  if (sourceSize?.status === 'unavailable' && isExternalSourceUri(item.uri)) {
+    return {
+      status: 'eligible_unmeasured',
+      reason: sourceSize.reason ?? 'external_source_size_unavailable'
+    }
+  }
   if (isPriorActivity(item)) {
     return { status: 'unobservable', reason: 'legacy_unknown_size' }
   }
   if (isExternalSourceUri(item.uri)) {
-    return { status: 'eligible_unmeasured', reason: 'external_source_size_unavailable' }
+    return {
+      status: 'eligible_unmeasured',
+      reason: sourceSize?.reason ?? 'external_source_size_unavailable'
+    }
   }
   return { status: 'ineligible', reason: 'ontology_derived' }
+}
+
+function sourceSizeMetadata(value: unknown): { status?: string; reason?: string } | null {
+  if (typeof value !== 'object' || value === null) return null
+  const metadata = value as Record<string, unknown>
+  return {
+    ...(typeof metadata.status === 'string' ? { status: metadata.status } : {}),
+    ...(typeof metadata.reason === 'string' ? { reason: metadata.reason } : {})
+  }
 }
 
 export function summarizeSourceCoverage(
