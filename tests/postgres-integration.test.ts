@@ -434,7 +434,7 @@ describeDatabase('PostgreSQL continuity integration', () => {
           project_id, kind, name, canonical_uri, confirmation_state,
           ontology_contract_version, metadata
         )
-        VALUES ($1::uuid, 'project', 'Source-size project', $2, 'confirmed', 1, '{}'::jsonb)
+        VALUES ($1::uuid, 'Project', 'Source-size project', $2, 'confirmed', 1, '{}'::jsonb)
         RETURNING id::text
       `,
       [session.project!.id, `integration://source-size-project/${suffix}`]

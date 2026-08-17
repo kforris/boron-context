@@ -2357,7 +2357,7 @@ async function loadRegisteredProjectRoots(
       JOIN relations relation ON relation.source_object_id = owner.id
       JOIN objects root ON root.id = relation.target_object_id
       WHERE owner.project_id = $1::uuid
-        AND owner.kind IN ('project', 'project_group')
+        AND lower(owner.kind) IN ('project', 'project_group')
         AND owner.confirmation_state = 'confirmed'
         AND relation.relation_type = 'HAS_REGISTERED_ROOT'
         AND relation.confirmation_state = 'confirmed'
