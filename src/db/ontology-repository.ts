@@ -8,6 +8,7 @@ import type {
 } from '../core/contracts.js'
 import type { ProjectResolver } from '../core/resolver.js'
 import { resolveProjectIdentity } from './project-identity.js'
+import { loadRegisteredProjectRoots } from './project-roots.js'
 
 export class PostgresOntologyRepository implements ContextAdapter, ProjectResolver {
   readonly layer = 'ontology' as const
@@ -27,6 +28,10 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
 
   async resolve(request: ResolveContextRequest): Promise<ResolvedProject | null> {
     return resolveProjectIdentity(this.pool, request.projectHint)
+  }
+
+  async registeredProjectRoots(projectId: string): Promise<readonly string[]> {
+    return loadRegisteredProjectRoots(this.pool, projectId)
   }
 
   async search(input: AdapterSearchInput): Promise<readonly Evidence[]> {

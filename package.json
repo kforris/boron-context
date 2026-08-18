@@ -1,6 +1,6 @@
 {
   "name": "boron-context",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "description": "Open-source intention and context layer for agentic work",
   "type": "module",
   "main": "./dist/cli.js",
@@ -16,9 +16,10 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check": "npm run plugin:check && npm run typecheck && npm test && npm run eval:continuity",
+    "check": "npm run plugin:check && npm run typecheck && npm test && npm run eval:continuity && npm run eval:production-shaped",
     "dev": "tsx src/cli.ts serve",
     "eval:continuity": "npm run build --silent && node dist/eval/continuity-eval.js",
+    "eval:production-shaped": "npm run build --silent && node dist/eval/production-shaped-eval.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "plugin:check": "node scripts/verify-plugin-cache-key.mjs",

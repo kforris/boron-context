@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { HttpContextAdapter } from './adapters/http-adapter.js'
 import { CodebaseMemoryAdapter } from './adapters/codebase-memory-adapter.js'
 import { LocalWikiAdapter } from './adapters/local-wiki-adapter.js'
+import { ProjectMarkdownAdapter } from './adapters/project-markdown-adapter.js'
 import { ContextResolver } from './core/resolver.js'
 import { loadConfig } from './config.js'
 import { migrateDatabase } from './db/migrate.js'
@@ -36,6 +37,7 @@ export async function startRuntime(env: NodeJS.ProcessEnv = process.env): Promis
     ontology,
     new CodebaseMemoryAdapter(config.codebaseMemoryGraphUrl),
     new PostgresLayerEvidenceAdapter(ontology, 'codebase'),
+    new ProjectMarkdownAdapter((projectId) => ontology.registeredProjectRoots(projectId)),
     new LocalWikiAdapter(config.openWikiRoot),
     new PostgresLayerEvidenceAdapter(ontology, 'wiki'),
     ...(config.codebaseMemoryUrl

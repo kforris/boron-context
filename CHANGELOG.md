@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## [0.7.8] - 2026-08-18
+
+### Added
+
+- a bounded live Markdown adapter for confirmed registered project roots, so vision, roadmap,
+  architecture, runbook, release-note, and exact Markdown-path questions can retrieve repository
+  knowledge without copying it into OpenWiki;
+- an 18-case, production-shaped, secret-free evaluation that exercises real checked-in Markdown,
+  bilingual vision and operations questions, exact document anchors, routing, read-only release
+  assessment, source-size coverage, and wrong-project filtering.
+
+### Changed
+
+- every live adapter for a selected non-ontology layer is queried before the resolver considers one
+  snapshot fallback; successful live evidence remains explicitly labelled and project-scoped;
+- Markdown ranking discounts generic project-name and stop-word matches, uses bounded dense excerpts,
+  and preserves deterministic source relevance and local-file size provenance;
+- read-only release and deployment assessment no longer triggers the high-risk policy route merely
+  because it names the action, while actual deploy, publish, or other mutation intent still does;
+- the full `npm run check` gate now includes both the original synthetic held-out suite and the new
+  production-shaped repository evaluation.
+
 ## [0.7.7] - 2026-08-17
 
 ### Added

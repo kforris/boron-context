@@ -78,8 +78,12 @@ export class ContextResolver {
       const attempts: RetrievalStage['adapters'][number][] = []
       let stageEvidenceCount = 0
       let stageStatus: RetrievalStage['status'] = 'unavailable'
+      let liveAttempted = false
+      let liveSucceeded = false
 
-      for (const [index, adapter] of adapters.entries()) {
+      for (const adapter of adapters) {
+        if (adapter.sourceType === 'snapshot' && liveSucceeded) break
+        if (adapter.sourceType === 'live') liveAttempted = true
         try {
           const evidence = await adapter.search({
             request,
@@ -101,16 +105,21 @@ export class ContextResolver {
               }
             })
           }
-          stageEvidenceCount = evidence.length
+          stageEvidenceCount += evidence.length
           stageStatus = 'executed'
           attempts.push({
             name: adapter.name,
             sourceType: adapter.sourceType,
-            status: index === 0 ? 'succeeded' : 'fallback'
+            status: adapter.sourceType === 'snapshot' && liveAttempted ? 'fallback' : 'succeeded'
           })
+          if (planned.layer === 'ontology') break
+          if (adapter.sourceType === 'live') {
+            liveSucceeded = true
+            continue
+          }
           break
         } catch {
-          stageStatus = 'failed'
+          if (stageStatus !== 'executed') stageStatus = 'failed'
           attempts.push({
             name: adapter.name,
             sourceType: adapter.sourceType,
@@ -196,7 +205,7 @@ export class ContextResolver {
 
     const live = matching.filter((adapter) => adapter.sourceType === 'live')
     const snapshots = matching.filter((adapter) => adapter.sourceType === 'snapshot')
-    return live.length > 0 ? [...live.slice(0, 1), ...snapshots.slice(0, 1)] : snapshots.slice(0, 1)
+    return live.length > 0 ? [...live, ...snapshots.slice(0, 1)] : snapshots.slice(0, 1)
   }
 }
 
@@ -217,12 +226,14 @@ function buildRetrievalBlueprint(request: ResolveContextRequest): {
 } {
   const text = [request.objective, ...request.objectHints, ...request.constraints].join(' ')
   const sourceAnchors = extractSourceAnchors(text, request.objectHints)
-  const highRisk = matchesAny(text, HIGH_RISK_PATTERNS)
+  const highRisk = hasHighRiskIntent(request)
   const codeSignal =
     matchesAny(text, CODE_PATTERNS) || sourceAnchors.some((anchor) => isCodeAnchor(anchor))
   const wikiSignal =
     matchesAny(text, WIKI_PATTERNS) ||
-    sourceAnchors.some((anchor) => anchor.startsWith('http') && !isCodeAnchor(anchor))
+    sourceAnchors.some(
+      (anchor) => isMarkdownAnchor(anchor) || (anchor.startsWith('http') && !isCodeAnchor(anchor))
+    )
   const continuitySignal =
     request.workflow === 'session_start' || matchesAny(text, CONTINUITY_PATTERNS)
   const signals = [
@@ -379,18 +390,18 @@ function rankAndDedupe(
   sourceAnchors: readonly string[]
 ): readonly CapsuleEvidence[] {
   const terms = queryTerms(
-    [
-      request.objective,
-      request.projectHint ?? '',
-      ...request.objectHints,
-      ...request.constraints
-    ].join(' ')
+    [request.objective, ...request.objectHints, ...request.constraints].join(' ')
   )
   const byIdentity = new Map<string, CapsuleEvidence>()
 
   for (const item of evidence) {
     const identity = `${item.layer}:${item.uri}:${item.contentHash ?? ''}`
-    const relevance = lexicalRelevance(terms, `${item.title} ${item.excerpt}`)
+    const lexicalScore = lexicalRelevance(terms, `${item.title} ${item.excerpt}`)
+    const adapterScore = item.metadata.adapterRelevance
+    const relevance =
+      typeof adapterScore === 'number' && Number.isFinite(adapterScore)
+        ? Math.max(lexicalScore, clamp(adapterScore))
+        : lexicalScore
     const projectMatch = !project || !item.projectId ? 0.5 : item.projectId === project.id ? 1 : 0
     const anchorMatch = sourceAnchorRelevance(sourceAnchors, item)
     const ontologyValidation = item.layer === 'ontology' ? 1 : 0
@@ -526,6 +537,7 @@ function extractSourceAnchors(text: string, objectHints: readonly string[]): str
 }
 
 function isCodeAnchor(anchor: string): boolean {
+  if (isMarkdownAnchor(anchor)) return false
   return (
     anchor.startsWith('file://') ||
     anchor.startsWith('/') ||
@@ -536,6 +548,10 @@ function isCodeAnchor(anchor: string): boolean {
     ) ||
     /::|\w+\.\w+\(\)$/.test(anchor)
   )
+}
+
+function isMarkdownAnchor(anchor: string): boolean {
+  return /\.md(?:[:#?]|$)/i.test(anchor)
 }
 
 function sourceAnchorRelevance(anchors: readonly string[], evidence: Evidence): number {
@@ -553,6 +569,43 @@ function sourceAnchorRelevance(anchors: readonly string[], evidence: Evidence): 
 
 const CAPSULE_BASE_TOKENS = 180
 
+const QUERY_STOP_WORDS = new Set([
+  'about',
+  'after',
+  'and',
+  'anything',
+  'are',
+  'before',
+  'can',
+  'does',
+  'for',
+  'from',
+  'has',
+  'have',
+  'how',
+  'into',
+  'its',
+  'not',
+  'only',
+  'our',
+  'the',
+  'project',
+  'should',
+  'that',
+  'their',
+  'then',
+  'there',
+  'these',
+  'this',
+  'those',
+  'what',
+  'where',
+  'which',
+  'with',
+  'without',
+  'would'
+])
+
 export function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4))
 }
@@ -562,7 +615,7 @@ function queryTerms(text: string): ReadonlySet<string> {
     text
       .toLowerCase()
       .split(/[^\p{L}\p{N}_-]+/u)
-      .filter((term) => term.length > 1)
+      .filter((term) => term.length > 1 && !QUERY_STOP_WORDS.has(term))
   )
 }
 
@@ -578,23 +631,52 @@ function matchesAny(text: string, patterns: readonly RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text))
 }
 
+function hasHighRiskIntent(request: ResolveContextRequest): boolean {
+  const text = [request.objective, ...request.objectHints].join(' ')
+  for (const match of text.matchAll(HIGH_RISK_TERMS)) {
+    const index = match.index ?? 0
+    const before = text.slice(Math.max(0, index - 100), index)
+    if (isNegatedRiskContext(before) || isReadOnlyRiskContext(before)) continue
+    return true
+  }
+  return false
+}
+
+function isNegatedRiskContext(before: string): boolean {
+  return (
+    /\b(?:do not|don't|never|without|no)\s+(?:[\w-]+\s+){0,4}$/i.test(before) ||
+    /(?:不|不要|无需|禁止|避免)[^，。；！？]{0,10}$/.test(before)
+  )
+}
+
+function isReadOnlyRiskContext(before: string): boolean {
+  const english = before
+    .replace(/(?<=\d)\.(?=\d)/g, '')
+    .match(
+      /\b(?:read|inspect|audit|assess|review|check|evaluate|report|discuss|find|show|summarize|explain|compare)\b([^.!?]{0,70})$/i
+    )
+  if (english && !/\b(?:and|then|to|before|after)\b/i.test(english[1] ?? '')) return true
+  const chinese = before.match(
+    /(?:只读|检查|审计|评估|查看|读取|讨论|查找|显示|总结|解释|比较|健康检查)([^，。；！？]{0,24})$/
+  )
+  return Boolean(chinese && !/(?:并|然后|再|之后|并且)/.test(chinese[1] ?? ''))
+}
+
 function clamp(value: number): number {
   return Math.max(0, Math.min(1, value))
 }
 
-const HIGH_RISK_PATTERNS = [
-  /\b(delete|destroy|deploy|production|release|publish|push|credential|secret|payment|purchase|legal|compliance|permission|execute)\b/i,
-  /(删除|销毁|部署|生产|发布|推送|凭据|密钥|付款|采购|法律|合规|权限|执行)/
-]
+const HIGH_RISK_TERMS =
+  /\b(?:delete|destroy|deploy|production|release|publish|push|credential|secret|payment|purchase|legal|compliance|permission|execute|rotate|revoke|grant|expose)\b|(?:删除|销毁|部署|生产|发布|推送|凭据|密钥|付款|采购|法律|合规|权限|执行|轮换|撤销|授权|暴露)/giu
 const CODE_PATTERNS = [
   /\b(code|repo(?:sitory)?|implement|fix|test|typecheck|symbol|function|class|api|migration|typescript|swift|database)\b/i,
   /(代码|仓库|实现|修复|测试|类型检查|符号|函数|接口|迁移|数据库)/
 ]
 const WIKI_PATTERNS = [
-  /\b(doc(?:umentation)?|readme|runbook|decision|incident|explain|why|lesson|wiki)\b/i,
-  /(文档|说明|决策|原因|复盘|事故|知识库)/
+  /\b(document(?:ation|ed)?|docs?|readme|runbook|decision|incident|explain|why|lesson|wiki|vision|goal|roadmap|architecture|design|specification|boundary|lifecycle|security|privacy|install|upgrade|recovery|evaluation|methodology|release notes?)\b/i,
+  /(文档|说明|决策|原因|复盘|事故|知识库|愿景|目标|路线图|架构|安全|隐私|安装|升级|恢复|评测|方法论)/
 ]
 const CONTINUITY_PATTERNS = [
   /\b(continue|resume|previous|last time|history|recent|progress|next version|handoff)\b/i,
-  /(继续|恢复|上次|历史|近期|进度|下一版|交接)/
+  /(继续|恢复(?:任务|工作|会话|上下文)|上次|历史|近期|进度|下一版|交接)/
 ]
