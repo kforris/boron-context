@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "suite": "boron-context-continuity-production-shaped",
+  "fixtureVersion": "1.0.0",
+  "topK": 5,
+  "minimum": {
+    "recallAt5": 0.8,
+    "meanReciprocalRank": 0.6,
+    "relevantSourceCoverage": 0.8,
+    "routingAccuracy": 1,
+    "riskClassificationAccuracy": 1,
+    "wrongProjectRetrieval": 0
+  },
+  "frozen": {
+    "recallAt5": 0.888889,
+    "meanReciprocalRank": 0.736111,
+    "relevantSourceCoverage": 0.888889,
+    "routingAccuracy": 1,
+    "riskClassificationAccuracy": 1,
+    "wrongProjectRetrieval": 0
+  }
+}

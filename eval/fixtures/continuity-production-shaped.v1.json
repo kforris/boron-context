@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "suite": "boron-context-continuity-production-shaped",
+  "fixtureVersion": "1.0.0",
+  "generatedFromPrivateData": false,
+  "projects": [
+    { "id": "project-boron-context", "name": "Boron Context", "aliases": ["boron-context"] },
+    { "id": "project-boron-marketing", "name": "Boron Marketing", "aliases": [] }
+  ],
+  "cases": [
+    {
+      "id": "vision-english",
+      "request": {
+        "objective": "What is the Boron Context vision and how should agents understand a project better over time?",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["README.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "vision-chinese",
+      "request": {
+        "objective": "这个项目的目标、愿景和路线图是什么，最近是否更接近目标？",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/architecture/product-roadmap.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "roadmap-exact-anchor",
+      "request": {
+        "objective": "Inspect the selected roadmap source.",
+        "projectHint": "Boron Context",
+        "objectHints": ["docs/architecture/product-roadmap.md"],
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/architecture/product-roadmap.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "macos-lifecycle",
+      "request": {
+        "objective": "Explain the 0.8 macOS lifecycle goals for install, upgrade, uninstall, backup, and restore.",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/architecture/product-roadmap.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "release-readiness-english",
+      "request": {
+        "objective": "Assess the 0.7.7 release readiness and remaining gates without publishing or submitting anything.",
+        "projectHint": "Boron Context",
+        "constraints": ["read-only", "no mutation"],
+        "objectHints": ["docs/releases/v0.7.7.md"],
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/releases/v0.7.7.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "release-readiness-chinese",
+      "request": {
+        "objective": "只读检查发布准备度，不执行发布、推送或任何变更。",
+        "projectHint": "Boron Context",
+        "constraints": ["read-only", "no mutation"],
+        "objectHints": ["docs/releases/v0.7.7.md"],
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/releases/v0.7.7.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "evaluation-thresholds",
+      "request": {
+        "objective": "What are the held-out continuity evaluation recall, rank, source coverage, and project-scope thresholds?",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/continuity-evaluation.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "security-boundary",
+      "request": {
+        "objective": "Explain the project security and trust boundary for local clients and remote exposure.",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["SECURITY.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "privacy-boundary",
+      "request": {
+        "objective": "Explain why Boron does not store raw transcripts or patch private Codex state.",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["README.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "install-upgrade-recovery",
+      "request": {
+        "objective": "Read the operating manual for installation, upgrade verification, recovery, and adapter health checks.",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/operating-manual.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "operating-manual-chinese",
+      "request": {
+        "objective": "查看中文操作手册中的安装、升级和恢复流程。",
+        "projectHint": "Boron Context",
+        "objectHints": ["docs/operating-manual.zh-CN.md"],
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/operating-manual.zh-CN.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "measurement-methodology",
+      "request": {
+        "objective": "Explain the context-engineering methodology for source coverage, provenance, and measurement counterfactuals.",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/context-engineering-methodology.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "thread-ownership",
+      "request": {
+        "objective": "How does privacy-safe Codex thread-to-project reconciliation work?",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/codex-thread-project-reconciliation.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "identity-repair",
+      "request": {
+        "objective": "Explain collision-safe project identity repair and non-destructive supersession.",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/project-identity-repair.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "system-design",
+      "request": {
+        "objective": "Describe the headless product boundary, three context layers, and deterministic request lifecycle.",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/architecture/system-design.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "zero-owned-llm",
+      "request": {
+        "objective": "Where is the zero Boron-owned LLM call boundary documented?",
+        "projectHint": "Boron Context",
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["README.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-knowledge"],
+      "expectedRiskClass": "standard"
+    },
+    {
+      "id": "real-publish-action",
+      "request": {
+        "objective": "Review the release notes and then deploy and publish the release.",
+        "projectHint": "Boron Context",
+        "objectHints": ["docs/releases/v0.7.7.md"],
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "read"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/releases/v0.7.7.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "ontology-policy", "wiki-knowledge"],
+      "expectedRiskClass": "high"
+    },
+    {
+      "id": "continuity-handoff",
+      "request": {
+        "objective": "Continue after 0.7.7 and read the recent handoff for the remaining lifecycle gates.",
+        "projectHint": "Boron Context",
+        "objectHints": ["docs/releases/v0.7.7.md"],
+        "tokenBudget": 4000,
+        "client": "production-shaped-eval",
+        "workflow": "session_start"
+      },
+      "expectedProjectId": "project-boron-context",
+      "relevantPathSuffixes": ["docs/releases/v0.7.7.md"],
+      "forbiddenPathSuffixes": [],
+      "expectedStageIds": ["ontology-locate", "wiki-continuity"],
+      "expectedRiskClass": "standard"
+    }
+  ]
+}

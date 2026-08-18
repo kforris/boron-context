@@ -13,6 +13,7 @@ import {
 } from '../src/core/errors.js'
 import { PostgresCodexThreadRepository } from '../src/db/codex-thread-repository.js'
 import { PostgresInspectorRepository } from '../src/db/inspector-repository.js'
+import { PostgresOntologyRepository } from '../src/db/ontology-repository.js'
 import { reconcileCodexRegistry, type CodexRegistry } from '../src/db/project-registry.js'
 import { reconcileProjectSupersessions } from '../src/db/project-supersession.js'
 import { ContextResolver } from '../src/core/resolver.js'
@@ -465,6 +466,8 @@ describeDatabase('PostgreSQL continuity integration', () => {
       `,
       [owner.rows[0]!.id, registeredRoot.rows[0]!.id]
     )
+    const ontology = new PostgresOntologyRepository(pool)
+    await expect(ontology.registeredProjectRoots(session.project!.id)).resolves.toContain(root)
 
     await repository.recordActivity({
       sessionId: session.id,

@@ -182,7 +182,8 @@ The v0.7 foundation includes:
 - trusted Codex lifecycle hooks and resumable, leased sessions;
 - privacy-safe, idempotent task-to-project synchronization;
 - collision-safe Codex and operator-approved independent project identities with auditable supersession;
-- PostgreSQL Ontology, live Codebase Memory, and live Markdown Wiki adapters;
+- PostgreSQL Ontology, live Codebase Memory, and bounded live Markdown retrieval from OpenWiki plus
+  confirmed registered project roots;
 - candidate/confirmed relationship boundaries and human correction requests;
 - Context Meter, structured context-quality health, adoption health, and source-truth audit surfaces;
 - an authenticated local Inspector, paired read-only Quest 3 LAN WebXR projection, and optional
@@ -203,7 +204,7 @@ configurable inference/confirmation rules remain roadmap work.
 | Review task-to-project ownership              | [Codex task context](docs/codex-thread-project-reconciliation.md)                                                  |
 | Repair project identity safely                | [Project identity repair](docs/project-identity-repair.md)                                                         |
 | Run the held-out continuity evaluation        | [Evaluation contract](docs/continuity-evaluation.md)                                                               |
-| See what changed in v0.7.7                    | [Release notes](docs/releases/v0.7.7.md) · [Changelog](CHANGELOG.md)                                               |
+| See what changed in v0.7.8                    | [Release notes](docs/releases/v0.7.8.md) · [Changelog](CHANGELOG.md)                                               |
 | Follow the product direction                  | [Roadmap](docs/architecture/product-roadmap.md)                                                                    |
 | Contribute                                    | [Contributing guide](CONTRIBUTING.md)                                                                              |
 
@@ -212,6 +213,7 @@ configurable inference/confirmation rules remain roadmap work.
 ```bash
 npm run check
 npm run eval:continuity
+npm run eval:production-shaped
 npm run format:check
 npm audit --omit=dev --audit-level=high
 ```

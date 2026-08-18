@@ -84,6 +84,11 @@ Use the three context layers deliberately:
 - `codebase`: selected code facts and graph references returned by Codebase Memory;
 - `wiki`: decisions, explanations, recurring solutions, and operational lessons.
 
+The live wiki layer may combine OpenWiki with bounded Markdown from the resolved project's
+confirmed registered roots. It reads only supported Markdown files, skips generated and dependency
+directories, preserves local-file size provenance, and does not search an unresolved or different
+project root.
+
 Treat `capsule.retrievalPlan` as an auditable source-selection record. Explicit file paths, symbols,
 document URLs, and titles route to their owning source after Ontology validation. High-risk intent
 routes through confirmed policy evidence before codebase or wiki expansion. A PostgreSQL snapshot

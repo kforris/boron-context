@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CodebaseMemoryAdapter } from '../src/adapters/codebase-memory-adapter.js'
 import { LocalWikiAdapter } from '../src/adapters/local-wiki-adapter.js'
+import { ProjectMarkdownAdapter } from '../src/adapters/project-markdown-adapter.js'
 
 describe('live context adapters', () => {
   it('queries the maintained Codebase Memory graph and measures the matched source file', async () => {
@@ -94,5 +95,77 @@ describe('live context adapters', () => {
       metadata: { sourceTokenEstimate: expect.any(Number) }
     })
     expect(evidence).toHaveLength(1)
+  })
+
+  it('searches Markdown inside confirmed project roots without requiring repeated project branding', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'boron-project-markdown-'))
+    await mkdir(join(root, 'docs', 'architecture'), { recursive: true })
+    await mkdir(join(root, 'node_modules', 'noise'), { recursive: true })
+    await writeFile(
+      join(root, 'docs', 'architecture', 'product-roadmap.md'),
+      '# Product roadmap\n\nThe 0.8 lifecycle covers install, upgrade, uninstall, and rollback.\n'
+    )
+    await writeFile(
+      join(root, 'node_modules', 'noise', 'roadmap.md'),
+      '# Dependency roadmap\n\nThis file must not enter project context.\n'
+    )
+    const adapter = new ProjectMarkdownAdapter(async (projectId) =>
+      projectId === 'project-1' ? [root] : []
+    )
+    const evidence = await adapter.search({
+      request: {
+        objective: '检查项目路线图和愿景',
+        projectHint: 'Boron Context',
+        objectHints: [],
+        constraints: ['read-only'],
+        tokenBudget: 512,
+        client: 'test',
+        workflow: 'read'
+      },
+      projectId: 'project-1',
+      resolvedProjectName: 'Boron Context',
+      limit: 10,
+      stageId: 'wiki-knowledge',
+      purpose: 'knowledge',
+      sourceAnchors: []
+    })
+
+    expect(evidence).toHaveLength(1)
+    expect(evidence[0]).toMatchObject({
+      title: 'Product roadmap',
+      metadata: {
+        path: 'docs/architecture/product-roadmap.md',
+        sourceKind: 'registered_project_root',
+        sourceTokenEstimate: expect.any(Number),
+        sourceSize: { basis: 'local_file_bytes_divided_by_4' }
+      }
+    })
+  })
+
+  it('prioritizes an exact Markdown source anchor', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'boron-project-anchor-'))
+    await writeFile(join(root, 'README.md'), '# Overview\n\nGeneral project information.\n')
+    await writeFile(join(root, 'ROADMAP.md'), '# Roadmap\n\nLifecycle milestones.\n')
+    const adapter = new ProjectMarkdownAdapter(async () => [root])
+    const roadmapPath = join(root, 'ROADMAP.md')
+    const evidence = await adapter.search({
+      request: {
+        objective: 'Inspect project information',
+        projectHint: 'Boron Context',
+        objectHints: [roadmapPath],
+        constraints: [],
+        tokenBudget: 512,
+        client: 'test',
+        workflow: 'read'
+      },
+      projectId: 'project-1',
+      resolvedProjectName: 'Boron Context',
+      limit: 10,
+      stageId: 'wiki-knowledge',
+      purpose: 'knowledge',
+      sourceAnchors: [roadmapPath]
+    })
+
+    expect(evidence[0]?.title).toBe('Roadmap')
   })
 })

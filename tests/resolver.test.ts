@@ -158,6 +158,54 @@ describe('ContextResolver', () => {
     expect(capsule.layersQueried).toEqual(['ontology', 'codebase'])
   })
 
+  it.each(['What is the project vision and roadmap?', '项目的目标、愿景和路线图是什么？'])(
+    'routes project strategy questions to live knowledge: %s',
+    async (objective) => {
+      const calls: string[] = []
+      const resolver = new ContextResolver({
+        projects: { resolve: async () => project },
+        adapters: [
+          adapter('ontology', []),
+          {
+            ...adapter('wiki', []),
+            name: 'Project Markdown',
+            sourceType: 'live',
+            search: async () => {
+              calls.push('wiki')
+              return []
+            }
+          }
+        ]
+      })
+
+      const capsule = await resolver.resolve({ objective, projectHint: 'Boron Context' })
+
+      expect(calls).toEqual(['wiki'])
+      expect(capsule.retrievalPlan.stages.map((stage) => stage.id)).toEqual([
+        'ontology-locate',
+        'wiki-knowledge'
+      ])
+    }
+  )
+
+  it('routes an exact Markdown file anchor to knowledge rather than code', async () => {
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [adapter('ontology', []), adapter('codebase', []), adapter('wiki', [])]
+    })
+
+    const capsule = await resolver.resolve({
+      objective: 'Inspect the selected source',
+      projectHint: 'Boron Context',
+      objectHints: ['/workspace/docs/architecture/product-roadmap.md']
+    })
+
+    expect(capsule.retrievalPlan.stages.map((stage) => stage.id)).toEqual([
+      'ontology-locate',
+      'wiki-knowledge'
+    ])
+  })
+
   it('puts confirmed-policy lookup before high-risk source expansion', async () => {
     const calls: string[] = []
     const resolver = new ContextResolver({
@@ -204,6 +252,97 @@ describe('ContextResolver', () => {
     expect(capsule.unresolved).not.toContain(
       'High-risk intent detected, but no matching confirmed policy evidence was found.'
     )
+  })
+
+  it.each([
+    'Assess release readiness and do not publish or submit to Marketplace.',
+    '只读检查发布准备度，不执行发布、推送或任何变更。'
+  ])(
+    'does not route explicitly read-only release assessment through policy: %s',
+    async (objective) => {
+      const resolver = new ContextResolver({
+        projects: { resolve: async () => project },
+        adapters: [adapter('ontology', [])]
+      })
+
+      const capsule = await resolver.resolve({
+        objective,
+        projectHint: 'Boron Context',
+        constraints: ['read-only', 'no mutation'],
+        layers: ['ontology'],
+        workflow: 'read'
+      })
+
+      expect(capsule.retrievalPlan.riskClass).toBe('standard')
+      expect(capsule.retrievalPlan.stages.map((stage) => stage.id)).toEqual(['ontology-locate'])
+      expect(capsule.unresolved).not.toContain(
+        'High-risk intent detected, but no matching confirmed policy evidence was found.'
+      )
+    }
+  )
+
+  it('keeps a real release or deployment action high risk despite adjacent read-only language', async () => {
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [adapter('ontology', [])]
+    })
+
+    const capsule = await resolver.resolve({
+      objective: 'Review the release notes and then deploy and publish the release.',
+      projectHint: 'Boron Context',
+      layers: ['ontology'],
+      workflow: 'read'
+    })
+
+    expect(capsule.retrievalPlan.riskClass).toBe('high')
+    expect(capsule.retrievalPlan.stages.map((stage) => stage.id)).toEqual([
+      'ontology-locate',
+      'ontology-policy'
+    ])
+  })
+
+  it('queries every live adapter in a layer and skips the snapshot when one succeeds', async () => {
+    const calls: string[] = []
+    const live = (name: string, id: string): ContextAdapter => ({
+      ...adapter('wiki', [{ ...evidence(id, 1), layer: 'wiki', uri: `file:///project/${id}.md` }]),
+      name,
+      sourceType: 'live',
+      search: async () => {
+        calls.push(name)
+        return [{ ...evidence(id, 1), layer: 'wiki', uri: `file:///project/${id}.md` }]
+      }
+    })
+    const snapshot: ContextAdapter = {
+      ...adapter('wiki', []),
+      name: 'snapshot',
+      sourceType: 'snapshot',
+      search: async () => {
+        calls.push('snapshot')
+        return []
+      }
+    }
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [
+        adapter('ontology', []),
+        live('OpenWiki', 'openwiki'),
+        live('Project Markdown', 'project-doc'),
+        snapshot
+      ]
+    })
+
+    const capsule = await resolver.resolve({
+      objective: 'Read project documentation',
+      projectHint: 'Boron Context',
+      layers: ['ontology', 'wiki']
+    })
+
+    expect(calls).toEqual(['OpenWiki', 'Project Markdown'])
+    expect(capsule.evidence.map((item) => item.id).sort()).toEqual(['openwiki', 'project-doc'])
+    expect(capsule.retrievalPlan.stages[1]?.adapters).toEqual([
+      { name: 'OpenWiki', sourceType: 'live', status: 'succeeded' },
+      { name: 'Project Markdown', sourceType: 'live', status: 'succeeded' }
+    ])
   })
 
   it('keeps source-window savings unavailable without recorded source coverage', async () => {
