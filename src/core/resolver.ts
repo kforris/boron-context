@@ -636,10 +636,25 @@ function hasHighRiskIntent(request: ResolveContextRequest): boolean {
   for (const match of text.matchAll(HIGH_RISK_TERMS)) {
     const index = match.index ?? 0
     const before = text.slice(Math.max(0, index - 100), index)
-    if (isNegatedRiskContext(before) || isReadOnlyRiskContext(before)) continue
+    const after = text.slice(index + match[0].length, index + match[0].length + 40)
+    if (
+      isNegatedRiskContext(before) ||
+      isReadOnlyRiskContext(before) ||
+      isNominalRiskContext(match[0], before, after)
+    )
+      continue
     return true
   }
   return false
+}
+
+function isNominalRiskContext(term: string, before: string, after: string): boolean {
+  if (term.toLocaleLowerCase('en-US') !== 'release') return false
+  if (/\b(?:prepare|ship|create|make|start|perform|initiate|execute)\b[^.!?]{0,60}$/i.test(before))
+    return false
+  return /^\s*(?:-?\s*candidate\b|readiness\b|notes?\b|checklists?\b|gates?\b|status\b|policy\b|plan\b|version\b)/i.test(
+    after
+  )
 }
 
 function isNegatedRiskContext(before: string): boolean {

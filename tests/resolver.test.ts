@@ -256,6 +256,8 @@ describe('ContextResolver', () => {
 
   it.each([
     'Assess release readiness and do not publish or submit to Marketplace.',
+    'What is the Boron Context roadmap and remaining macOS release-candidate lifecycle work?',
+    'Review the release checklist and readiness gates.',
     '只读检查发布准备度，不执行发布、推送或任何变更。'
   ])(
     'does not route explicitly read-only release assessment through policy: %s',
