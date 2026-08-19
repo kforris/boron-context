@@ -1,6 +1,6 @@
 {
   "name": "boron-context",
-  "version": "0.7.8",
+  "version": "0.8.0",
   "description": "Open-source intention and context layer for agentic work",
   "type": "module",
   "main": "./dist/cli.js",
@@ -16,10 +16,11 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check": "npm run plugin:check && npm run typecheck && npm test && npm run eval:continuity && npm run eval:production-shaped",
+    "check": "npm run plugin:check && npm run typecheck && npm test && npm run lifecycle:test && npm run eval:continuity && npm run eval:production-shaped",
     "dev": "tsx src/cli.ts serve",
     "eval:continuity": "npm run build --silent && node dist/eval/continuity-eval.js",
     "eval:production-shaped": "npm run build --silent && node dist/eval/production-shaped-eval.js",
+    "lifecycle:test": "python3 -m unittest tests.test_macos_lifecycle",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "plugin:check": "node scripts/verify-plugin-cache-key.mjs",
@@ -30,7 +31,11 @@
     "test:watch": "vitest",
     "db:migrate": "tsx src/cli.ts migrate",
     "service:print": "tsx src/cli.ts print-launchd",
-    "service:install": "tsx src/cli.ts install-launchd"
+    "service:install": "tsx src/cli.ts install-launchd",
+    "lifecycle:backup": "python3 scripts/macos_lifecycle.py backup",
+    "lifecycle:restore": "python3 scripts/macos_lifecycle.py restore",
+    "lifecycle:rehearse": "python3 scripts/rehearse_macos_lifecycle.py",
+    "lifecycle:uninstall": "python3 scripts/macos_lifecycle.py uninstall"
   },
   "keywords": [
     "agents",

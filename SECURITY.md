@@ -1,7 +1,7 @@
 # Security policy
 
-Boron Context is pre-alpha software that reads local work context. Do not deploy it with sensitive
-production data until a stable release is available.
+Boron Context is release-candidate software that reads local work context. Do not deploy it with
+sensitive production data until a stable release is available.
 
 ## Reporting a vulnerability
 
@@ -30,6 +30,11 @@ mitigation. Never include real credentials or private user data.
   `boron-context lan-inspector pair`; a mismatch means the bootstrap may have been substituted.
 - The LAN MR process caps bodies at 64 KiB, rate-limits failed codes, rotates the pairing secret on
   success, and has no route for lifecycle, activity, correction, or other semantic writes.
+- Lifecycle backups and receipts use mode `0600`. Backup never overwrites an artifact, restore
+  accepts only a confirmed empty database, and PostgreSQL passwords are excluded from arguments and
+  receipts.
+- Uninstall preserves PostgreSQL, the token/state directory, logs, and backups. Their later deletion
+  is a separate operator-owned retention decision rather than an implicit uninstall side effect.
 
 Run before contributing:
 

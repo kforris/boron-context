@@ -6,6 +6,7 @@ import { platformPaths } from '../src/platform/paths.js'
 import { normalizeRepositoryUri } from '../src/platform/project-root.js'
 import { parseAdbDevices, selectAdbDevice } from '../src/platform/quest-inspector.js'
 import { launchdDatabaseEnvironment, renderLaunchdPlist } from '../src/platform/launchd.js'
+import { validateLaunchdLabel } from '../src/platform/launchd-service.js'
 
 describe('platformPaths', () => {
   it('uses macOS application support paths', () => {
@@ -63,6 +64,13 @@ describe('loadConfig', () => {
 })
 
 describe('renderLaunchdPlist', () => {
+  it('rejects launchd labels that can escape the LaunchAgents directory', () => {
+    expect(validateLaunchdLabel('dev.boroncontext.rehearsal.123')).toBe(
+      'dev.boroncontext.rehearsal.123'
+    )
+    expect(() => validateLaunchdLabel('../../Library/LaunchAgents/other')).toThrow(/Invalid/)
+  })
+
   it('escapes paths and environment values', () => {
     const plist = renderLaunchdPlist({
       label: 'dev.boroncontext.daemon',

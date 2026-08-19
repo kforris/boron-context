@@ -65,7 +65,17 @@ prompts, previews, transcripts, or working directories in that history-sync payl
 
 ## 3. Upgrade an existing local installation
 
-Preserve your database and token file. Migrations are additive and idempotent.
+Preserve your database and token file. Migrations are additive and idempotent. Create a backup before
+changing the checkout or applying a migration:
+
+```bash
+npm run lifecycle:backup -- \
+  --database-url 'postgresql://127.0.0.1/boron_context' \
+  --output '/absolute/private/path/boron-before-upgrade.dump'
+```
+
+The command refuses to overwrite an existing artifact, sets mode `0600`, and writes a neighbouring
+JSON receipt with its SHA-256. Database passwords are not written to arguments or receipts.
 
 ```bash
 git pull --ff-only
@@ -99,6 +109,53 @@ rg --files "${CODEX_HOME:-$HOME/.codex}/plugins/cache/boron-context" \
 Only report source/cache drift when the registry-selected installed artifact differs from the
 current marketplace payload. A manually shortened path that omits either the marketplace or plugin
 segment is not a Boron health failure.
+
+### Restore and rollback
+
+Restore only into a newly created, empty database. The helper rejects a target containing user
+objects and requires the backup checksum from its receipt:
+
+```bash
+createdb boron_context_restore
+npm run lifecycle:restore -- \
+  --database-url 'postgresql://127.0.0.1/boron_context_restore' \
+  --input '/absolute/private/path/boron-before-upgrade.dump' \
+  --expected-sha256 '<receipt sha256>' \
+  --confirm-empty-target
+```
+
+For rollback, stop the current daemon, restore the pre-upgrade archive into a fresh database, point
+`BORON_DATABASE_URL` at it, check out the previously verified commit, rebuild, reinstall launchd,
+the menu app, and the Codex plugin, then verify `/health` and one known project read. Never migrate a
+production database backward in place.
+
+### Uninstall
+
+Preview and then remove runtime surfaces. Durable data is always preserved:
+
+```bash
+npm run lifecycle:uninstall -- --dry-run --remove-codex-plugin --remove-codex-marketplace
+npm run lifecycle:uninstall -- --remove-codex-plugin --remove-codex-marketplace \
+  --receipt '/absolute/private/path/boron-uninstall-receipt.json'
+```
+
+This removes the three Boron launch agents when present, `~/Applications/Boron Meter.app`, and the
+requested Codex registrations. It does not drop PostgreSQL, remove backups, or delete
+`~/Library/Application Support/Boron Context` and `~/Library/Logs/Boron Context`.
+
+### Isolated lifecycle rehearsal
+
+Before a release-candidate decision, run the complete lifecycle in temporary macOS/Codex/PostgreSQL
+state and retain the external receipt:
+
+```bash
+npm run lifecycle:rehearse -- \
+  --previous-ref 23fbd277c1575d0aa48b89744ed2974bc4350693 \
+  --receipt '/absolute/private/path/boron-lifecycle-receipt.json'
+```
+
+Review the complete [release-candidate checklist](release-checklist.md). A passed rehearsal proves
+the isolated lifecycle only; it does not prove live adoption, source coverage, or release approval.
 
 ## 4. Standard client sequence
 

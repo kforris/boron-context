@@ -138,8 +138,9 @@ function printLaunchd(): void {
 
 async function installLaunchd(): Promise<void> {
   const paths = platformPaths('darwin')
+  const label = process.env.BORON_LAUNCHD_LABEL ?? 'dev.boroncontext.daemon'
   const result = await installLaunchdService({
-    label: 'dev.boroncontext.daemon',
+    label,
     plist: launchdDefinition(),
     logDirectory: paths.logDirectory
   })
@@ -198,7 +199,7 @@ async function installLanInspector(): Promise<void> {
   const config = loadLanMrConfig()
   await prepareLanInspector(config)
   const result = await installLaunchdService({
-    label: 'dev.boroncontext.lan-mr',
+    label: process.env.BORON_LAN_MR_LABEL ?? 'dev.boroncontext.lan-mr',
     plist: lanMrLaunchdDefinition(config),
     logDirectory: paths.logDirectory
   })
@@ -254,7 +255,7 @@ function launchdDefinition(): string {
   const projectRoot = process.cwd()
   const config = loadConfig()
   return renderLaunchdPlist({
-    label: 'dev.boroncontext.daemon',
+    label: process.env.BORON_LAUNCHD_LABEL ?? 'dev.boroncontext.daemon',
     nodePath: process.execPath,
     cliPath: resolve(projectRoot, 'dist', 'cli.js'),
     workingDirectory: projectRoot,
@@ -276,7 +277,7 @@ function lanMrLaunchdDefinition(config = loadLanMrConfig()): string {
   const paths = platformPaths('darwin')
   const projectRoot = process.cwd()
   return renderLaunchdPlist({
-    label: 'dev.boroncontext.lan-mr',
+    label: process.env.BORON_LAN_MR_LABEL ?? 'dev.boroncontext.lan-mr',
     nodePath: process.execPath,
     cliPath: resolve(projectRoot, 'dist', 'cli.js'),
     arguments: ['lan-inspector', 'serve'],
