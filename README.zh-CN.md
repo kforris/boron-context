@@ -181,7 +181,7 @@ Boron Context 当前为 **pre-alpha**，主要面向 Apple Silicon macOS 上的�
 - 带认证的本地 Inspector、配对式只读 Quest 3 局域网 WebXR 投影和可选的 macOS 原生菜单栏 Meter；
 - macOS 与 Linux CI。
 
-`1.0` 前接口可能变化。Linux service 打包、签名安装器、setup UX 与可配置推断/确认规则仍在
+`1.0` 前接口可能变化。Linux service 打包、签名二进制安装器、setup UX 与可配置推断/确认规则仍在
 roadmap 中。
 
 ## 文档导航
@@ -195,7 +195,8 @@ roadmap 中。
 | 审阅 task-to-project 归属     | [Codex task context](docs/codex-thread-project-reconciliation.md)                                            |
 | 安全修复项目身份              | [Project identity repair](docs/project-identity-repair.md)                                                   |
 | 运行 held-out continuity 评测 | [Evaluation contract](docs/continuity-evaluation.md)                                                         |
-| 查看 v0.7.8 变化              | [Release notes](docs/releases/v0.7.8.md) · [Changelog](CHANGELOG.md)                                         |
+| 审查 release-candidate 门禁   | [Release checklist](docs/release-checklist.md)                                                               |
+| 查看 v0.8.0 变化              | [Release notes](docs/releases/v0.8.0.md) · [Changelog](CHANGELOG.md)                                         |
 | 查看产品方向                  | [Roadmap](docs/architecture/product-roadmap.md)                                                              |
 | 参与贡献                      | [Contributing guide](CONTRIBUTING.md)                                                                        |
 

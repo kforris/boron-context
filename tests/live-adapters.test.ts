@@ -168,4 +168,54 @@ describe('live context adapters', () => {
 
     expect(evidence[0]?.title).toBe('Roadmap')
   })
+
+  it('keeps generic operational ledgers behind the requested document type', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'boron-project-document-intent-'))
+    await mkdir(join(root, 'docs', 'architecture'), { recursive: true })
+    await mkdir(join(root, 'docs'), { recursive: true })
+    await writeFile(
+      join(root, 'docs', 'architecture', 'product-roadmap.md'),
+      '# Product roadmap\n\nThe 0.8 macOS lifecycle goals cover install, upgrade, uninstall, backup, restore, and rollback.\n'
+    )
+    await writeFile(
+      join(root, 'CHANGELOG.md'),
+      '# Changelog\n\nThe 0.8 macOS lifecycle added install, upgrade, uninstall, backup, restore, and rollback.\n'
+    )
+    await writeFile(
+      join(root, 'README.md'),
+      '# Boron Context\n\nPrivacy: Boron does not store raw transcripts, patch private Codex state, or copy prompts.\n'
+    )
+    await writeFile(
+      join(root, 'docs', 'release-checklist.md'),
+      '# Release checklist\n\nVerify privacy, raw transcripts, private Codex state, prompts, storage, and patches.\n'
+    )
+    const adapter = new ProjectMarkdownAdapter(async () => [root])
+    const search = (objective: string) =>
+      adapter.search({
+        request: {
+          objective,
+          projectHint: 'Boron Context',
+          objectHints: [],
+          constraints: [],
+          tokenBudget: 512,
+          client: 'test',
+          workflow: 'read'
+        },
+        projectId: 'project-1',
+        resolvedProjectName: 'Boron Context',
+        limit: 10,
+        stageId: 'wiki-knowledge',
+        purpose: 'knowledge',
+        sourceAnchors: []
+      })
+
+    const lifecycle = await search(
+      'Explain the 0.8 macOS lifecycle goals for install, upgrade, uninstall, backup, and restore.'
+    )
+    expect(lifecycle[0]?.metadata.path).toBe('docs/architecture/product-roadmap.md')
+    const privacy = await search(
+      'Explain why Boron does not store raw transcripts or patch private Codex state.'
+    )
+    expect(privacy[0]?.metadata.path).toBe('README.md')
+  })
 })

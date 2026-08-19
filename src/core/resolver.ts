@@ -398,10 +398,15 @@ function rankAndDedupe(
     const identity = `${item.layer}:${item.uri}:${item.contentHash ?? ''}`
     const lexicalScore = lexicalRelevance(terms, `${item.title} ${item.excerpt}`)
     const adapterScore = item.metadata.adapterRelevance
-    const relevance =
+    const unadjustedRelevance =
       typeof adapterScore === 'number' && Number.isFinite(adapterScore)
         ? Math.max(lexicalScore, clamp(adapterScore))
         : lexicalScore
+    const adapterRankFactor = item.metadata.adapterRankFactor
+    const relevance =
+      typeof adapterRankFactor === 'number' && Number.isFinite(adapterRankFactor)
+        ? unadjustedRelevance * clamp(adapterRankFactor)
+        : unadjustedRelevance
     const projectMatch = !project || !item.projectId ? 0.5 : item.projectId === project.id ? 1 : 0
     const anchorMatch = sourceAnchorRelevance(sourceAnchors, item)
     const ontologyValidation = item.layer === 'ontology' ? 1 : 0

@@ -61,7 +61,15 @@ python3 scripts/install_menubar.py
 
 ## 3. 升级现有本地安装
 
-保留数据库和 token 文件。数据库迁移是增量且幂等的。
+保留数据库和 token 文件。数据库迁移是增量且幂等的。先创建不覆盖旧文件的备份：
+
+```bash
+npm run lifecycle:backup -- \
+  --database-url 'postgresql://127.0.0.1/boron_context' \
+  --output '/absolute/private/path/boron-before-upgrade.dump'
+```
+
+备份及相邻 SHA-256 receipt 权限为 `0600`，不会记录数据库密码。
 
 ```bash
 git pull --ff-only
@@ -93,6 +101,48 @@ rg --files "${CODEX_HOME:-$HOME/.codex}/plugins/cache/boron-context" \
 
 只有 registry 选中的已安装 artifact 与当前 marketplace payload 不一致时，才应报告
 source/cache 漂移。手工拼接路径时漏掉 marketplace 或 plugin 任一层，不是 Boron 健康故障。
+
+### 恢复与回滚
+
+只恢复到新建空库。工具会拒绝含用户对象的目标库，并可核对 receipt 中的 SHA-256：
+
+```bash
+createdb boron_context_restore
+npm run lifecycle:restore -- \
+  --database-url 'postgresql://127.0.0.1/boron_context_restore' \
+  --input '/absolute/private/path/boron-before-upgrade.dump' \
+  --expected-sha256 '<receipt sha256>' \
+  --confirm-empty-target
+```
+
+回滚时先停止当前 daemon，把升级前备份恢复到新库，令 `BORON_DATABASE_URL` 指向该库，再从
+已验证旧 commit 重建并重装 launchd、菜单栏和 Codex plugin。不要在生产库原地执行反向迁移。
+
+### 卸载
+
+先预览，再移除运行面；持久数据始终保留：
+
+```bash
+npm run lifecycle:uninstall -- --dry-run --remove-codex-plugin --remove-codex-marketplace
+npm run lifecycle:uninstall -- --remove-codex-plugin --remove-codex-marketplace \
+  --receipt '/absolute/private/path/boron-uninstall-receipt.json'
+```
+
+该命令移除 Boron launch agents、`~/Applications/Boron Meter.app` 及指定 Codex 注册；不会
+drop PostgreSQL，也不会删除备份、`~/Library/Application Support/Boron Context` 或日志目录。
+
+### 隔离生命周期演练
+
+release-candidate 决策前，在临时 macOS/Codex/PostgreSQL 状态中运行全流程并保留外部 receipt：
+
+```bash
+npm run lifecycle:rehearse -- \
+  --previous-ref 23fbd277c1575d0aa48b89744ed2974bc4350693 \
+  --receipt '/absolute/private/path/boron-lifecycle-receipt.json'
+```
+
+随后逐项审查 [release-candidate checklist](release-checklist.md)。演练通过只证明隔离生命周期，
+不等于 live adoption、source coverage 或公开发布已通过。
 
 ## 4. 标准调用顺序
 

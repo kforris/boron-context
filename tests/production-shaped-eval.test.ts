@@ -23,7 +23,6 @@ describe('production-shaped continuity evaluation', () => {
       boronLlmCalls: 0,
       metrics: {
         recallAt5: 0.888889,
-        meanReciprocalRank: 0.736111,
         relevantSourceCoverage: 0.888889,
         routingAccuracy: 1,
         riskClassificationAccuracy: 1,
@@ -31,6 +30,9 @@ describe('production-shaped continuity evaluation', () => {
       },
       failures: []
     })
+    expect(report.metrics.meanReciprocalRank).toBeGreaterThanOrEqual(
+      baseline.frozen.meanReciprocalRank
+    )
   })
 
   it('fails the frozen gate when a repository source stops being retrievable', async () => {

@@ -100,9 +100,11 @@ export async function searchMarkdownSources(
       const uri = pathToFileURL(canonicalPath).href
       const anchorScore = sourceAnchorRelevance(input.sourceAnchors, uri, localPath, title)
       if (terms.size > 0 && lexicalScore === 0 && anchorScore === 0) continue
+      const adapterRankFactor = documentTypeFactor(terms, localPath, anchorScore)
+      const score = (lexicalScore * 0.7 + anchorScore * 0.3) * adapterRankFactor
       const sourceTokenEstimate = Math.max(1, Math.ceil(info.size / 4))
       candidates.push({
-        score: lexicalScore * 0.7 + anchorScore * 0.3,
+        score,
         evidence: {
           id: createHash('sha256').update(canonicalPath).digest('hex'),
           layer: 'wiki',
@@ -117,7 +119,8 @@ export async function searchMarkdownSources(
           metadata: {
             path: localPath,
             sourceKind: source.sourceKind,
-            adapterRelevance: lexicalScore * 0.7 + anchorScore * 0.3,
+            adapterRelevance: score,
+            adapterRankFactor,
             sourceTokenEstimate,
             sourceSize: {
               status: 'measured',
@@ -194,6 +197,28 @@ function relevance(terms: ReadonlySet<string>, value: string): number {
   let matches = 0
   for (const term of terms) if (text.includes(term)) matches += 1
   return matches / Math.min(terms.size, 12)
+}
+
+function documentTypeFactor(
+  terms: ReadonlySet<string>,
+  localPath: string,
+  anchorScore: number
+): number {
+  if (anchorScore > 0) return 1
+  const path = localPath.toLocaleLowerCase('en-US')
+  const includesAny = (values: readonly string[]): boolean =>
+    values.some((value) => terms.has(value))
+  if (
+    path.endsWith('changelog.md') &&
+    !includesAny(['change', 'changed', 'changes', 'changelog', 'latest', 'recent'])
+  )
+    return 0.7
+  if (
+    path.endsWith('release-checklist.md') &&
+    !includesAny(['checklist', 'gate', 'gates', 'readiness', 'release'])
+  )
+    return 0.6
+  return 1
 }
 
 function sourceAnchorRelevance(

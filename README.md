@@ -190,7 +190,7 @@ The v0.7 foundation includes:
   native macOS menu-bar meter; and
 - macOS and Linux CI.
 
-Interfaces may change before `1.0`. Linux service packaging, a signed installer, setup UX, and
+Interfaces may change before `1.0`. Linux service packaging, a signed binary installer, setup UX, and
 configurable inference/confirmation rules remain roadmap work.
 
 ## Documentation
@@ -204,7 +204,8 @@ configurable inference/confirmation rules remain roadmap work.
 | Review task-to-project ownership              | [Codex task context](docs/codex-thread-project-reconciliation.md)                                                  |
 | Repair project identity safely                | [Project identity repair](docs/project-identity-repair.md)                                                         |
 | Run the held-out continuity evaluation        | [Evaluation contract](docs/continuity-evaluation.md)                                                               |
-| See what changed in v0.7.8                    | [Release notes](docs/releases/v0.7.8.md) · [Changelog](CHANGELOG.md)                                               |
+| Review release-candidate gates                | [Release checklist](docs/release-checklist.md)                                                                     |
+| See what changed in v0.8.0                    | [Release notes](docs/releases/v0.8.0.md) · [Changelog](CHANGELOG.md)                                               |
 | Follow the product direction                  | [Roadmap](docs/architecture/product-roadmap.md)                                                                    |
 | Contribute                                    | [Contributing guide](CONTRIBUTING.md)                                                                              |
 

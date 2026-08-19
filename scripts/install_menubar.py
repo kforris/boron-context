@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import plistlib
+import re
 import shutil
 import subprocess
 import time
@@ -14,15 +15,20 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = REPO_ROOT / "apps" / "BoronMenuBar"
 USER_ROOT = Path.home()
-APP_BUNDLE = USER_ROOT / "Applications" / "Boron Meter.app"
+APP_BUNDLE = Path(
+    os.environ.get("BORON_MENUBAR_APP_BUNDLE", USER_ROOT / "Applications" / "Boron Meter.app")
+).resolve()
 CONTENTS = APP_BUNDLE / "Contents"
 MACOS = CONTENTS / "MacOS"
-LAUNCH_AGENT = (
-    USER_ROOT / "Library" / "LaunchAgents" / "dev.boroncontext.menubar.plist"
-)
-LOG_ROOT = USER_ROOT / "Library" / "Logs" / "Boron Context"
+LABEL = os.environ.get("BORON_MENUBAR_LABEL", "dev.boroncontext.menubar")
+if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]*", LABEL) or ".." in LABEL:
+    raise SystemExit(f"Invalid launchd label: {LABEL}")
+LAUNCH_AGENT = USER_ROOT / "Library" / "LaunchAgents" / f"{LABEL}.plist"
+LOG_ROOT = Path(
+    os.environ.get("BORON_MENUBAR_LOG_ROOT", USER_ROOT / "Library" / "Logs" / "Boron Context")
+).resolve()
 DOMAIN = f"gui/{os.getuid()}"
-SERVICE = f"{DOMAIN}/dev.boroncontext.menubar"
+SERVICE = f"{DOMAIN}/{LABEL}"
 
 
 def run(
@@ -61,7 +67,7 @@ def main() -> None:
     installed_binary.chmod(0o755)
 
     launch_definition = {
-        "Label": "dev.boroncontext.menubar",
+        "Label": LABEL,
         "ProgramArguments": [str(installed_binary)],
         "RunAtLoad": True,
         "KeepAlive": True,

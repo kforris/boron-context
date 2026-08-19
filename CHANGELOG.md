@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## [0.8.0] - 2026-08-19
+
+### Added
+
+- non-overwriting PostgreSQL custom-format backup with private SHA-256 receipts and credential-free
+  database identity;
+- checksum-aware restore that requires an explicitly confirmed empty target and rejects existing
+  user objects;
+- reversible macOS uninstall that removes runtime surfaces and optional Codex registration while
+  preserving databases, token/state files, logs, and backups;
+- a receipt-producing, isolated 0.7.8-to-0.8.0 install, upgrade, backup, restore, rollback, and
+  uninstall rehearsal plus a formal release-candidate checklist.
+
+### Changed
+
+- daemon, LAN MR, and menu launchd labels plus the rehearsal menu destination can be overridden for
+  isolated lifecycle verification; production defaults remain backward compatible;
+- generic changelogs and release checklists are demoted when the request does not ask for changes,
+  release gates, or readiness; exact source anchors remain authoritative;
+- the standard check gate now includes lifecycle helper unit tests.
+
 ## [0.7.8] - 2026-08-18
 
 ### Added
