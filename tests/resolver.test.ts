@@ -303,6 +303,29 @@ describe('ContextResolver', () => {
     ])
   })
 
+  it('treats a release-checklist path hint as nominal read-only context', async () => {
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [adapter('ontology', [])]
+    })
+
+    const capsule = await resolver.resolve({
+      objective:
+        'Inspect the release-candidate checklist without publishing or submitting anything.',
+      projectHint: 'Boron Context',
+      objectHints: ['docs/release-checklist.md'],
+      constraints: ['read-only', 'no mutation'],
+      layers: ['ontology'],
+      workflow: 'read'
+    })
+
+    expect(capsule.retrievalPlan.riskClass).toBe('standard')
+    expect(capsule.retrievalPlan.stages.map((stage) => stage.id)).toEqual(['ontology-locate'])
+    expect(capsule.unresolved).not.toContain(
+      'High-risk intent detected, but no matching confirmed policy evidence was found.'
+    )
+  })
+
   it('queries every live adapter in a layer and skips the snapshot when one succeeds', async () => {
     const calls: string[] = []
     const live = (name: string, id: string): ContextAdapter => ({

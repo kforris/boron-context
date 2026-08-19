@@ -657,7 +657,7 @@ function isNominalRiskContext(term: string, before: string, after: string): bool
   if (term.toLocaleLowerCase('en-US') !== 'release') return false
   if (/\b(?:prepare|ship|create|make|start|perform|initiate|execute)\b[^.!?]{0,60}$/i.test(before))
     return false
-  return /^\s*(?:-?\s*candidate\b|readiness\b|notes?\b|checklists?\b|gates?\b|status\b|policy\b|plan\b|version\b)/i.test(
+  return /^\s*(?:[-_/]\s*)?(?:candidate|readiness|notes?|checklists?|gates?|status|policy|plan|version)\b/i.test(
     after
   )
 }
