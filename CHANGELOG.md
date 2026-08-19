@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- read-only `release-checklist.md` path hints are treated as nominal checklist context instead of
+  being misclassified as a release action; explicit release, deploy, and publish intent remains
+  high risk.
+
 ## [0.8.0] - 2026-08-19
 
 ### Added
