@@ -79,6 +79,12 @@ source event time and local observation time, without backdating a new retractio
 relation's creation. Retraction closes the old relation's validity interval; it does not delete
 its history.
 
+Retrieved activity excerpts are observations at a recorded time, not implicit proof of current
+state. Capsules label historical observations explicitly and distinguish current typed state
+relations from the deterministic source evidence that asserted them. Retaining the original
+observation supports historical explanation; a newer unrelated document at the same URI does not
+silently supersede it.
+
 Unknown or inconsistent source states, wrong repository/number/URL, unresolved projects,
 unconfirmed or cross-project entity identities, unavailable sources and ambiguous state relations
 all stop before mutation. The current Inspector response has a limit of 500 nodes and 1,000 edges;
