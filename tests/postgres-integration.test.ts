@@ -9,7 +9,8 @@ import { PostgresActivityRepository } from '../src/db/activity-repository.js'
 import {
   ActivityTimestampError,
   OntologyGovernanceError,
-  ProjectScopeError
+  ProjectScopeError,
+  SessionLifecycleError
 } from '../src/core/errors.js'
 import { PostgresCodexThreadRepository } from '../src/db/codex-thread-repository.js'
 import { PostgresInspectorRepository } from '../src/db/inspector-repository.js'
@@ -19,6 +20,7 @@ import { reconcileProjectSupersessions } from '../src/db/project-supersession.js
 import { ContextResolver } from '../src/core/resolver.js'
 import type { ContextAdapter } from '../src/core/context-adapter.js'
 import type { Evidence } from '../src/core/contracts.js'
+import { acquirePostgresTestLock } from './postgres-test-lock.js'
 
 const databaseUrl = process.env.BORON_TEST_DATABASE_URL
 const describeDatabase = databaseUrl ? describe : describe.skip
@@ -28,9 +30,11 @@ describeDatabase('PostgreSQL continuity integration', () => {
   let repository: PostgresActivityRepository
   let codexThreads: PostgresCodexThreadRepository
   let inspector: PostgresInspectorRepository
+  let releaseTestLock: (() => Promise<void>) | undefined
 
   beforeAll(async () => {
     pool = new Pool({ connectionString: databaseUrl })
+    releaseTestLock = await acquirePostgresTestLock(pool)
     repository = new PostgresActivityRepository(pool)
     codexThreads = new PostgresCodexThreadRepository(pool)
     inspector = new PostgresInspectorRepository(pool, '/tmp')
@@ -44,7 +48,11 @@ describeDatabase('PostgreSQL continuity integration', () => {
   })
 
   afterAll(async () => {
-    await pool.end()
+    try {
+      await releaseTestLock?.()
+    } finally {
+      await pool?.end()
+    }
   })
 
   it('keeps uncertain relation endpoints candidate and promotes them on explicit confirmation', async () => {
@@ -408,6 +416,71 @@ describeDatabase('PostgreSQL continuity integration', () => {
       evidence: [],
       metadata: { integrationTest: true }
     })
+  })
+
+  it('rejects repeated writes to a completed session with a typed lifecycle error', async () => {
+    const suffix = randomUUID()
+    const session = await repository.startSession({
+      objective: 'Verify completed-session writeback lifecycle semantics',
+      projectHint: 'Boron Context',
+      externalSessionId: `completed-session-writeback-${suffix}`,
+      client: 'postgres-integration-test',
+      constraints: [],
+      tokenBudget: 512,
+      leaseMinutes: 15,
+      metadata: { integrationTest: true }
+    })
+    const activeKey = `active-session-idempotency-${suffix}`
+    const activeRequest = {
+      sessionId: session.id,
+      projectHint: 'Boron Context',
+      activityType: 'integration.active_writeback',
+      summary: 'Record one active-session activity idempotently.',
+      idempotencyKey: activeKey,
+      confidence: 1,
+      metadata: { integrationTest: true },
+      relationEffects: [],
+      evidence: []
+    }
+
+    const recorded = await repository.recordActivity(activeRequest)
+    const duplicate = await repository.recordActivity(activeRequest)
+    expect(duplicate).toMatchObject({ id: recorded.id, duplicate: true })
+
+    await repository.completeSession({
+      sessionId: session.id,
+      outcome: 'completed',
+      summary: 'Close the integration session before the rejected retries.',
+      decisions: [],
+      relationEffects: [],
+      evidence: [],
+      metadata: { integrationTest: true }
+    })
+
+    const closedKey = `completed-session-idempotency-${suffix}`
+    const closedRequest = {
+      ...activeRequest,
+      activityType: 'integration.completed_writeback',
+      summary: 'This write must be rejected because the session is completed.',
+      idempotencyKey: closedKey
+    }
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await expect(repository.recordActivity(closedRequest)).rejects.toMatchObject({
+        reason: 'session_not_active',
+        sessionStatus: 'completed'
+      } satisfies Partial<SessionLifecycleError>)
+    }
+    await expect(
+      repository.recordActivity({ ...closedRequest, sessionId: randomUUID() })
+    ).rejects.toMatchObject({
+      reason: 'session_not_found',
+      sessionStatus: null
+    } satisfies Partial<SessionLifecycleError>)
+    const rejectedRows = await pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM activities WHERE idempotency_key = $1',
+      [closedKey]
+    )
+    expect(rejectedRows.rows[0]?.count).toBe('0')
   })
 
   it('instruments new local-file evidence while preserving directory and remote boundaries', async () => {
@@ -1221,16 +1294,17 @@ describeDatabase('PostgreSQL continuity integration', () => {
 
   it('moves non-conflicting retrieval policies during an auditable project supersession', async () => {
     const suffix = randomUUID()
+    const canonicalName = `Canonical project ${suffix}`
     const sourceUri = `integration://supersession-source/${suffix}`
     const targetUri = `integration://supersession-target/${suffix}`
     const canonicalUri = `integration://supersession-canonical/${suffix}`
     const source = await pool.query<{ id: string }>(
       `INSERT INTO projects (name, source_uri, status) VALUES ($1, $2, 'confirmed') RETURNING id::text`,
-      ['Superseded project', sourceUri]
+      [`Superseded project ${suffix}`, sourceUri]
     )
     const target = await pool.query<{ id: string }>(
       `INSERT INTO projects (name, source_uri, status) VALUES ($1, $2, 'confirmed') RETURNING id::text`,
-      ['Canonical project', targetUri]
+      [canonicalName, targetUri]
     )
     await pool.query(
       `
@@ -1253,8 +1327,8 @@ describeDatabase('PostgreSQL continuity integration', () => {
           sourceUri,
           targetMatchSourceUri: targetUri,
           targetCanonicalSourceUri: canonicalUri,
-          canonicalName: 'Canonical project',
-          aliases: ['Canonical alias'],
+          canonicalName,
+          aliases: [`Canonical alias ${suffix}`],
           sessionIds: [],
           reason: 'Deterministic integration-test supersession.'
         }

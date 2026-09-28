@@ -15,6 +15,28 @@ export class ActivityTimestampError extends Error {
   }
 }
 
+export class ContinuityConflictError extends Error {
+  constructor(
+    readonly reason: 'relation_precondition_failed' | 'idempotency_conflict' | 'invalid_context_use'
+  ) {
+    super(reason)
+    this.name = 'ContinuityConflictError'
+  }
+}
+
+export type BoronSessionStatus = 'active' | 'completed' | 'failed' | 'partial' | 'cancelled'
+
+export class SessionLifecycleError extends Error {
+  constructor(
+    readonly reason: 'session_not_found' | 'session_not_active',
+    readonly sessionStatus: Exclude<BoronSessionStatus, 'active'> | null,
+    message: string
+  ) {
+    super(message)
+    this.name = 'SessionLifecycleError'
+  }
+}
+
 export type OntologyGovernanceReason =
   | 'unknown_entity_kind'
   | 'unknown_relation_type'

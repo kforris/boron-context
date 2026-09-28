@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ContextAdapter } from '../src/core/context-adapter.js'
 import type { Evidence } from '../src/core/contracts.js'
-import { ContextResolver, estimateTokens } from '../src/core/resolver.js'
+import { buildRetrievalPlan, ContextResolver, estimateTokens } from '../src/core/resolver.js'
 
 function adapter(
   layer: 'ontology' | 'codebase' | 'wiki',
@@ -17,6 +17,8 @@ function adapter(
 }
 
 const project = { id: 'project-1', name: 'Boron Context', confidence: 1 }
+const strategyObjective =
+  '核对已确定的最终愿景与设计边界：让每次任务更懂项目；跨任务/跨Agent的持久项目理解，Ontology事实/关系、Codebase和Wiki分工，最小有来源上下文，语义变化回写和过时状态失效，Sample与Portfolio执行层的边界。查找对应用户决策和设计依据，用于下一阶段改进建议。'
 
 describe('ContextResolver', () => {
   it('combines selected context layers into a bounded capsule', async () => {
@@ -205,6 +207,141 @@ describe('ContextResolver', () => {
       'wiki-knowledge'
     ])
   })
+
+  it('routes a Chinese strategic handoff to knowledge without inventing paths or action intent', () => {
+    const plan = buildRetrievalPlan({
+      objective: strategyObjective,
+      projectHint: 'Sample',
+      workflow: 'session_start'
+    })
+
+    expect(plan.riskClass).toBe('standard')
+    expect(plan.sourceAnchors).toEqual([])
+    expect(plan.signals).toContain('strategy')
+    expect(plan.stages.map((stage) => stage.id)).toEqual(['ontology-locate', 'wiki-knowledge'])
+  })
+
+  it.each([
+    ['跨任务/跨Agent，B2B/B2C；Ontology事实/关系', []],
+    [
+      'Inspect src/core/resolver.ts and docs/product-roadmap.md.',
+      ['src/core/resolver.ts', 'docs/product-roadmap.md']
+    ],
+    ['Read `/workspace/资料/设计.md`。', ['/workspace/资料/设计.md']],
+    [
+      'Read https://example.test/docs/vision and file:///workspace/README.md.',
+      ['https://example.test/docs/vision', 'file:///workspace/README.md']
+    ],
+    [
+      'Inspect ./src and ../docs, then ContextResolver.resolve().',
+      ['./src', '../docs', 'ContextResolver.resolve()']
+    ]
+  ])('distinguishes source anchors from slash-separated prose: %s', (objective, anchors) => {
+    const plan = buildRetrievalPlan({ objective, objectHints: ['跨任务/跨Agent'] })
+    expect(plan.sourceAnchors).toEqual(anchors)
+  })
+
+  it.each([
+    strategyObjective,
+    'What is the Sample vision and design rationale for durable project understanding?'
+  ])(
+    'ranks design knowledge above repeated authoritative audits for strategy: %s',
+    async (objective) => {
+      const localProject = { ...project, name: 'Sample' }
+      const audits: Evidence[] = Array.from({ length: 8 }, (_, index) => ({
+        id: `audit-${index}`,
+        layer: 'ontology',
+        title: 'Activity: release_candidate.audit_completed',
+        uri: `boron://activity/audit-${index}`,
+        excerpt:
+          'Sample RC audit: exact-main CI, adapters, TLS, rolling adoption, source coverage and latency passed. Release remains NO-GO.',
+        confidence: 1,
+        authority: 1,
+        projectId: project.id,
+        metadata: { activityId: `audit-${index}`, adapterRelevance: 1 }
+      }))
+      const design: Evidence = {
+        id: 'design',
+        layer: 'wiki',
+        title: 'Sample vision and system design',
+        uri: 'file:///workspace/docs/system-design.md',
+        excerpt:
+          'The vision is durable project understanding across sessions and agents. Architecture separates verified facts, source code, and narrative knowledge; preserve decisions with evidence and supersede obsolete state.',
+        confidence: 0.9,
+        authority: 0.9,
+        projectId: project.id,
+        metadata: { adapterRelevance: 0.1, sourceTokenEstimate: 2000 }
+      }
+      const resolver = new ContextResolver({
+        projects: { resolve: async () => localProject },
+        adapters: [adapter('ontology', audits), adapter('wiki', [design])]
+      })
+
+      const resolution = await resolver.resolveWithAudit({
+        objective,
+        projectHint: 'Sample',
+        tokenBudget: 1100
+      })
+
+      expect(resolution.capsule.evidence[0]?.id).toBe('design')
+      expect(resolution.evidenceAudit).toHaveLength(9)
+      expect(
+        resolution.evidenceAudit.filter((item) => item.evidenceId.startsWith('audit-'))
+      ).toHaveLength(8)
+      expect(resolution.capsule.meter.boronLlm.calls).toBe(0)
+    }
+  )
+
+  it('keeps audit evidence relevant for an explicit strategic readiness audit', async () => {
+    const audit: Evidence = {
+      ...evidence('audit', 1),
+      title: 'Activity: release_candidate.audit_completed',
+      uri: 'boron://activity/audit',
+      excerpt:
+        'The roadmap readiness audit found passing CI and healthy adapters; remaining release blockers are parity and latency.'
+    }
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [adapter('ontology', [audit]), adapter('wiki', [])]
+    })
+    const capsule = await resolver.resolve({
+      objective: 'Audit the roadmap readiness and remaining release blockers.'
+    })
+    expect(capsule.evidence[0]?.id).toBe('audit')
+    expect(capsule.evidence[0]?.score).toBeGreaterThan(0.7)
+  })
+
+  it('does not demote an audit explicitly referenced as evidence for the vision', async () => {
+    const audit: Evidence = {
+      ...evidence('audit', 1),
+      title: 'Activity: release_candidate.audit_completed',
+      uri: 'boron://activity/audit',
+      excerpt: 'Source readback of the previous design decision.'
+    }
+    const resolver = new ContextResolver({
+      projects: { resolve: async () => project },
+      adapters: [adapter('ontology', [audit]), adapter('wiki', [])]
+    })
+    const capsule = await resolver.resolve({
+      objective: '查找愿景的依据',
+      objectHints: ['boron://activity/audit']
+    })
+    expect(capsule.retrievalPlan.sourceAnchors).toEqual(['boron://activity/audit'])
+    expect(capsule.evidence[0]?.score).toBeGreaterThan(0.7)
+  })
+
+  it.each([
+    '核对愿景，然后部署执行层更新并授权生产权限。',
+    'Review the project vision, then grant deployment permissions and publish the release.',
+    '执行层部署更新。'
+  ])(
+    'retains the policy stage for genuine actions alongside strategic language: %s',
+    (objective) => {
+      const plan = buildRetrievalPlan({ objective, workflow: 'read' })
+      expect(plan.riskClass).toBe('high')
+      expect(plan.stages[1]?.id).toBe('ontology-policy')
+    }
+  )
 
   it('puts confirmed-policy lookup before high-risk source expansion', async () => {
     const calls: string[] = []

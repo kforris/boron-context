@@ -63,6 +63,9 @@ import Testing
     #expect(summary.reExplanation.avoidedTokens == 1447)
     #expect(summary.sourceWindow.coveredEvidenceCount == 1)
     #expect(summary.sourceWindow.eligibility?.eligibleDenominator == 1)
+    #expect(summary.sourceWindow.netSavingsTokens == nil)
+    #expect(summary.sourceWindow.estimatedNetSavingsTokens == 2932)
+    #expect(summary.sourceWindow.netEstimateNote.contains("legacy"))
     #expect(summary.boronLlm.calls == 0)
 }
 
@@ -86,6 +89,56 @@ import Testing
     let source = try JSONDecoder().decode(SourceWindowMetric.self, from: data)
     #expect(source.isCovered == false)
     #expect(source.savingsTokens == nil)
+    #expect(source.estimatedNetSavingsTokens == nil)
+    #expect(source.netSavingsRatio == nil)
+    #expect(MetricFormatting.sourceNetChange(source.netSavingsRatio) == "Unmeasured")
+}
+
+@Test func displaysExpansionDespitePositiveLegacySavings() throws {
+    let source = try decodeSourceWindow(original: 1000, capsule: 1500, net: -500)
+    #expect(source.estimatedNetSavingsTokens == -500)
+    #expect(source.netSavingsRatio == -0.5)
+    #expect(MetricFormatting.sourceNetChange(source.netSavingsRatio) == "50% larger")
+    #expect(MetricFormatting.sourceNetChange(source.netSavingsRatio, compact: true) == "↑50%")
+}
+
+@Test func derivesHonestExpansionForLegacyServer() throws {
+    let source = try decodeSourceWindow(original: 1000, capsule: 1500, net: nil)
+    #expect(source.netSavingsTokens == nil)
+    #expect(source.netSavingsRatio == -0.5)
+    #expect(source.netEstimateNote.contains("legacy"))
+    #expect(MetricFormatting.sourceNetChange(source.netSavingsRatio) == "50% larger")
+}
+
+@Test func displaysSavingsAndZeroWithoutClampingNetChange() throws {
+    let saving = try decodeSourceWindow(original: 1000, capsule: 600, net: 400)
+    let unchanged = try decodeSourceWindow(original: 1000, capsule: 1000, net: 0)
+    #expect(MetricFormatting.sourceNetChange(saving.netSavingsRatio) == "40% smaller")
+    #expect(MetricFormatting.sourceNetChange(saving.netSavingsRatio, compact: true) == "↓40%")
+    #expect(MetricFormatting.sourceNetChange(unchanged.netSavingsRatio) == "No change")
+    #expect(MetricFormatting.sourceNetChange(unchanged.netSavingsRatio, compact: true) == "0%")
+}
+
+@Test func keepsNetRatioUnknownWithoutAPositiveSourceWindow() throws {
+    let missing = try decodeSourceWindow(original: nil, capsule: nil, net: nil)
+    let zero = try decodeSourceWindow(original: 0, capsule: 50, net: -50)
+    #expect(missing.netSavingsRatio == nil)
+    #expect(zero.netSavingsRatio == nil)
+    #expect(MetricFormatting.sourceNetChange(missing.netSavingsRatio, compact: true) == "—")
+}
+
+private func decodeSourceWindow(original: Int?, capsule: Int?, net: Int?) throws -> SourceWindowMetric {
+    // Positive legacy fields deliberately disagree with expansion: callers must
+    // use the signed field, or derive it from the measured totals when absent.
+    var payload: [String: Any] = [
+        "status": "measured_partial", "measuredSamples": 2,
+        "selectedEvidenceCount": 3, "coveredEvidenceCount": 2, "coverageRatio": 0.6667,
+        "savingsTokens": 200, "savingsRatio": 0.2
+    ]
+    payload["originalTokens"] = original
+    payload["capsuleTokens"] = capsule
+    payload["netSavingsTokens"] = net
+    return try JSONDecoder().decode(SourceWindowMetric.self, from: JSONSerialization.data(withJSONObject: payload))
 }
 
 @Test func formatsCompactMetrics() {
@@ -107,6 +160,52 @@ import Testing
     )
     let ticket = try BoronJSONDecoder.make().decode(InspectorTicket.self, from: data)
     #expect(ticket.url.hasPrefix("/inspector?launch="))
+}
+
+@Test func configuresIsolatedMenuClientFromExplicitEnvironment() {
+    let client = BoronClient(environment: [
+        "BORON_DAEMON_URL": "http://127.0.0.1:55555",
+        "BORON_TOKEN_FILE": "/tmp/boron-test/daemon.token",
+        "BORON_DAEMON_TOKEN": "must-not-be-used"
+    ])
+    #expect(client.baseURL.absoluteString == "http://127.0.0.1:55555")
+    #expect(client.tokenURL.path == "/tmp/boron-test/daemon.token")
+}
+
+@Test func acceptsOnlyCredentialFreeLoopbackOrigins() {
+    for value in ["http://127.0.0.1:55555", "https://localhost:4443/", "http://[::1]:55555"] {
+        #expect(BoronClient.isLoopbackOrigin(value))
+    }
+    for value in [
+        "https://example.org", "http://127.0.0.1.example.org", "http://user:secret@localhost",
+        "http://localhost/path", "http://localhost?secret=x", "http://localhost#token",
+        "file:///tmp/daemon", "http://localhost\n"
+    ] {
+        #expect(!BoronClient.isLoopbackOrigin(value))
+    }
+}
+
+@Test func invalidMenuEnvironmentFailsBeforeAnyNetworkOrTokenRead() async {
+    let client = BoronClient(environment: [
+        "BORON_DAEMON_URL": "https://example.org",
+        "BORON_TOKEN_FILE": "/does/not/exist"
+    ])
+    do {
+        _ = try await client.health()
+        Issue.record("Invalid configuration must not reach the network")
+    } catch BoronClientError.invalidConfiguration {
+        // Expected: the default production origin is never used as a fallback.
+    } catch {
+        Issue.record("Unexpected configuration result: \(error)")
+    }
+    let relativeToken = BoronClient(environment: ["BORON_TOKEN_FILE": "relative-token"])
+    do {
+        _ = try await relativeToken.meter()
+        Issue.record("Relative token path must be rejected")
+    } catch BoronClientError.invalidConfiguration {
+    } catch {
+        Issue.record("Unexpected token configuration result: \(error)")
+    }
 }
 
 @Test func capsPanelZoomAtSeventyPercentOfVisibleHeight() {

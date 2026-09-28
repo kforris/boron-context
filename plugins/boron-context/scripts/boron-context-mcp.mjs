@@ -111,6 +111,53 @@ const tools = [
     }
   },
   {
+    name: 'record_context_use',
+    description:
+      'Record applied, rejected or stale context with outcome evidence. The daemon checks exact selected evidence IDs and project scope. Adoption is client-reported, not independent proof of task benefit.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'sessionId',
+        'projectHint',
+        'capsuleId',
+        'evidenceIds',
+        'disposition',
+        'summary',
+        'idempotencyKey',
+        'evidence'
+      ],
+      properties: {
+        sessionId: { type: 'string', format: 'uuid' },
+        projectHint: { type: 'string' },
+        capsuleId: { type: 'string', format: 'uuid' },
+        evidenceIds: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 50 },
+        disposition: { type: 'string', enum: ['applied', 'rejected', 'stale'] },
+        summary: { type: 'string' },
+        idempotencyKey: { type: 'string' },
+        evidence: {
+          type: 'array',
+          items: { ...evidenceSchema, required: ['layer', 'title', 'excerpt', 'uri'] },
+          minItems: 1,
+          maxItems: 20
+        }
+      }
+    }
+  },
+  {
+    name: 'get_context_use_health',
+    description:
+      'Count reported applied, rejected and stale context receipts. Missing reports remain unknown; these counts are not a success-rate or benefit score.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        projectHint: { type: 'string' },
+        windowDays: { type: 'integer', minimum: 1, maximum: 365, default: 30 }
+      }
+    }
+  },
+  {
     name: 'record_activity',
     description:
       'Record a bounded semantic activity in an open Boron session. Pass the intended projectHint so the daemon can reject cross-project writeback. occurredAt may be at most five minutes ahead of observation time.',
@@ -122,6 +169,29 @@ const tools = [
         sessionId: { type: 'string', format: 'uuid' },
         projectHint: { type: 'string' },
         activityType: { type: 'string' },
+        relationPreconditions: {
+          type: 'array',
+          maxItems: 50,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['subjectUri', 'relationTypes', 'expectedRelationIds'],
+            properties: {
+              subjectUri: { type: 'string' },
+              relationTypes: {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 1,
+                maxItems: 50
+              },
+              expectedRelationIds: {
+                type: 'array',
+                items: { type: 'string', format: 'uuid' },
+                maxItems: 100
+              }
+            }
+          }
+        },
         summary: { type: 'string' },
         actorUri: { type: 'string' },
         targetUri: { type: 'string' },
@@ -300,6 +370,10 @@ async function callTool(name, args) {
         await observe('context_read')
         return result
       })
+    case 'record_context_use':
+      return request('/v1/context/use', { method: 'POST', body: args })
+    case 'get_context_use_health':
+      return request('/v1/metrics/context/use', { method: 'POST', body: args })
     case 'record_activity':
       return request('/v1/activity/record', { method: 'POST', body: args })
     case 'get_context_meter':
@@ -418,7 +492,7 @@ async function handle(message) {
       result: {
         protocolVersion: params.protocolVersion ?? '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'boron-context', version: '0.8.0' },
+        serverInfo: { name: 'boron-context', version: '0.9.0' },
         instructions:
           'Use Boron as a zero-owned-model local context substrate. Read an ontology-first sourced capsule and pending human corrections before project work, record only verified semantic milestones, resolve corrections only after evidence-backed repair, and close the session with verified outcomes. Never store secrets or raw transcripts.'
       }

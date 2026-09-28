@@ -16,6 +16,7 @@ import {
   resolveContextRequestSchema
 } from './contracts.js'
 import { classifySourceCoverage, summarizeSourceCoverage } from './source-coverage.js'
+import { analyzeTaskRelevance, extractSourceAnchors } from './task-relevance.js'
 
 export interface ProjectResolver {
   resolve(request: ResolveContextRequest): Promise<ResolvedProject | null>
@@ -227,6 +228,7 @@ function buildRetrievalBlueprint(request: ResolveContextRequest): {
   const text = [request.objective, ...request.objectHints, ...request.constraints].join(' ')
   const sourceAnchors = extractSourceAnchors(text, request.objectHints)
   const highRisk = hasHighRiskIntent(request)
+  const strategySignal = analyzeTaskRelevance(request).strategy
   const codeSignal =
     matchesAny(text, CODE_PATTERNS) || sourceAnchors.some((anchor) => isCodeAnchor(anchor))
   const wikiSignal =
@@ -235,11 +237,13 @@ function buildRetrievalBlueprint(request: ResolveContextRequest): {
       (anchor) => isMarkdownAnchor(anchor) || (anchor.startsWith('http') && !isCodeAnchor(anchor))
     )
   const continuitySignal =
-    request.workflow === 'session_start' || matchesAny(text, CONTINUITY_PATTERNS)
+    !strategySignal &&
+    (request.workflow === 'session_start' || matchesAny(text, CONTINUITY_PATTERNS))
   const signals = [
     ...(highRisk ? ['high_risk'] : []),
     ...(codeSignal ? ['code'] : []),
     ...(wikiSignal ? ['wiki'] : []),
+    ...(strategySignal ? ['strategy'] : []),
     ...(continuitySignal ? ['continuity'] : []),
     ...(sourceAnchors.length > 0 ? ['source_anchor'] : []),
     ...(request.layers ? ['explicit_layers'] : [])
@@ -366,6 +370,10 @@ function buildContextMeter(
     sourceWindowOriginalTokens,
     sourceWindowCapsuleTokens,
     sourceWindowSavingsTokens,
+    sourceWindowNetSavingsTokens:
+      sourceWindowOriginalTokens === null || sourceWindowCapsuleTokens === null
+        ? null
+        : sourceWindowOriginalTokens - sourceWindowCapsuleTokens,
     sourceWindowSavingsRatio:
       sourceWindowOriginalTokens && sourceWindowSavingsTokens !== null
         ? sourceWindowSavingsTokens / sourceWindowOriginalTokens
@@ -389,14 +397,12 @@ function rankAndDedupe(
   project: ResolvedProject | null,
   sourceAnchors: readonly string[]
 ): readonly CapsuleEvidence[] {
-  const terms = queryTerms(
-    [request.objective, ...request.objectHints, ...request.constraints].join(' ')
-  )
+  const task = analyzeTaskRelevance(request, project?.name)
   const byIdentity = new Map<string, CapsuleEvidence>()
 
   for (const item of evidence) {
     const identity = `${item.layer}:${item.uri}:${item.contentHash ?? ''}`
-    const lexicalScore = lexicalRelevance(terms, `${item.title} ${item.excerpt}`)
+    const lexicalScore = task.relevance(item)
     const adapterScore = item.metadata.adapterRelevance
     const unadjustedRelevance =
       typeof adapterScore === 'number' && Number.isFinite(adapterScore)
@@ -416,7 +422,10 @@ function rankAndDedupe(
         relevance * 0.23 +
         projectMatch * 0.1 +
         anchorMatch * 0.15 +
-        ontologyValidation * 0.03
+        ontologyValidation * 0.03 -
+        (anchorMatch > 0 || item.retrieval.stageId === 'ontology-policy'
+          ? 0
+          : task.noisePenalty(item))
     )
     const candidate: CapsuleEvidence = {
       ...item,
@@ -529,18 +538,6 @@ function uniqueLayers(stages: readonly RetrievalStage[]): ContextLayer[] {
   ]
 }
 
-function extractSourceAnchors(text: string, objectHints: readonly string[]): string[] {
-  const matches = [
-    ...(text.match(/https?:\/\/[^\s"'<>]+/g) ?? []),
-    ...(text.match(/(?:file:\/\/|\.\.?\/|\/)[^\s"'<>]+/g) ?? []),
-    ...objectHints.filter((hint) => /[:/#.]|\w+\(\)$/.test(hint))
-  ]
-  return [...new Set(matches.map((value) => value.replace(/[),.;]+$/, '')).filter(Boolean))].slice(
-    0,
-    50
-  )
-}
-
 function isCodeAnchor(anchor: string): boolean {
   if (isMarkdownAnchor(anchor)) return false
   return (
@@ -551,12 +548,12 @@ function isCodeAnchor(anchor: string): boolean {
     /\.(?:[cm]?[jt]sx?|py|go|rs|swift|java|kt|rb|php|sql|toml|ya?ml|json)(?:[:#?]|$)/i.test(
       anchor
     ) ||
-    /::|\w+\.\w+\(\)$/.test(anchor)
+    /::|\w+(?:\.\w+)*\(\)$/.test(anchor)
   )
 }
 
 function isMarkdownAnchor(anchor: string): boolean {
-  return /\.md(?:[:#?]|$)/i.test(anchor)
+  return /\.mdx?(?:[:#?]|$)/i.test(anchor)
 }
 
 function sourceAnchorRelevance(anchors: readonly string[], evidence: Evidence): number {
@@ -574,62 +571,8 @@ function sourceAnchorRelevance(anchors: readonly string[], evidence: Evidence): 
 
 const CAPSULE_BASE_TOKENS = 180
 
-const QUERY_STOP_WORDS = new Set([
-  'about',
-  'after',
-  'and',
-  'anything',
-  'are',
-  'before',
-  'can',
-  'does',
-  'for',
-  'from',
-  'has',
-  'have',
-  'how',
-  'into',
-  'its',
-  'not',
-  'only',
-  'our',
-  'the',
-  'project',
-  'should',
-  'that',
-  'their',
-  'then',
-  'there',
-  'these',
-  'this',
-  'those',
-  'what',
-  'where',
-  'which',
-  'with',
-  'without',
-  'would'
-])
-
 export function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4))
-}
-
-function queryTerms(text: string): ReadonlySet<string> {
-  return new Set(
-    text
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}_-]+/u)
-      .filter((term) => term.length > 1 && !QUERY_STOP_WORDS.has(term))
-  )
-}
-
-function lexicalRelevance(terms: ReadonlySet<string>, text: string): number {
-  if (terms.size === 0) return 0.5
-  const haystack = text.toLowerCase()
-  let matches = 0
-  for (const term of terms) if (haystack.includes(term)) matches += 1
-  return clamp(matches / Math.min(terms.size, 8))
 }
 
 function matchesAny(text: string, patterns: readonly RegExp[]): boolean {
@@ -654,6 +597,9 @@ function hasHighRiskIntent(request: ResolveContextRequest): boolean {
 }
 
 function isNominalRiskContext(term: string, before: string, after: string): boolean {
+  // “执行层” names an architectural component, as “execution layer” does.
+  // A later action such as “执行层部署更新” is still matched independently.
+  if (term === '执行' && /^(?:层|器|引擎)/u.test(after)) return true
   if (term.toLocaleLowerCase('en-US') !== 'release') return false
   if (/\b(?:prepare|ship|create|make|start|perform|initiate|execute)\b[^.!?]{0,60}$/i.test(before))
     return false

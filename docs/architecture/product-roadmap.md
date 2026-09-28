@@ -59,19 +59,30 @@
 
 ### 0.7 inference and confirmation
 
-- configurable activity-to-relation rules
+- configurable activity-to-relation rules (general inference remains future work)
 - derived-state query contracts
 - candidate relation review and correction
 - replay and projection rebuild tests
 
 ### 0.8 macOS lifecycle
 
-- signed installer
+- signed installer (future; 0.8 delivered source-install lifecycle)
 - `launchd` install, upgrade, health, and uninstall
 - PostgreSQL backup and restore
 - OS-managed credential persistence
 
-### 0.9 Linux
+### 0.9 trusted continuation
+
+- task-relevant bilingual retrieval: enduring goals and decisions survive routine audit noise
+- source-backed GitHub PR state reconciliation with reviewed plans, guarded relation updates,
+  preserved history, idempotent retries, and readback receipts
+- atomic session completion and privacy-safe lifecycle diagnostics
+- capsule/evidence-bound reports of applied, rejected, or stale context; client reporting is
+  explicitly separate from independently measured task benefit
+- signed source-window net change alongside historical nonnegative compression totals
+- one real workflow first; broader natural-task benefit validation remains an acceptance exercise
+
+### Later: Linux (not part of 0.9)
 
 - `systemd` lifecycle
 - XDG directories

@@ -30,8 +30,8 @@ final class MeterStore: ObservableObject {
         guard isHealthy else { return "B !" }
         guard let meter else { return "B ·" }
         let reuse = MetricFormatting.compactTokens(meter.reExplanation.avoidedTokens)
-        let source = meter.sourceWindow.savingsRatio.map(MetricFormatting.percentage) ?? "—"
-        return "B R\(reuse) · S\(source)"
+        let source = MetricFormatting.sourceNetChange(meter.sourceWindow.netSavingsRatio, compact: true)
+        return "B R\(reuse) · N\(source)"
     }
 
     var tokenBars: [TokenBar] {

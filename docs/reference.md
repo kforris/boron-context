@@ -99,7 +99,7 @@ baseline governance details.
 | -------------------------------- | ------------------------------------------------------------------------------------------- |
 | `begin_context_session`          | Retrieve a project capsule and open or resume a durable session.                            |
 | `query_context`                  | Retrieve a read-only capsule without opening a writeback session.                           |
-| `record_activity`                | Store a milestone after verifying its target project against the open session.              |
+| `record_activity`                | Store a milestone in an active session; closed sessions return typed 409 lifecycle errors.  |
 | `complete_context_session`       | Close a session with its verified outcome and durable decisions.                            |
 | `get_context_meter`              | Summarize context reuse, filtering, source compression, latency, and Boron-owned model use. |
 | `inspect_context_meter`          | Inspect recent Retrieval Plans and evidence-level metric composition.                       |
@@ -201,3 +201,21 @@ stored contract-v1/contract-v0 rows.
 
 See the [operating manual](operating-manual.md) for interpretation and the
 [system design](architecture/system-design.md) for the underlying retrieval contract.
+
+## Trusted continuation (0.9)
+
+- `POST /v1/context/use` / `record_context_use`: bind a client-reported disposition (`applied`,
+  `rejected`, `stale`) to `sessionId`, explicit `projectHint`, `capsuleId`, selected `evidenceIds`,
+  `summary`, `idempotencyKey`, and nonempty outcome `evidence` with source URIs.
+- `POST /v1/metrics/context/use` / `get_context_use_health`: counts reported dispositions for an
+  optional project and window. No unreported-work denominator or task-success claim is inferred.
+- `record_activity.relationPreconditions`: optional `{subjectUri, relationTypes,
+expectedRelationIds}[]`; the current complete relation ID set must match transactionally.
+- `/health.capabilities.relationPreconditions=1` and `contextUseReceipts=1` advertise these contracts.
+- HTTP 409 `relation_precondition_failed`, `idempotency_conflict`, and `invalid_context_use` preserve
+  state. An idempotency key cannot be reused for another session or changed request.
+- Meter `sourceWindow.netSavingsTokens` is signed original minus selected excerpt size;
+  legacy `savingsTokens` remains the sum of nonnegative per-capsule savings. Partial coverage and
+  character-based estimates do not establish real model cost or human time savings.
+
+See [Trusted continuation](trusted-continuity.md) for the reviewed source reconciliation workflow.

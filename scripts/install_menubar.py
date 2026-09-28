@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,27 @@ DOMAIN = f"gui/{os.getuid()}"
 SERVICE = f"{DOMAIN}/{LABEL}"
 
 
+def menu_environment(environment: dict[str, str]) -> dict[str, str]:
+    """Forward only configuration locations; never forward credential values."""
+    result = {}
+    if "BORON_DAEMON_URL" in environment:
+        value = environment["BORON_DAEMON_URL"]
+        parsed = urlsplit(value)
+        if ("\n" in value or "\r" in value or parsed.scheme not in ("http", "https")
+                or parsed.hostname not in ("127.0.0.1", "localhost", "::1")
+                or parsed.username is not None or parsed.password is not None
+                or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+            raise ValueError("BORON_DAEMON_URL must be a credential-free loopback origin")
+        _ = parsed.port  # Reject malformed port values before installing anything.
+        result["BORON_DAEMON_URL"] = value
+    if "BORON_TOKEN_FILE" in environment:
+        value = environment["BORON_TOKEN_FILE"]
+        if not Path(value).is_absolute() or "\n" in value or "\r" in value:
+            raise ValueError("BORON_TOKEN_FILE must be an absolute path")
+        result["BORON_TOKEN_FILE"] = value
+    return result
+
+
 def run(
     *arguments: str, check: bool = True, quiet: bool = False
 ) -> subprocess.CompletedProcess[str]:
@@ -44,6 +66,7 @@ def run(
 
 
 def main() -> None:
+    runtime_environment = menu_environment(dict(os.environ))
     run("swift", "build", "-c", "release", "--package-path", str(PACKAGE_ROOT))
     binary = PACKAGE_ROOT / ".build" / "release" / "BoronMenuBar"
     if not binary.exists():
@@ -68,6 +91,7 @@ def main() -> None:
 
     launch_definition = {
         "Label": LABEL,
+        "EnvironmentVariables": runtime_environment,
         "ProgramArguments": [str(installed_binary)],
         "RunAtLoad": True,
         "KeepAlive": True,

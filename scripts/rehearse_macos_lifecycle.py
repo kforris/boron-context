@@ -159,6 +159,10 @@ class RehearsalLayout:
     def menu_app(self) -> Path:
         return self.home / "Applications" / "Boron Meter.app"
 
+    @property
+    def token_file(self) -> Path:
+        return self.home / "Library" / "Application Support" / "Boron Context" / "daemon.token"
+
 
 def materialize_ref(repository: Path, ref: str, destination: Path) -> None:
     archive = destination.parent / "previous.tar"
@@ -177,7 +181,7 @@ def materialize_ref(repository: Path, ref: str, destination: Path) -> None:
 
 
 def apply_previous_release_isolation_shim(layout: RehearsalLayout) -> None:
-    """Replace fixed pre-0.8 labels inside only the disposable extracted release."""
+    """Isolate defaults inside only the disposable extracted previous release."""
     cli = layout.previous / "src" / "cli.ts"
     cli_text = cli.read_text(encoding="utf-8")
     if "dev.boroncontext.daemon" not in cli_text or "dev.boroncontext.lan-mr" not in cli_text:
@@ -190,7 +194,28 @@ def apply_previous_release_isolation_shim(layout: RehearsalLayout) -> None:
     if "dev.boroncontext.menubar" not in menu_text:
         raise RuntimeError("previous menu installer no longer matches the isolation shim")
     menu_text = menu_text.replace("dev.boroncontext.menubar", layout.menu_label)
+    old_launch = '    launch_definition = {\n'
+    if old_launch not in menu_text:
+        raise RuntimeError("previous menu installer no longer matches the environment shim")
+    menu_env = {
+        "BORON_DAEMON_URL": f"http://127.0.0.1:{layout.daemon_port}",
+        "BORON_TOKEN_FILE": str(layout.token_file),
+    }
+    menu_text = menu_text.replace(old_launch, old_launch + f'        "EnvironmentVariables": {menu_env!r},\n', 1)
     menu.write_text(menu_text, encoding="utf-8")
+    # Pre-0.9 clients ignore process environment. Patch only their disposable
+    # defaults so even the rollback menu cannot query the production daemon.
+    client = layout.previous / "apps" / "BoronMenuBar" / "Sources" / "BoronMenuBar" / "BoronClient.swift"
+    client_text = client.read_text(encoding="utf-8")
+    old_origin = 'baseURL: URL = URL(string: "http://127.0.0.1:41635")!'
+    old_token = 'tokenURL: URL = FileManager.default.homeDirectoryForCurrentUser\n            .appendingPathComponent("Library/Application Support/Boron Context/daemon.token")'
+    if old_origin not in client_text or old_token not in client_text:
+        raise RuntimeError("previous menu client no longer matches the endpoint isolation shim")
+    client_text = client_text.replace(old_origin,
+        f'baseURL: URL = URL(string: "http://127.0.0.1:{layout.daemon_port}")!', 1)
+    client_text = client_text.replace(old_token,
+        f'tokenURL: URL = URL(fileURLWithPath: {json.dumps(str(layout.token_file))})', 1)
+    client.write_text(client_text, encoding="utf-8")
 
 
 def prepare_source(source: Path) -> None:
@@ -284,6 +309,8 @@ def lifecycle_environment(layout: RehearsalLayout) -> dict[str, str]:
             "BORON_DATABASE_URL": layout.database_url,
             "BORON_HOST": "127.0.0.1",
             "BORON_PORT": str(layout.daemon_port),
+            "BORON_DAEMON_URL": f"http://127.0.0.1:{layout.daemon_port}",
+            "BORON_TOKEN_FILE": str(layout.token_file),
             "BORON_LAUNCHD_LABEL": layout.daemon_label,
             "BORON_LAN_MR_LABEL": layout.lan_label,
             "BORON_MENUBAR_LABEL": layout.menu_label,
@@ -337,6 +364,18 @@ def install_menu(layout: RehearsalLayout, source: Path, expected_version: str) -
             "menu version mismatch: "
             f"expected {expected_version}, got {installed.get('CFBundleShortVersionString')}"
         )
+    plist_path = layout.home / "Library" / "LaunchAgents" / f"{layout.menu_label}.plist"
+    with plist_path.open("rb") as stream:
+        installed_launch = plistlib.load(stream)
+    expected = {
+        "BORON_DAEMON_URL": f"http://127.0.0.1:{layout.daemon_port}",
+        "BORON_TOKEN_FILE": str(layout.token_file),
+    }
+    if installed_launch.get("EnvironmentVariables") != expected:
+        raise RuntimeError("menu launch configuration is not isolated")
+    runtime = run([command("launchctl"), "print", f"gui/{os.getuid()}/{layout.menu_label}"])
+    if not all(f"{key} => {value}" in runtime.stdout for key, value in expected.items()):
+        raise RuntimeError("running menu environment is not isolated")
 
 
 def stage_marketplace(layout: RehearsalLayout, source: Path) -> None:
@@ -575,6 +614,14 @@ def write_final_receipt(
             "temporaryPostgres": True,
             "uniqueLaunchdLabels": True,
             "uniqueDaemonPort": True,
+            "menuConfigurationIsolationChecked": any(
+                step["name"] == "rollback menu" and step["status"] == "passed"
+                for step in steps.steps
+            ),
+            "previousMenuEndpointShim": any(
+                step["name"] == "isolate previous fixed service labels" and step["status"] == "passed"
+                for step in steps.steps
+            ),
             "productionDatabaseTouched": False,
         },
         "steps": steps.steps,

@@ -131,6 +131,7 @@ export const contextMeterSchema = z.object({
   sourceWindowOriginalTokens: z.number().int().nonnegative().nullable(),
   sourceWindowCapsuleTokens: z.number().int().nonnegative().nullable(),
   sourceWindowSavingsTokens: z.number().int().nonnegative().nullable(),
+  sourceWindowNetSavingsTokens: z.number().int().nullable().optional(),
   sourceWindowSavingsRatio: z.number().min(0).max(1).nullable(),
   sourceWindowEligibility: z.object({
     contractVersion: z.literal(2),
@@ -231,6 +232,20 @@ export const relationEffectSchema = z.object({
 })
 export type RelationEffect = z.infer<typeof relationEffectSchema>
 
+export const relationPreconditionSchema = z.object({
+  subjectUri: z.string().trim().min(1).max(4_000),
+  relationTypes: z.array(z.string().trim().min(1).max(200)).min(1).max(50),
+  expectedRelationIds: z.array(z.string().uuid()).max(100)
+})
+export type RelationPrecondition = z.infer<typeof relationPreconditionSchema>
+
+export const contextUseSchema = z.object({
+  capsuleId: z.string().uuid(),
+  evidenceIds: z.array(z.string().trim().min(1).max(1_000)).min(1).max(50),
+  disposition: z.enum(['applied', 'rejected', 'stale'])
+})
+export type ContextUse = z.infer<typeof contextUseSchema>
+
 export const activityEvidenceInputSchema = z.object({
   layer: contextLayerSchema,
   title: z.string().trim().min(1).max(1_000),
@@ -274,10 +289,28 @@ export const recordActivityRequestSchema = z.object({
   idempotencyKey: z.string().trim().min(1).max(1_000).optional(),
   confidence: z.number().min(0).max(1).default(1),
   metadata: z.record(z.string(), z.unknown()).default({}),
+  relationPreconditions: z.array(relationPreconditionSchema).max(50).optional(),
+  contextUse: contextUseSchema.optional(),
   relationEffects: z.array(relationEffectSchema).max(50).default([]),
   evidence: z.array(activityEvidenceInputSchema).max(50).default([])
 })
 export type RecordActivityRequest = z.infer<typeof recordActivityRequestSchema>
+
+export const recordContextUseRequestSchema = contextUseSchema.extend({
+  sessionId: z.string().uuid(),
+  projectHint: z.string().trim().min(1).max(1_000),
+  summary: z.string().trim().min(1).max(20_000),
+  idempotencyKey: z.string().trim().min(1).max(1_000),
+  evidence: z
+    .array(
+      activityEvidenceInputSchema.extend({
+        uri: z.string().trim().min(1).max(4_000)
+      })
+    )
+    .min(1)
+    .max(20)
+})
+export type RecordContextUseRequest = z.infer<typeof recordContextUseRequestSchema>
 
 export const completeSessionRequestSchema = z.object({
   sessionId: z.string().uuid(),

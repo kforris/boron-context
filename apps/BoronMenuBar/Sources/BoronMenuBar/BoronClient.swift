@@ -1,12 +1,15 @@
 import Foundation
 
 enum BoronClientError: LocalizedError {
+    case invalidConfiguration
     case missingToken
     case invalidResponse
     case serverStatus(Int)
 
     var errorDescription: String? {
         switch self {
+        case .invalidConfiguration:
+            return "Boron menu configuration requires a loopback origin and an absolute token file path"
         case .missingToken:
             return "Boron daemon token is missing"
         case .invalidResponse:
@@ -21,19 +24,45 @@ struct BoronClient: Sendable {
     let baseURL: URL
     let tokenURL: URL
     let session: URLSession
+    private let configurationIsValid: Bool
 
     init(
-        baseURL: URL = URL(string: "http://127.0.0.1:41635")!,
-        tokenURL: URL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Boron Context/daemon.token"),
-        session: URLSession = .shared
+        baseURL: URL? = nil,
+        tokenURL: URL? = nil,
+        session: URLSession = .shared,
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) {
-        self.baseURL = baseURL
-        self.tokenURL = tokenURL
+        let origin = baseURL?.absoluteString ?? environment["BORON_DAEMON_URL"]
+            ?? "http://127.0.0.1:41635"
+        let configuredURL = URL(string: origin)
+        let tokenPath = tokenURL?.path ?? environment["BORON_TOKEN_FILE"]
+            ?? FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/Application Support/Boron Context/daemon.token").path
+        self.baseURL = configuredURL ?? URL(string: "http://127.0.0.1:0")!
+        self.tokenURL = URL(fileURLWithPath: tokenPath)
+        self.configurationIsValid = Self.isLoopbackOrigin(origin)
+            && tokenPath.hasPrefix("/") && !tokenPath.contains("\n") && !tokenPath.contains("\r")
+            && (tokenURL?.isFileURL ?? true)
         self.session = session
     }
 
+    static func isLoopbackOrigin(_ value: String) -> Bool {
+        guard !value.contains("\n"), !value.contains("\r"),
+            let url = URLComponents(string: value),
+            ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+            ["127.0.0.1", "localhost", "::1", "[::1]"].contains(url.host?.lowercased() ?? ""),
+            url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+            url.path.isEmpty || url.path == "/"
+        else { return false }
+        return url.url != nil
+    }
+
+    private func requireValidConfiguration() throws {
+        guard configurationIsValid else { throw BoronClientError.invalidConfiguration }
+    }
+
     func health() async throws -> BoronHealth {
+        try requireValidConfiguration()
         let request = URLRequest(url: baseURL.appendingPathComponent("health"))
         let (data, response) = try await session.data(for: request)
         try validate(response)
@@ -110,6 +139,7 @@ struct BoronClient: Sendable {
     }
 
     private func daemonToken() throws -> String {
+        try requireValidConfiguration()
         let token = try String(contentsOf: tokenURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else {

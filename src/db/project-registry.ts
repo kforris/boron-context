@@ -1,3 +1,4 @@
+import { lockOntologyWrites } from './continuity-writeback.js'
 import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, resolve } from 'node:path'
@@ -591,6 +592,7 @@ export async function reconcileCodexRegistry(
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
+    await lockOntologyWrites(client)
     await client.query("SELECT pg_advisory_xact_lock(hashtext('boron-codex-project-registry'))")
     const plan = await planCodexRegistry(client, registry)
     let projectsCreated = 0

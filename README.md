@@ -205,7 +205,7 @@ configurable inference/confirmation rules remain roadmap work.
 | Repair project identity safely                | [Project identity repair](docs/project-identity-repair.md)                                                         |
 | Run the held-out continuity evaluation        | [Evaluation contract](docs/continuity-evaluation.md)                                                               |
 | Review release-candidate gates                | [Release checklist](docs/release-checklist.md)                                                                     |
-| See what changed in v0.8.0                    | [Release notes](docs/releases/v0.8.0.md) · [Changelog](CHANGELOG.md)                                               |
+| See what changed in v0.9.0                    | [Release notes](docs/releases/v0.9.0.md) · [Changelog](CHANGELOG.md)                                               |
 | Follow the product direction                  | [Roadmap](docs/architecture/product-roadmap.md)                                                                    |
 | Contribute                                    | [Contributing guide](CONTRIBUTING.md)                                                                              |
 
