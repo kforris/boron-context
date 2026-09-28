@@ -128,6 +128,29 @@ After applying or rejecting a requested semantic repair, call `resolve_manual_co
 short evidence-backed summary. Do not resolve an item merely because it was read. If the task does
 not cover the correction, leave it pending for a later agent.
 
+## Trusted continuation
+
+Before treating mutable external status as current, verify its authoritative source. A historical
+confirmed relation is not a freshness guarantee. Replace obsolete state with a verified retraction
+and assertion, preserving history. Use `relationPreconditions` for a reviewed relation snapshot;
+a 409 `relation_precondition_failed` requires a new read and plan, not a blind retry. Idempotency
+keys bind one exact request and session. The bundled repository provides
+`scripts/reconcile_github_pr.py` for bounded GitHub PR state reconciliation; it never polls or writes
+GitHub automatically and refuses daemons without the guarded-write capability.
+
+When selected context materially informs an action, is rejected, or proves stale, call
+`record_context_use` with the returned capsule ID, exact selected evidence IDs, a bounded explanation,
+and outcome/source evidence with stable URIs. Do this only at a meaningful outcome, not for every
+read. The daemon validates selection and project scope; the report is still client testimony, not
+independent proof of improved task quality. Never fabricate expected facts or consumption receipts.
+`get_context_use_health` counts reported dispositions and leaves missing reports unknown.
+
+For vision and design questions, retain the enduring goal and decision rationale; routine audits are
+supporting operational evidence. For continuation, distinguish current facts from historical events,
+and preserve uncertainty when source state has not been checked. Keep source-size `netSavingsTokens`
+(the signed measured original-minus-excerpt difference) separate from the legacy nonnegative savings
+sum, re-explanation reuse, and agent billing.
+
 ## Finish
 
 After verification and before the final handoff, call `complete_context_session` once:

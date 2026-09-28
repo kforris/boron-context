@@ -1,3 +1,4 @@
+import { lockOntologyWrites } from './continuity-writeback.js'
 import { readFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import type { Pool, PoolClient } from 'pg'
@@ -65,6 +66,7 @@ export async function reconcileProjectSupersessions(
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
+    await lockOntologyWrites(client)
     await client.query("SELECT pg_advisory_xact_lock(hashtext('boron-project-supersession'))")
     const lockedPlan = await planRepairs(client, input.manifest)
     let mergedProjects = 0

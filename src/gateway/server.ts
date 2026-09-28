@@ -17,6 +17,7 @@ import {
   manualCorrectionSchema,
   ontologyGovernanceHealthRequestSchema,
   recordActivityRequestSchema,
+  recordContextUseRequestSchema,
   resolveManualCorrectionSchema,
   spatialCodebaseExpandRequestSchema,
   spatialCodebaseGraphRequestSchema,
@@ -24,8 +25,10 @@ import {
 } from '../core/contracts.js'
 import {
   ActivityTimestampError,
+  ContinuityConflictError,
   OntologyGovernanceError,
-  ProjectScopeError
+  ProjectScopeError,
+  SessionLifecycleError
 } from '../core/errors.js'
 import type { ContextResolver } from '../core/resolver.js'
 import type { PostgresActivityRepository } from '../db/activity-repository.js'
@@ -111,6 +114,7 @@ async function routeRequest(
         ok: database.ok,
         service: 'boron-context',
         version: options.version,
+        capabilities: { relationPreconditions: 1, contextUseReceipts: 1 },
         database,
         adapters: options.adapters.map((adapter, index) => ({
           name: adapter.name,
@@ -325,6 +329,20 @@ async function routeRequest(
       json(response, 200, { started: true, session, capsule: resolution.capsule })
       return
     }
+    if (request.method === 'POST' && pathname === '/v1/context/use') {
+      if (authorization.kind !== 'bearer') {
+        json(response, 403, { error: 'bearer_token_required', traceId })
+        return
+      }
+      const body = recordContextUseRequestSchema.parse(await readJson(request))
+      json(response, 200, await options.activity.recordContextUse(body))
+      return
+    }
+    if (request.method === 'POST' && pathname === '/v1/metrics/context/use') {
+      const body = contextQualityHealthRequestSchema.parse(await readJson(request))
+      json(response, 200, await options.activity.contextUseHealth(body))
+      return
+    }
     if (request.method === 'POST' && pathname === '/v1/activity/record') {
       if (authorization.kind !== 'bearer') {
         json(response, 403, { error: 'bearer_token_required', traceId })
@@ -410,6 +428,18 @@ async function routeRequest(
       json(response, 400, { error: 'invalid_activity_timestamp', traceId })
       return
     }
+    if (error instanceof SessionLifecycleError) {
+      json(response, error.reason === 'session_not_found' ? 404 : 409, {
+        error: error.reason,
+        traceId,
+        ...(error.sessionStatus ? { sessionStatus: error.sessionStatus } : {})
+      })
+      return
+    }
+    if (error instanceof ContinuityConflictError) {
+      json(response, 409, { error: error.reason, traceId })
+      return
+    }
     if (error instanceof OntologyGovernanceError) {
       json(response, 422, {
         error: error.reason,
@@ -419,8 +449,96 @@ async function routeRequest(
       })
       return
     }
+    logInternalRequestError(error, traceId, request.method, pathname)
     json(response, 500, { error: 'internal_error', traceId })
   }
+}
+
+function logInternalRequestError(
+  error: unknown,
+  traceId: string,
+  method: string | undefined,
+  pathname: string
+): void {
+  const errorName = error instanceof Error ? (safeLogToken(error.name) ?? 'Error') : 'NonErrorThrow'
+  const errorCode = safeLogErrorCode(errorCodeValue(error))
+  const firstStackLocation =
+    error instanceof Error
+      ? error.stack
+          ?.split('\n')
+          .slice(1)
+          .map((line) => line.trim())
+          .find(Boolean)
+      : undefined
+  const fingerprint = createHash('sha256')
+    .update([errorName, errorCode ?? '', firstStackLocation ?? ''].join('\0'))
+    .digest('hex')
+    .slice(0, 16)
+  console.error(
+    JSON.stringify({
+      event: 'boron.gateway.internal_error',
+      contractVersion: 1,
+      traceId,
+      method: method ?? null,
+      path: INTERNAL_ERROR_LOG_PATHS.has(pathname) ? pathname : '<unmatched>',
+      errorName,
+      ...(errorCode ? { errorCode } : {}),
+      fingerprint
+    })
+  )
+}
+
+const INTERNAL_ERROR_LOG_PATHS = new Set([
+  '/health',
+  '/inspector',
+  '/inspector/spatial',
+  '/inspector/assets/three.module.js',
+  '/inspector/assets/three.core.min.js',
+  '/v1/inspector/session',
+  '/v1/inspector/ticket',
+  '/v1/inspector/ontology',
+  '/v1/inspector/wiki',
+  '/v1/inspector/codebase-spatial',
+  '/v1/inspector/codebase-spatial-expand',
+  '/v1/inspector/corrections/list',
+  '/v1/inspector/corrections/create',
+  '/v1/inspector/corrections/resolve',
+  '/v1/context/resolve',
+  '/v1/context/use',
+  '/v1/metrics/context/use',
+  '/v1/clients/observe',
+  '/v1/imports/codex-threads',
+  '/v1/sessions/start',
+  '/v1/sessions/bootstrap',
+  '/v1/activity/record',
+  '/v1/sessions/complete',
+  '/v1/sessions/lifecycle-end',
+  '/v1/metrics/context',
+  '/v1/metrics/context/inspect',
+  '/v1/metrics/context/quality',
+  '/v1/metrics/adoption',
+  '/v1/metrics/ontology-governance',
+  '/v1/metrics/codex-sync'
+])
+
+function errorCodeValue(error: unknown): unknown {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? (error as { readonly code?: unknown }).code
+    : undefined
+}
+
+function safeLogErrorCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const candidate = value.trim()
+  return /^(?:[A-Z0-9]{5}|E[A-Z0-9_]{1,63}|UND_ERR_[A-Z0-9_]{1,56})$/.test(candidate)
+    ? candidate
+    : null
+}
+
+function safeLogToken(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const candidate = value.trim()
+  return /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/.test(candidate) ? candidate : null
 }
 
 type Authorization =
@@ -458,7 +576,13 @@ function cookieValue(request: IncomingMessage, name: string): string | null {
   if (!header) return null
   for (const item of header.split(';')) {
     const [key, ...value] = item.trim().split('=')
-    if (key === name) return decodeURIComponent(value.join('='))
+    if (key === name) {
+      try {
+        return decodeURIComponent(value.join('='))
+      } catch {
+        return null
+      }
+    }
   }
   return null
 }

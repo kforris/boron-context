@@ -46,8 +46,10 @@ describe('production-shaped continuity evaluation', () => {
     const report = await runProductionShapedEvaluation(regressed, baseline, resolve('.'))
 
     expect(report.passed).toBe(false)
+    // A missing source must fail recall and coverage. Improvements in other
+    // cases can still keep aggregate rank above the independently frozen gate.
     expect(report.failures.map((failure) => failure.category)).toEqual(
-      expect.arrayContaining(['retrieval_recall', 'retrieval_rank', 'source_coverage'])
+      expect.arrayContaining(['retrieval_recall', 'source_coverage'])
     )
   })
 })

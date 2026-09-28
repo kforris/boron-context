@@ -1,6 +1,6 @@
 {
   "name": "boron-context",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Open-source intention and context layer for agentic work",
   "type": "module",
   "main": "./dist/cli.js",
@@ -11,12 +11,14 @@
     "dist",
     "eval",
     "migrations",
+    "scripts/reconcile_github_pr.py",
+    "docs/trusted-continuity.md",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check": "npm run plugin:check && npm run typecheck && npm test && npm run lifecycle:test && npm run eval:continuity && npm run eval:production-shaped",
+    "check": "npm run plugin:check && npm run typecheck && npm test && npm run lifecycle:test && npm run continuity:test && npm run eval:continuity && npm run eval:production-shaped",
     "dev": "tsx src/cli.ts serve",
     "eval:continuity": "npm run build --silent && node dist/eval/continuity-eval.js",
     "eval:production-shaped": "npm run build --silent && node dist/eval/production-shaped-eval.js",
@@ -27,7 +29,7 @@
     "start": "node dist/cli.js serve",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:postgres": "vitest run tests/postgres-integration.test.ts",
+    "test:postgres": "vitest run tests/postgres-integration.test.ts tests/trusted-continuity-integration.test.ts",
     "test:watch": "vitest",
     "db:migrate": "tsx src/cli.ts migrate",
     "service:print": "tsx src/cli.ts print-launchd",
@@ -35,7 +37,8 @@
     "lifecycle:backup": "python3 scripts/macos_lifecycle.py backup",
     "lifecycle:restore": "python3 scripts/macos_lifecycle.py restore",
     "lifecycle:rehearse": "python3 scripts/rehearse_macos_lifecycle.py",
-    "lifecycle:uninstall": "python3 scripts/macos_lifecycle.py uninstall"
+    "lifecycle:uninstall": "python3 scripts/macos_lifecycle.py uninstall",
+    "continuity:test": "python3 -m unittest tests.test_reconcile_github_pr"
   },
   "keywords": [
     "agents",

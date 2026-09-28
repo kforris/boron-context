@@ -196,7 +196,7 @@ roadmap 中。
 | 安全修复项目身份              | [Project identity repair](docs/project-identity-repair.md)                                                   |
 | 运行 held-out continuity 评测 | [Evaluation contract](docs/continuity-evaluation.md)                                                         |
 | 审查 release-candidate 门禁   | [Release checklist](docs/release-checklist.md)                                                               |
-| 查看 v0.8.0 变化              | [Release notes](docs/releases/v0.8.0.md) · [Changelog](CHANGELOG.md)                                         |
+| 查看 v0.9.0 变化              | [Release notes](docs/releases/v0.9.0.md) · [Changelog](CHANGELOG.md)                                         |
 | 查看产品方向                  | [Roadmap](docs/architecture/product-roadmap.md)                                                              |
 | 参与贡献                      | [Contributing guide](CONTRIBUTING.md)                                                                        |
 

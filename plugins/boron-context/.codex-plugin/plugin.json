@@ -1,6 +1,6 @@
 {
   "name": "boron-context",
-  "version": "0.8.0+codex.807e37dfe7dd",
+  "version": "0.9.0+codex.c8386a2d706e",
   "description": "Read and write durable, project-scoped context through a local Boron Context runtime.",
   "author": {
     "name": "Boron Context contributors",

@@ -17,6 +17,7 @@ import type {
   LifecycleSessionEndRequest,
   OntologyGovernanceHealthRequest,
   RecordActivityRequest,
+  RecordContextUseRequest,
   RelationEffect,
   ResolvedProject,
   StartSessionRequest
@@ -28,12 +29,21 @@ import {
   ActivityTimestampError,
   OntologyGovernanceError,
   type OntologyGovernanceDecision,
-  ProjectScopeError
+  ProjectScopeError,
+  SessionLifecycleError,
+  type BoronSessionStatus
 } from '../core/errors.js'
 import { verifyResolvedActivityProjectScope } from '../core/project-scope.js'
 import { summarizeSourceCoverage, type SourceCoverageEligibility } from '../core/source-coverage.js'
 import { resolveProjectIdentity } from './project-identity.js'
 import { discoverProjectRoot } from '../platform/project-root.js'
+import {
+  activityRequestDigest,
+  lockOntologyWrites,
+  findActivityRetry,
+  verifyRelationPreconditions,
+  validateContextUse
+} from './continuity-writeback.js'
 
 export interface StartedSession {
   readonly id: string
@@ -149,6 +159,7 @@ export interface ContextMeterSummary {
     readonly coverageRatio: number
     readonly originalTokens: number | null
     readonly capsuleTokens: number | null
+    readonly netSavingsTokens: number | null
     readonly savingsTokens: number | null
     readonly savingsRatio: number | null
     readonly eligibility: SourceCoverageEligibility
@@ -411,7 +422,8 @@ export class PostgresActivityRepository {
 
   async recordActivity(
     input: RecordActivityRequest,
-    source = 'boron-client'
+    source = 'boron-client',
+    completion?: CompleteSessionRequest
   ): Promise<RecordedActivity> {
     const client = await this.pool.connect()
     let governanceContext: {
@@ -421,12 +433,28 @@ export class PostgresActivityRepository {
     } | null = null
     try {
       await client.query('BEGIN')
+      await lockOntologyWrites(client)
       const session = await loadSession(client, input.sessionId)
       const occurredAt = input.occurredAt ?? new Date().toISOString()
       assertActivityTimestamp(occurredAt)
       const writebackScope = input.projectHint
         ? await verifyActivityProjectScope(client, session.projectId, input.projectHint)
         : { verification: 'implicit_session' as const }
+      const requestDigest = activityRequestDigest(input)
+      const retry = await findActivityRetry(client, input, source, requestDigest)
+      if (retry) {
+        await renewSessionLease(client, input.sessionId, session.leaseDurationMinutes)
+        await client.query('COMMIT')
+        return {
+          id: retry,
+          relationEffects: 0,
+          evidence: 0,
+          duplicate: true,
+          ontologyGovernance: { contractVersion: 1, accepted: 0, deprecated: 0 }
+        }
+      }
+      await verifyRelationPreconditions(client, input, session.projectId)
+      const contextUse = await validateContextUse(client, input, session.projectId)
       const governanceDecisions = await assessRelationEffects(client, input.relationEffects)
       governanceContext = {
         sessionId: input.sessionId,
@@ -451,7 +479,7 @@ export class PostgresActivityRepository {
         ...(input.targetUri ? { targetUri: input.targetUri } : {}),
         ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
         confidence: input.confidence,
-        payload: { ...input.metadata, writebackScope },
+        payload: { ...input.metadata, writebackScope, requestDigest, contextUse },
         occurredAt
       })
       if (activity.duplicate) {
@@ -504,6 +532,14 @@ export class PostgresActivityRepository {
         evidenceCount += 1
       }
       await renewSessionLease(client, input.sessionId, session.leaseDurationMinutes)
+      if (completion) {
+        await client.query(
+          `UPDATE agent_sessions SET status = $2, ended_at = now(), last_seen_at = now(),
+          closure_reason = 'explicit_completion', metadata = metadata || $3::jsonb
+          WHERE id = $1::uuid AND status = 'active'`,
+          [input.sessionId, completion.outcome, JSON.stringify(completion.metadata)]
+        )
+      }
       await client.query('COMMIT')
       return {
         id: activity.id,
@@ -532,6 +568,59 @@ export class PostgresActivityRepository {
       throw error
     } finally {
       client.release()
+    }
+  }
+
+  async recordContextUse(input: RecordContextUseRequest): Promise<RecordedActivity> {
+    return this.recordActivity(
+      {
+        sessionId: input.sessionId,
+        projectHint: input.projectHint,
+        activityType: 'context.used',
+        summary: input.summary,
+        idempotencyKey: input.idempotencyKey,
+        confidence: 1,
+        metadata: {},
+        relationEffects: [],
+        evidence: input.evidence,
+        contextUse: {
+          capsuleId: input.capsuleId,
+          evidenceIds: input.evidenceIds,
+          disposition: input.disposition
+        }
+      },
+      'http-context-use'
+    )
+  }
+
+  async contextUseHealth(input: ContextQualityHealthRequest): Promise<Record<string, unknown>> {
+    const project = await resolveProjectIdentity(this.pool, input.projectHint)
+    if (input.projectHint && !project)
+      throw new ProjectScopeError('project_unresolved', 'Unknown project.')
+    const result = await this.pool.query<{ disposition: string; count: string }>(
+      `SELECT payload->'contextUse'->>'disposition' AS disposition, count(*)::text AS count
+       FROM activities WHERE activity_type = 'context.used'
+         AND payload->'contextUse'->>'basis' = 'client_report_with_validated_selection'
+         AND occurred_at >= now() - make_interval(days => $1)
+         AND (NOT $3::boolean OR project_id = $2::uuid)
+       GROUP BY 1`,
+      [input.windowDays, project?.id ?? null, input.projectHint !== undefined]
+    )
+    return {
+      contractVersion: 1,
+      windowDays: input.windowDays,
+      project: project?.name ?? null,
+      reports: Object.fromEntries(
+        ['applied', 'rejected', 'stale'].map((disposition) => [
+          disposition,
+          Number(result.rows.find((row) => row.disposition === disposition)?.count ?? 0)
+        ])
+      ),
+      basis: 'client_report_with_validated_selection',
+      caveats: [
+        'Only reported use is observed; absence is unknown, not failure.',
+        'Evidence selection and project scope are checked; adoption and outcome are client reports, not independently measured benefit.'
+      ]
     }
   }
 
@@ -690,20 +779,8 @@ export class PostgresActivityRepository {
         relationEffects: input.relationEffects,
         evidence
       },
-      source
-    )
-    await this.pool.query(
-      `
-        UPDATE agent_sessions
-        SET
-          status = $2,
-          ended_at = now(),
-          last_seen_at = now(),
-          closure_reason = 'explicit_completion',
-          metadata = metadata || $3::jsonb
-        WHERE id = $1::uuid AND status = 'active'
-      `,
-      [input.sessionId, input.outcome, JSON.stringify(input.metadata)]
+      source,
+      input
     )
     return recorded
   }
@@ -1044,6 +1121,7 @@ export class PostgresActivityRepository {
         originalTokens: sourceCovered > 0 ? sourceOriginal : null,
         capsuleTokens: sourceCovered > 0 ? sourceCapsule : null,
         savingsTokens: sourceCovered > 0 ? sourceSavings : null,
+        netSavingsTokens: sourceCovered > 0 ? sourceOriginal - sourceCapsule : null,
         savingsRatio:
           sourceCovered > 0 && sourceOriginal > 0 ? sourceSavings / sourceOriginal : null,
         eligibility
@@ -1061,6 +1139,7 @@ export class PostgresActivityRepository {
         'Filtered tokens measure candidate excerpts omitted by Boron, not the size of repositories or documents the agent might otherwise inspect.',
         'Source-window savings are calculated only for selected evidence with a recorded sourceTokenEstimate; uncovered evidence is excluded and coverage is shown.',
         'Source-window eligibility contract v2 excludes ontology-derived evidence, labels legacy unknown-size evidence as unobservable, and keeps the historical mixed coverage fields for compatibility.',
+        'Legacy savingsTokens sums nonnegative per-capsule savings. netSavingsTokens is the signed measured source-minus-excerpt total; negative means expansion. Neither includes unmeasured sources or agent billing.',
         'Manual re-entry time is an equivalent at the supplied typing speed, not observed human time.'
       ]
     }
@@ -1673,6 +1752,7 @@ export class PostgresActivityRepository {
         'Eligible, ineligible, and unobservable counts are reported separately; no category is silently folded into either denominator.',
         'A Codex hook or MCP client instance normally maps to one thread when the shared session identity is available, but other clients may use a different process lifecycle.',
         'Read-only context is eligible for adoption but ineligible for writeback; lifecycle and intent records are never counted as semantic writeback.',
+        'Writeback measures explicit project scope among already recorded semantic activities, not completeness of expected but missing writeback.',
         'Historical contract-v1 records are labelled as legacy rather than rewritten, and Codex tasks without a matching hook or MCP observation are unobservable.'
       ]
     }
@@ -1824,7 +1904,7 @@ async function loadSession(
 ): Promise<{ readonly projectId: string | null; readonly leaseDurationMinutes: number }> {
   const result = await client.query<{
     project_id: string | null
-    status: string
+    status: BoronSessionStatus
     lease_duration_minutes: number
   }>(
     `
@@ -1835,9 +1915,19 @@ async function loadSession(
     `,
     [sessionId]
   )
-  if (!result.rows[0]) throw new Error(`Unknown Boron session: ${sessionId}`)
+  if (!result.rows[0]) {
+    throw new SessionLifecycleError(
+      'session_not_found',
+      null,
+      `Unknown Boron session: ${sessionId}`
+    )
+  }
   if (result.rows[0].status !== 'active') {
-    throw new Error(`Boron session is already ${result.rows[0].status}: ${sessionId}`)
+    throw new SessionLifecycleError(
+      'session_not_active',
+      result.rows[0].status,
+      `Boron session is already ${result.rows[0].status}: ${sessionId}`
+    )
   }
   return {
     projectId: result.rows[0].project_id,

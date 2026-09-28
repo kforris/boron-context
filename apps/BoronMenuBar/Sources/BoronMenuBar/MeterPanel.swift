@@ -232,6 +232,15 @@ struct MeterPanel: View {
         let ratio = eligibility?.ratio ?? source.coverageRatio
         return VStack(alignment: .leading, spacing: 6) {
             sectionTitle(
+                "SOURCE WINDOW NET CHANGE",
+                trailing: MetricFormatting.sourceNetChange(source.netSavingsRatio)
+            )
+            Text(source.netEstimateNote)
+                .font(.system(size: 9))
+                .foregroundStyle(BoronPalette.muted)
+                .lineLimit(2)
+
+            sectionTitle(
                 "ELIGIBLE SOURCE COVERAGE",
                 trailing: MetricFormatting.percentage(ratio)
             )
@@ -357,7 +366,7 @@ struct MeterPanel: View {
                     .buttonStyle(.link)
             }
 
-            Text("Re-explanation reuse and source-window savings are separate; uncovered sources show no savings claim.")
+            Text("Net source change is estimated on covered sources only. Larger excerpts are shown as expansion; unmeasured sources and agent billing are excluded.")
                 .font(.system(size: 8))
                 .foregroundStyle(BoronPalette.subtle)
                 .frame(maxWidth: .infinity, alignment: .leading)

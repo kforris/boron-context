@@ -83,10 +83,37 @@ struct SourceWindowMetric: Decodable, Sendable {
     let originalTokens: Int?
     let capsuleTokens: Int?
     let savingsTokens: Int?
+    let netSavingsTokens: Int?
     let savingsRatio: Double?
     let eligibility: SourceCoverageEligibility?
 
-    var isCovered: Bool { status != "not_covered" }
+    var isCovered: Bool { status == "measured_partial" || status == "measured_full" }
+
+    // Older daemons expose the two totals but only clamp their savings fields.
+    // Derive a signed estimate from those totals, never from legacy savingsRatio.
+    var estimatedNetSavingsTokens: Int? {
+        guard isCovered else { return nil }
+        if let netSavingsTokens { return netSavingsTokens }
+        guard let originalTokens, let capsuleTokens,
+            originalTokens >= 0, capsuleTokens >= 0
+        else { return nil }
+        let result = originalTokens.subtractingReportingOverflow(capsuleTokens)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    var netSavingsRatio: Double? {
+        guard let originalTokens, originalTokens > 0,
+            let estimatedNetSavingsTokens
+        else { return nil }
+        return Double(estimatedNetSavingsTokens) / Double(originalTokens)
+    }
+
+    var netEstimateNote: String {
+        guard netSavingsRatio != nil else { return "Net change unmeasured" }
+        return netSavingsTokens == nil
+            ? "Estimated from legacy source and excerpt totals; covered sources only."
+            : "Estimated source minus excerpt tokens; covered sources only."
+    }
 }
 
 struct SourceCoverageEligibility: Decodable, Sendable {
@@ -235,6 +262,15 @@ enum MetricFormatting {
 
     static func percentage(_ ratio: Double) -> String {
         "\(Int((ratio * 100).rounded()))%"
+    }
+
+    static func sourceNetChange(_ ratio: Double?, compact: Bool = false) -> String {
+        guard let ratio, ratio.isFinite else { return compact ? "—" : "Unmeasured" }
+        if ratio == 0 { return compact ? "0%" : "No change" }
+        let magnitude = abs(ratio)
+        let amount = magnitude < 0.005 ? "<1%" : percentage(magnitude)
+        if compact { return "\(ratio > 0 ? "↓" : "↑")\(amount)" }
+        return "\(amount) \(ratio > 0 ? "smaller" : "larger")"
     }
 
     static func duration(_ milliseconds: Double) -> String {

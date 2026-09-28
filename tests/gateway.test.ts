@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ContextResolver } from '../src/core/resolver.js'
-import { OntologyGovernanceError, ProjectScopeError } from '../src/core/errors.js'
+import {
+  OntologyGovernanceError,
+  ProjectScopeError,
+  SessionLifecycleError
+} from '../src/core/errors.js'
 import { startGateway } from '../src/gateway/server.js'
 
 function inspectorStub() {
@@ -256,6 +260,25 @@ describe('gateway', () => {
           if (input.projectHint === 'Wrong Project') {
             throw new ProjectScopeError('project_mismatch', 'Wrong project')
           }
+          if (input.activityType === 'session.closed') {
+            throw new SessionLifecycleError(
+              'session_not_active',
+              'completed',
+              'Session is already completed'
+            )
+          }
+          if (input.activityType === 'session.missing') {
+            throw new SessionLifecycleError('session_not_found', null, 'Session does not exist')
+          }
+          if (
+            input.activityType === 'internal.fail' ||
+            input.activityType === 'internal.sqlstate'
+          ) {
+            throw Object.assign(
+              new Error('Bearer private-token password=must-not-appear request-body-secret'),
+              { code: input.activityType === 'internal.sqlstate' ? '23505' : 'XX999' }
+            )
+          }
           if (input.activityType === 'governance.rejected') {
             throw new OntologyGovernanceError(
               'unknown_relation_type',
@@ -410,6 +433,88 @@ describe('gateway', () => {
       expect(mismatchedActivity.status).toBe(409)
       expect(await mismatchedActivity.json()).toMatchObject({ error: 'project_mismatch' })
 
+      const closedSessionActivity = await fetch(`${gateway.url}/v1/activity/record`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          sessionId: session.id,
+          projectHint: 'Boron Context',
+          activityType: 'session.closed',
+          summary: 'A completed session cannot accept another activity.',
+          idempotencyKey: 'closed-session-retry'
+        })
+      })
+      expect(closedSessionActivity.status).toBe(409)
+      expect(await closedSessionActivity.json()).toMatchObject({
+        error: 'session_not_active',
+        sessionStatus: 'completed'
+      })
+
+      const missingSessionActivity = await fetch(`${gateway.url}/v1/activity/record`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          sessionId: randomUUID(),
+          projectHint: 'Boron Context',
+          activityType: 'session.missing',
+          summary: 'An unknown session must return a typed not-found response.'
+        })
+      })
+      expect(missingSessionActivity.status).toBe(404)
+      expect(await missingSessionActivity.json()).toMatchObject({ error: 'session_not_found' })
+
+      const internalTraceId = randomUUID()
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        for (const pathname of ['/private-path-secret', '/v1/activity/record']) {
+          const malformedCookie = await fetch(`${gateway.url}${pathname}?secret=hidden`, {
+            headers: { cookie: 'boron_inspector_session=%' }
+          })
+          expect(malformedCookie.status).toBe(401)
+          expect(await malformedCookie.json()).toMatchObject({ error: 'unauthorized' })
+        }
+        expect(errorLog).not.toHaveBeenCalled()
+
+        for (const [activityType, errorCode] of [
+          ['internal.fail', 'XX999'],
+          ['internal.sqlstate', '23505']
+        ]) {
+          errorLog.mockClear()
+          const internalFailure = await fetch(`${gateway.url}/v1/activity/record?secret=hidden`, {
+            method: 'POST',
+            headers: { ...headers, 'x-boron-trace-id': internalTraceId },
+            body: JSON.stringify({
+              sessionId: session.id,
+              projectHint: 'Boron Context',
+              activityType,
+              summary: 'request-body-secret'
+            })
+          })
+          expect(internalFailure.status).toBe(500)
+          expect(await internalFailure.json()).toMatchObject({
+            error: 'internal_error',
+            traceId: internalTraceId
+          })
+          expect(errorLog).toHaveBeenCalledTimes(1)
+          const audit = JSON.parse(String(errorLog.mock.calls[0]?.[0])) as Record<string, unknown>
+          expect(audit).toMatchObject({
+            event: 'boron.gateway.internal_error',
+            contractVersion: 1,
+            traceId: internalTraceId,
+            method: 'POST',
+            path: '/v1/activity/record',
+            errorName: 'Error',
+            errorCode
+          })
+          expect(audit.fingerprint).toMatch(/^[a-f0-9]{16}$/)
+          expect(JSON.stringify(audit)).not.toMatch(
+            /private-token|must-not-appear|request-body-secret|private-path-secret|secret=hidden/
+          )
+        }
+      } finally {
+        errorLog.mockRestore()
+      }
+
       const governedActivity = await fetch(`${gateway.url}/v1/activity/record`, {
         method: 'POST',
         headers,
@@ -522,6 +627,146 @@ describe('gateway', () => {
         'lifecycle-end',
         'codex-sync-health'
       ])
+    } finally {
+      await gateway.close()
+    }
+  })
+
+  it('validates context-use writes, requires bearer authority, and allows authenticated metrics reads', async () => {
+    const receipt = { id: randomUUID(), relationEffects: 0, evidence: 2, duplicate: false }
+    const metrics = {
+      contractVersion: 1,
+      reports: { applied: 1, rejected: 0, stale: 0 },
+      basis: 'client_report_with_validated_selection'
+    }
+    const recordContextUse = vi.fn(async (_input: unknown) => receipt)
+    const contextUseHealth = vi.fn(async (_input: unknown) => metrics)
+    const gateway = await startGateway({
+      host: '127.0.0.1',
+      port: 0,
+      token: 'test-token-with-at-least-thirty-two-characters',
+      resolver: new ContextResolver({ projects: { resolve: async () => null }, adapters: [] }),
+      activity: { recordContextUse, contextUseHealth } as never,
+      codexThreads: codexThreadsStub(),
+      inspector: inspectorStub(),
+      codebaseMemoryGraphUrl: 'http://127.0.0.1:9749',
+      adapters: [],
+      databaseHealth: async () => ({ ok: true }),
+      version: '0.9.0'
+    })
+    const bearerHeaders = {
+      authorization: 'Bearer test-token-with-at-least-thirty-two-characters',
+      'content-type': 'application/json'
+    }
+    const evidence = {
+      layer: 'wiki',
+      title: 'Verified output',
+      uri: 'integration://verified-context-output',
+      excerpt: 'Selected context informed this verified output.'
+    }
+    const validInput = {
+      sessionId: randomUUID(),
+      projectHint: ' Boron Context ',
+      capsuleId: randomUUID(),
+      evidenceIds: ['selected-evidence-1'],
+      disposition: 'applied',
+      summary: ' Applied the selected evidence. ',
+      idempotencyKey: 'context-use-api-fixture',
+      evidence: [evidence]
+    }
+    try {
+      for (const path of ['/v1/context/use', '/v1/metrics/context/use']) {
+        const unauthorized = await fetch(`${gateway.url}${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(validInput)
+        })
+        expect(unauthorized.status).toBe(401)
+        expect(await unauthorized.json()).toMatchObject({ error: 'unauthorized' })
+      }
+      expect(recordContextUse).not.toHaveBeenCalled()
+      expect(contextUseHealth).not.toHaveBeenCalled()
+
+      const { evidence: _omittedEvidence, ...withoutOutcomeEvidence } = validInput
+      const { uri: _omittedUri, ...withoutOutcomeUri } = evidence
+      for (const invalidInput of [
+        withoutOutcomeEvidence,
+        { ...validInput, evidence: [] },
+        { ...validInput, evidence: [withoutOutcomeUri] },
+        { ...validInput, capsuleId: 'not-a-capsule-uuid' }
+      ]) {
+        const invalid = await fetch(`${gateway.url}/v1/context/use`, {
+          method: 'POST',
+          headers: bearerHeaders,
+          body: JSON.stringify(invalidInput)
+        })
+        expect(invalid.status).toBe(400)
+        expect(await invalid.json()).toMatchObject({ error: 'invalid_request' })
+      }
+      expect(recordContextUse).not.toHaveBeenCalled()
+
+      const ticketResponse = await fetch(`${gateway.url}/v1/inspector/ticket`, {
+        method: 'POST',
+        headers: bearerHeaders,
+        body: '{}'
+      })
+      expect(ticketResponse.status).toBe(200)
+      const ticket = (await ticketResponse.json()) as { ticket: string }
+      const inspectorSession = await fetch(`${gateway.url}/v1/inspector/session`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ticket: ticket.ticket })
+      })
+      expect(inspectorSession.status).toBe(200)
+      const { csrfToken } = (await inspectorSession.json()) as { csrfToken: string }
+      const cookie = inspectorSession.headers.get('set-cookie')?.split(';')[0]
+      expect(cookie).toMatch(/^boron_inspector_session=/)
+      const inspectorHeaders = {
+        cookie: cookie!,
+        'content-type': 'application/json',
+        'x-boron-csrf': csrfToken
+      }
+      const inspectorWrite = await fetch(`${gateway.url}/v1/context/use`, {
+        method: 'POST',
+        headers: inspectorHeaders,
+        body: JSON.stringify(validInput)
+      })
+      expect(inspectorWrite.status).toBe(403)
+      expect(await inspectorWrite.json()).toMatchObject({ error: 'bearer_token_required' })
+      expect(recordContextUse).not.toHaveBeenCalled()
+
+      const written = await fetch(`${gateway.url}/v1/context/use`, {
+        method: 'POST',
+        headers: bearerHeaders,
+        body: JSON.stringify(validInput)
+      })
+      expect(written.status).toBe(200)
+      expect(await written.json()).toEqual(receipt)
+      expect(recordContextUse).toHaveBeenCalledExactlyOnceWith({
+        ...validInput,
+        projectHint: 'Boron Context',
+        summary: 'Applied the selected evidence.',
+        evidence: [{ ...evidence, confidence: 0.8, authority: 0.7, metadata: {} }]
+      })
+
+      for (const headers of [bearerHeaders, inspectorHeaders]) {
+        const read = await fetch(`${gateway.url}/v1/metrics/context/use`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ projectHint: 'Boron Context', windowDays: 7 })
+        })
+        expect(read.status).toBe(200)
+        expect(await read.json()).toEqual(metrics)
+      }
+      expect(contextUseHealth).toHaveBeenCalledTimes(2)
+      expect(contextUseHealth).toHaveBeenNthCalledWith(1, {
+        projectHint: 'Boron Context',
+        windowDays: 7
+      })
+      expect(contextUseHealth).toHaveBeenNthCalledWith(2, {
+        projectHint: 'Boron Context',
+        windowDays: 7
+      })
     } finally {
       await gateway.close()
     }

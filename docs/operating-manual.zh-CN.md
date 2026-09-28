@@ -174,6 +174,15 @@ npm run lifecycle:rehearse -- \
 7. 只调用一次 `complete_context_session`，结果使用 `completed`、`partial`、`failed` 或
    `cancelled`。
 
+进入 `completed`、`failed`、`partial` 或 `cancelled` 的 session 不可再写入。后续
+`record_activity` 会返回 HTTP `409`、`error=session_not_active` 和终态
+`sessionStatus`；未知 session 返回 HTTP `404`、`error=session_not_found`。需要记录后续纠正时，
+必须先开启或续接新的 active session。幂等重试也只在目标 session 仍为 active 时接受。
+
+未映射的内部错误会向 stderr 写入一条以响应 `traceId` 为键的结构化记录。记录只包含 HTTP
+method、pathname、受限的错误名称/错误码，以及由错误类型和首个堆栈位置生成的短指纹；不会包含
+query string、headers、请求 body、错误消息、stack trace、token、凭据或原始对话。
+
 默认 session lease 为 12 小时，并在记录语义 activity 时续租。客户端进入 `SessionEnd`
 但没有显式完成时，hook 会写入可审计的 `session.partial` 并设置
 `closure_reason=client_session_end`；如果结束事件也没有触发，lease sweeper 仍会以
@@ -252,8 +261,10 @@ entity/relation registry 的 active/legacy/deprecated 数量、accepted/rejected
 
 - `reExplanationAvoidedTokens`：不需要再次提供的已验证旧上下文；这些紧凑摘录仍会进入客户端
   模型。
-- `sourceWindowSavingsTokens`：估算避免读取的原始来源 token；没有真实
-  `sourceTokenEstimate` 时为 `null`。
+- `sourceWindowNetSavingsTokens`（汇总为 `sourceWindow.netSavingsTokens`）：有符号的来源 token
+  减摘录 token；负数表示已测来源范围内发生扩张。
+- `sourceWindowSavingsTokens`：为兼容保留的非负旧指标，会隐藏扩张，不能当作净节省。没有真实
+  `sourceTokenEstimate` 时，两者均为 `null`。
 - `sourceWindowCoverageRatio`：有真实来源大小估算的已选证据比例；不得把部分覆盖说成整个
   session 的节省。
 - `sourceWindow.eligibility`：v2 合约，分别报告已测量分子、eligible 分母、ineligible 排除项、

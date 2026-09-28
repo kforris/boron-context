@@ -187,6 +187,17 @@ Do not open a writeback session for a question that will not create a durable pr
 6. Verify the actual outcome.
 7. Call `complete_context_session` once with `completed`, `partial`, `failed`, or `cancelled`.
 
+A completed, failed, partial, or cancelled session is immutable. A later `record_activity` call for
+that session returns HTTP `409` with `error=session_not_active` and its terminal `sessionStatus`;
+an unknown session returns HTTP `404` with `error=session_not_found`. Start or resume a new active
+session before recording a later correction. Idempotent retries are accepted only while the target
+session is active.
+
+An unmapped internal failure emits one structured stderr record keyed by the response `traceId`.
+The record contains only the HTTP method, pathname, bounded error name/code, and a short fingerprint
+derived from the error type and first stack location. It never contains the query string, headers,
+request body, error message, stack trace, token, credential, or raw transcript.
+
 The default session lease is 12 hours and renews whenever a semantic activity is recorded. If a
 client reaches `SessionEnd` without explicit completion, the hook records an auditable
 `session.partial` with `closure_reason=client_session_end`. A missing end event still falls back to
@@ -270,8 +281,11 @@ Interpret the metrics separately:
 
 - `reExplanationAvoidedTokens`: verified prior-context excerpts that did not need to be supplied
   again. They still enter the client model in compact form.
-- `sourceWindowSavingsTokens`: estimated original-source tokens avoided. This is `null` when no
-  real `sourceTokenEstimate` exists.
+- `sourceWindowNetSavingsTokens` (aggregate: `sourceWindow.netSavingsTokens`): signed estimated
+  source tokens minus excerpt tokens. Negative values mean expansion among measured sources.
+- `sourceWindowSavingsTokens`: legacy nonnegative per-capsule savings, retained for compatibility;
+  it hides negative expansion and must not be described as net savings. Both values are `null`
+  when no real `sourceTokenEstimate` exists.
 - `sourceWindowCoverageRatio`: the fraction of selected evidence covered by real source-size
   estimates. Never present a partial estimate as whole-session savings.
 - `sourceWindow.eligibility`: contract v2 with a measured numerator, eligible denominator,

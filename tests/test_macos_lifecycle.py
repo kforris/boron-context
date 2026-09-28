@@ -17,6 +17,56 @@ sys.modules[SPEC.name] = macos_lifecycle
 SPEC.loader.exec_module(macos_lifecycle)
 
 
+def load_script(name):
+    path = Path(__file__).resolve().parents[1] / "scripts" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+class MenuIsolationTests(unittest.TestCase):
+    def test_forwards_only_nonsecret_menu_configuration(self):
+        installer = load_script("install_menubar")
+        configuration = {
+            "BORON_DAEMON_URL": "http://127.0.0.1:55123",
+            "BORON_TOKEN_FILE": "/tmp/boron-isolated/daemon.token",
+        }
+        self.assertEqual(installer.menu_environment({
+            **configuration, "BORON_DAEMON_TOKEN": "do-not-forward", "UNRELATED": "private"
+        }), configuration)
+        for origin in ["https://example.org", "http://localhost/path", "http://u:p@localhost",
+                       "http://localhost?token=x", "http://localhost\n"]:
+            with self.subTest(origin=origin), self.assertRaises(ValueError):
+                installer.menu_environment({"BORON_DAEMON_URL": origin})
+        with self.assertRaises(ValueError):
+            installer.menu_environment({"BORON_TOKEN_FILE": "relative.token"})
+
+    def test_disposable_previous_client_has_no_production_defaults(self):
+        rehearsal = load_script("rehearse_macos_lifecycle")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            layout = rehearsal.RehearsalLayout.create(root, root / "current", "previous")
+            cli = layout.previous / "src/cli.ts"
+            menu = layout.previous / "scripts/install_menubar.py"
+            client = layout.previous / "apps/BoronMenuBar/Sources/BoronMenuBar/BoronClient.swift"
+            for path in [cli, menu, client]:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            cli.write_text("dev.boroncontext.daemon dev.boroncontext.lan-mr")
+            menu.write_text('LABEL = "dev.boroncontext.menubar"\n    launch_definition = {\n    }\n')
+            client.write_text('baseURL: URL = URL(string: "http://127.0.0.1:41635")!,\n'
+                'tokenURL: URL = FileManager.default.homeDirectoryForCurrentUser\n'
+                '            .appendingPathComponent("Library/Application Support/Boron Context/daemon.token")')
+            rehearsal.apply_previous_release_isolation_shim(layout)
+            self.assertNotIn("127.0.0.1:41635", client.read_text())
+            self.assertNotIn("homeDirectoryForCurrentUser", client.read_text())
+            self.assertIn(str(layout.daemon_port), client.read_text())
+            self.assertIn(str(layout.token_file), client.read_text())
+            self.assertIn("EnvironmentVariables", menu.read_text())
+            self.assertEqual(rehearsal.lifecycle_environment(layout)["BORON_TOKEN_FILE"], str(layout.token_file))
+
+
 class MacosLifecycleTests(unittest.TestCase):
     def test_backup_is_non_overwriting_and_uses_a_private_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

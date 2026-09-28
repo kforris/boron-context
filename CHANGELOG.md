@@ -1,10 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 — Trusted continuation (2026-09-28)
 
-### Fixed
+- Prioritize task-relevant design and vision evidence over routine audit records, with bilingual
+  intent matching and corrected source-anchor and nominal-risk handling.
+- Add guarded GitHub PR state reconciliation: exact source/project identity, reviewable plans,
+  relation compare-and-swap, preserved history, idempotent retries, and post-write verification.
+- Bind context-use reports to actual selected evidence and result sources. Reported application is
+  not an independently measured improvement in task quality.
+- Make session completion atomic; carry forward and review the existing lifecycle error repair,
+  including sanitized error routes, PostgreSQL SQLSTATE handling, and malformed-cookie rejection.
+- Expose signed measured source-window net savings without rewriting legacy telemetry.
+- Display source-window expansion honestly in the menu and isolate rehearsal menus from the
+  production daemon with validated loopback configuration.
+- Add PostgreSQL concurrency and continuation regression tests. General portfolio orchestration,
+  automatic polling, Linux packaging, and production-wide benefit claims remain outside this release.
 
-- read-only `release-checklist.md` path hints are treated as nominal checklist context instead of
+- Read-only `release-checklist.md` path hints are treated as nominal checklist context instead of
   being misclassified as a release action; explicit release, deploy, and publish intent remains
   high risk.
 
