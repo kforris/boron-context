@@ -19,6 +19,7 @@ export interface TaskRelevance {
   readonly strategy: boolean
   relevance(evidence: Evidence): number
   noisePenalty(evidence: Evidence): number
+  historicalStatePenalty(evidence: Evidence): number
 }
 
 export function analyzeTaskRelevance(
@@ -30,6 +31,18 @@ export function analyzeTaskRelevance(
   const concepts = CONCEPTS.filter((pattern) => pattern.test(query))
   const strategy = CONCEPTS[0].test(query)
   const auditRequested = CONCEPTS[3].test(query)
+  const historyExcluded =
+    /历史状态(?:不能|不应|不可)作为当前|(?:不要|不把|排除)[^。；]{0,12}历史|\b(?:do not|don't|never) (?:use|treat) historical (?:state|status) as current\b/iu.test(
+      query
+    )
+  const currentStateRequested =
+    /\b(?:current|currently|status|state|still|now)\b|当前|目前|现在|状态|是否仍|是否还/iu.test(
+      query
+    ) &&
+    (historyExcluded ||
+      !/\b(?:history|historical|previous|before|past|timeline|as of)\b|历史|当时|曾经|过去|复盘|之前|截至|那时/iu.test(
+        query
+      ))
   let topicalQuery = query.toLocaleLowerCase('en-US')
   for (const identity of [projectName, request.projectHint]) {
     if (identity) topicalQuery = topicalQuery.replaceAll(identity.toLocaleLowerCase('en-US'), ' ')
@@ -51,6 +64,18 @@ export function analyzeTaskRelevance(
       const conceptual =
         !strategy || concepts.length === 0 ? 0 : (matchedConcepts / concepts.length) * 0.75
       return Math.max(lexical, conceptual)
+    },
+    historicalStatePenalty(evidence) {
+      const temporal = evidence.metadata.temporalContext as
+        { role?: string; currentStateRefs?: unknown[] } | undefined
+      if (
+        currentStateRequested &&
+        temporal?.role === 'activity_observation' &&
+        Array.isArray(temporal.currentStateRefs) &&
+        temporal.currentStateRefs.length > 0
+      )
+        return 0.25
+      return 0
     },
     noisePenalty(evidence) {
       // Operational audits remain searchable and win for explicit audit requests.

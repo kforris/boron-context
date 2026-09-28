@@ -6,6 +6,8 @@
   intent matching and corrected source-anchor and nominal-risk handling.
 - Add guarded GitHub PR state reconciliation: exact source/project identity, reviewable plans,
   relation compare-and-swap, preserved history, idempotent retries, and post-write verification.
+- Distinguish historical activity observations from current typed state and its authoritative
+  source, so retained old wording cannot silently masquerade as a current fact.
 - Bind context-use reports to actual selected evidence and result sources. Reported application is
   not an independently measured improvement in task quality.
 - Make session completion atomic; carry forward and review the existing lifecycle error repair,

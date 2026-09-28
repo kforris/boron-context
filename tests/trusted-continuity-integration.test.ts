@@ -12,6 +12,7 @@ import type {
 import type { ContextAdapter } from '../src/core/context-adapter.js'
 import { ContextResolver } from '../src/core/resolver.js'
 import { PostgresActivityRepository } from '../src/db/activity-repository.js'
+import { PostgresOntologyRepository } from '../src/db/ontology-repository.js'
 import { reconcileCodexRegistry, type CodexRegistry } from '../src/db/project-registry.js'
 import { reconcileProjectSupersessions } from '../src/db/project-supersession.js'
 import { acquirePostgresTestLock } from './postgres-test-lock.js'
@@ -174,6 +175,78 @@ describeDatabase('PostgreSQL trusted continuity integration', () => {
     }
     expect(waiting).toBe(expected)
   }
+
+  it('keeps old source observations historical after a typed current state is reconciled', async () => {
+    const context = await relationFixture()
+    const sourceUri = context.relation.subject.canonicalUri
+    const oldText = 'PR remains open and mergeable; maintainer re-review is required.'
+    const sourceEvidence = (excerpt: string): ActivityEvidenceInput => ({
+      layer: 'ontology',
+      title: 'Source status',
+      uri: sourceUri,
+      excerpt,
+      confidence: 1,
+      authority: 1,
+      metadata: { sourceAuthority: 'deterministic_source' }
+    })
+    const open = { ...context.relation, relationType: 'GITHUB_PR_OPEN' }
+    await repository.recordActivity(
+      activity(context, {
+        targetUri: 'codex://automation/fixture',
+        occurredAt: '2026-08-04T00:00:00.000Z',
+        relationEffects: [open],
+        evidence: [sourceEvidence(oldText)]
+      })
+    )
+    const recorded = await repository.recordActivity(
+      activity(context, {
+        targetUri: sourceUri,
+        relationEffects: [
+          { ...open, operation: 'retract' },
+          { ...open, relationType: 'GITHUB_PR_MERGED' }
+        ],
+        evidence: [sourceEvidence('GitHub state is MERGED.')]
+      })
+    )
+    const ontology = new PostgresOntologyRepository(pool)
+    const resolver = new ContextResolver({ adapters: [ontology], projects: ontology })
+    const request = {
+      projectHint: context.name,
+      objectHints: [sourceUri],
+      layers: ['ontology'],
+      tokenBudget: 6000
+    }
+    const capsule = await resolver.resolve({
+      ...request,
+      objective: '核对当前PR状态，历史状态不能作为当前待办。'
+    })
+    const old = capsule.evidence.find((item) => item.excerpt.includes(oldText))!
+    const current = capsule.evidence.find((item) =>
+      item.excerpt.includes('GitHub state is MERGED.')
+    )!
+    expect(old.metadata.temporalContext).toMatchObject({
+      role: 'activity_observation',
+      asOf: '2026-08-04T00:00:00.000Z',
+      subjectUri: sourceUri,
+      currentStateRefs: [{ relationType: 'GITHUB_PR_MERGED' }]
+    })
+    expect(old.excerpt).toContain('not proof of current state')
+    expect(current.metadata.temporalContext).toMatchObject({
+      role: 'current_state_source',
+      activityId: recorded.id
+    })
+    expect(current.score).toBeGreaterThan(old.score)
+    const historical = await resolver.resolve({
+      ...request,
+      objective: 'Explain the historical PR status timeline.'
+    })
+    expect(historical.evidence.find((item) => item.id === old.id)?.excerpt).toContain(oldText)
+    const stored = await pool.query<{ excerpt: string }>(
+      'SELECT excerpt FROM evidence WHERE id = $1::uuid',
+      [old.id]
+    )
+    expect(stored.rows[0]?.excerpt).toBe(oldText)
+  })
 
   it('accepts the exact retry after its retraction and precondition are no longer current', async () => {
     const context = await relationFixture()

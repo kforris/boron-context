@@ -9,6 +9,7 @@ import type {
 import type { ProjectResolver } from '../core/resolver.js'
 import { resolveProjectIdentity } from './project-identity.js'
 import { loadRegisteredProjectRoots } from './project-roots.js'
+import { linkCurrentStateEvidence, markActivityObservation } from '../core/evidence-temporality.js'
 
 export class PostgresOntologyRepository implements ContextAdapter, ProjectResolver {
   readonly layer = 'ontology' as const
@@ -43,7 +44,10 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
     ])
     const corrections = stored.filter((item) => item.metadata.manualCorrection === true)
     const remainingStored = stored.filter((item) => item.metadata.manualCorrection !== true)
-    return [...corrections, ...structure, ...policies, ...remainingStored].slice(0, input.limit)
+    return linkCurrentStateEvidence(
+      [...corrections, ...structure, ...policies, ...remainingStored].slice(0, input.limit),
+      structure
+    )
   }
 
   async searchLayer(layer: ContextLayer, input: AdapterSearchInput): Promise<readonly Evidence[]> {
@@ -99,19 +103,50 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
       ),
       this.searchManualCorrections(layer, input)
     ])
-    const stored = result.rows.map((row) => ({
-      id: row.id,
-      layer: row.layer,
-      title: row.title,
-      uri: row.uri,
-      excerpt: row.excerpt,
-      confidence: Number(row.confidence),
-      authority: Number(row.authority),
-      updatedAt: row.updated_at.toISOString(),
-      ...(row.content_hash ? { contentHash: row.content_hash } : {}),
-      ...(row.project_id ? { projectId: row.project_id } : {}),
-      metadata: row.metadata
-    }))
+    const activityIds = [...new Set(result.rows.map((row) => row.metadata.activityId))].filter(
+      (id): id is string =>
+        typeof id === 'string' && /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id)
+    )
+    const observations = activityIds.length
+      ? await this.pool.query<{
+          id: string
+          occurred_at: Date
+          target_uri: string | null
+          project_id: string | null
+        }>(
+          'SELECT id::text, occurred_at, target_uri, project_id::text FROM activities WHERE id = ANY($1::uuid[])',
+          [activityIds]
+        )
+      : { rows: [] }
+    const byActivity = new Map(observations.rows.map((row) => [row.id, row]))
+    const stored = result.rows.map((row): Evidence => {
+      // Temporal interpretation is a read projection, never a client-supplied claim.
+      const { temporalContext: _untrustedTemporalContext, ...metadata } = row.metadata
+      const item: Evidence = {
+        id: row.id,
+        layer: row.layer,
+        title: row.title,
+        uri: row.uri,
+        excerpt: row.excerpt,
+        confidence: Number(row.confidence),
+        authority: Number(row.authority),
+        updatedAt: row.updated_at.toISOString(),
+        ...(row.content_hash ? { contentHash: row.content_hash } : {}),
+        ...(row.project_id ? { projectId: row.project_id } : {}),
+        metadata
+      }
+      const activityId = row.metadata.activityId
+      if (typeof activityId !== 'string' && !row.uri.startsWith('boron://activity/')) return item
+      const candidate = typeof activityId === 'string' ? byActivity.get(activityId) : undefined
+      const observation = candidate?.project_id === row.project_id ? candidate : undefined
+      return markActivityObservation(item, {
+        activityId: typeof activityId === 'string' ? activityId : 'unknown',
+        asOf: observation?.occurred_at.toISOString() ?? null,
+        subjectUri: row.uri.startsWith('boron://activity/')
+          ? (observation?.target_uri ?? row.uri)
+          : row.uri
+      })
+    })
     return [...corrections, ...stored].slice(0, input.limit)
   }
 
@@ -275,6 +310,9 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
         confidence: number
         confirmation_state: string
         valid_from: Date
+        asserted_by_activity_id: string | null
+        provenance: Record<string, unknown>
+        state_family: string | null
       }>(
         `
           SELECT
@@ -286,17 +324,23 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
             target.canonical_uri AS target_uri,
             r.confidence,
             r.confirmation_state,
-            r.valid_from
+            r.valid_from,
+            r.asserted_by_activity_id::text,
+            r.provenance,
+            registry.metadata->>'stateFamily' AS state_family
           FROM current_relations r
           JOIN objects source ON source.id = r.source_object_id
           JOIN objects target ON target.id = r.target_object_id
+          LEFT JOIN ontology_type_registry registry ON registry.contract_version = 1
+            AND registry.type_family = 'relation_type' AND registry.type_name = r.relation_type
           WHERE source.project_id = $1::uuid OR target.project_id = $1::uuid
           ORDER BY
+            CASE WHEN source.canonical_uri = ANY($3::text[]) THEN 0 ELSE 1 END,
             CASE WHEN r.confirmation_state = 'confirmed' THEN 0 ELSE 1 END,
             r.valid_from DESC
           LIMIT $2
         `,
-        [projectId, Math.min(12, input.limit)]
+        [projectId, Math.min(12, input.limit), input.sourceAnchors]
       )
     ])
 
@@ -334,7 +378,7 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
       layer: 'ontology',
       title: `${row.source_name} ${row.relation_type} ${row.target_name}`,
       uri: `boron://relation/${row.id}`,
-      excerpt: `${row.source_uri} ${row.relation_type} ${row.target_uri}.`,
+      excerpt: `[Current ${row.confirmation_state} relation, valid from ${row.valid_from.toISOString()}.] ${row.source_uri} ${row.relation_type} ${row.target_uri}.`,
       confidence: Number(row.confidence),
       authority: row.confirmation_state === 'confirmed' ? 1 : 0.7,
       updatedAt: row.valid_from.toISOString(),
@@ -342,6 +386,11 @@ export class PostgresOntologyRepository implements ContextAdapter, ProjectResolv
       metadata: {
         ontologyKind: 'relation',
         confirmationState: row.confirmation_state,
+        relationType: row.relation_type,
+        stateFamily: row.state_family,
+        assertedByActivityId: row.asserted_by_activity_id,
+        relationAuthority: row.provenance.relationAuthority ?? null,
+        temporalContext: { role: 'current_relation', validFrom: row.valid_from.toISOString() },
         sourceUri: row.source_uri,
         targetUri: row.target_uri
       }

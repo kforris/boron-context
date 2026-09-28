@@ -423,6 +423,7 @@ function rankAndDedupe(
         projectMatch * 0.1 +
         anchorMatch * 0.15 +
         ontologyValidation * 0.03 -
+        task.historicalStatePenalty(item) -
         (anchorMatch > 0 || item.retrieval.stageId === 'ontology-policy'
           ? 0
           : task.noisePenalty(item))
