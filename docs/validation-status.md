@@ -33,6 +33,12 @@ announcement.
 - Opened a private case register against Issue #24. Missing observations remain unknown and an
   independent reviewer must decide whether a case qualifies.
 
-Next: inspect naturally occurring resumptions for complete evidence bundles, then test the first
-install and second-task path in an isolated environment. Public summaries will omit private task
-material and credentials.
+A targeted scan of retained 2026-10-03 through 2026-10-11 Markdown and JSON receipts found no
+artifact that combined selected Capsule evidence with a separate reviewer decision, so the case
+count remains 0/15 rather than treating missing evidence as failure or success. A reusable
+[first-use validation protocol](first-use-validation.md) now defines the isolated clean-install,
+first-Capsule, second-task, recovery, uninstall, and independent-review receipts.
+
+Next: execute that protocol in an isolated environment or add a naturally occurring task only when
+its complete private evidence bundle exists. Public summaries will omit private task material and
+credentials.
