@@ -31,11 +31,9 @@ enum PanelZoomPolicy {
 
 struct MeterPanel: View {
     private static let basePanelWidth: CGFloat = 410
-    private static let defaultPanelHeight: CGFloat = 607
 
     @ObservedObject var store: MeterStore
     @AppStorage("boronPanelZoom") private var requestedZoom = PanelZoomPolicy.defaultZoom
-    @State private var basePanelHeight = Self.defaultPanelHeight
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -49,12 +47,12 @@ struct MeterPanel: View {
         }
         .frame(
             width: Self.basePanelWidth * effectiveZoom,
-            height: basePanelHeight * effectiveZoom,
+            height: store.panelContentHeight * effectiveZoom,
             alignment: .topLeading
         )
         .onPreferenceChange(PanelHeightKey.self) { height in
             guard height > 0 else { return }
-            basePanelHeight = height
+            store.updatePanelContentHeight(height)
             requestedZoom = clampedZoom(requestedZoom)
         }
         .onAppear { requestedZoom = clampedZoom(requestedZoom) }
@@ -94,7 +92,7 @@ struct MeterPanel: View {
         let visibleHeight = NSScreen.main?.visibleFrame.height ?? 900
         return PanelZoomPolicy.maximumZoom(
             visibleHeight: visibleHeight,
-            contentHeight: basePanelHeight
+            contentHeight: store.panelContentHeight
         )
     }
 

@@ -3,6 +3,7 @@ import Foundation
 
 @MainActor
 final class MeterStore: ObservableObject {
+    @Published private(set) var panelContentHeight: CGFloat = 607
     @Published private(set) var health: BoronHealth?
     @Published private(set) var meter: ContextMeterSummary?
     @Published private(set) var audit: ContextMeterAudit?
@@ -41,6 +42,11 @@ final class MeterStore: ObservableObject {
             TokenBar(label: "Capsules", value: meter.capsuleTokens, role: .capsule),
             TokenBar(label: "Filtered", value: meter.filteredTokens, role: .filtered),
         ]
+    }
+
+    func updatePanelContentHeight(_ height: CGFloat) {
+        guard height > 0 else { return }
+        panelContentHeight = height
     }
 
     func start() {
