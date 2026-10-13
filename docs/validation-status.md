@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-10-12. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-13. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -42,3 +42,21 @@ first-Capsule, second-task, recovery, uninstall, and independent-review receipts
 Next: execute that protocol in an isolated environment or add a naturally occurring task only when
 its complete private evidence bundle exists. Public summaries will omit private task material and
 credentials.
+
+## 2026-10-13 progress
+
+- A fresh isolated lifecycle rehearsal reproduced a clean-install blocker on Apple Silicon macOS
+  with the Swift 6.4 Command Line Tools: the menu build could not load
+  `SwiftUIMacros.StateMacro` for one view-local `@State` property. The failure receipt confirmed
+  `productionDatabaseTouched=false`.
+- The panel height was moved into the existing observable store without changing the sizing or zoom
+  policy. On the same host, the current v0.9.0 release build then succeeded, and the isolated clean
+  daemon, menu, Codex plugin, uninstall, and database-retention stages all passed.
+- The full historical upgrade/rollback rehearsal remains incomplete on this host because the
+  extracted v0.7.8 menu source contains the same incompatible `@State` form. This is retained as a
+  failed/partial result rather than counted as lifecycle success. The current-source fix still
+  requires exact-head macOS/Xcode CI before merge.
+
+This engineering result does not count as an Issue #24 task resumption or an independent first-use
+review. The next product evidence remains a dedicated-account first Capsule plus separate new-task
+continuation and reviewer decision.

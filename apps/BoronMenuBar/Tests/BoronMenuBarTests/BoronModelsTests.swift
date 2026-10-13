@@ -218,3 +218,15 @@ private func decodeSourceWindow(original: Int?, capsule: Int?, net: Int?) throws
             == PanelZoomPolicy.minimumZoom
     )
 }
+
+@MainActor
+@Test func keepsMeasuredPanelHeightInTheObservableStore() {
+    let store = MeterStore()
+    #expect(store.panelContentHeight == 607)
+
+    store.updatePanelContentHeight(742)
+    #expect(store.panelContentHeight == 742)
+
+    store.updatePanelContentHeight(0)
+    #expect(store.panelContentHeight == 742)
+}
