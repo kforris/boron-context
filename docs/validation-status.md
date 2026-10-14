@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-10-13. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-14. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-10-12 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-10-14 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -60,3 +60,18 @@ credentials.
 This engineering result does not count as an Issue #24 task resumption or an independent first-use
 review. The next product evidence remains a dedicated-account first Capsule plus separate new-task
 continuation and reviewer decision.
+
+## 2026-10-14 progress
+
+- The lifecycle controller now applies an exact-match build compatibility shim only to its
+  disposable extracted v0.7.8 menu source. The shim mirrors the current panel-height repair and
+  fails closed if the historical source no longer matches the reviewed form.
+- On the same Apple Silicon host, the isolated v0.7.8-to-v0.9.0 rehearsal passed current clean
+  install/uninstall, previous daemon/menu/plugin install, pre-upgrade backup, upgrade continuity,
+  restore into an empty database, daemon/menu/plugin rollback, rollback continuity, and final
+  uninstall with durable data retained. The receipt records `productionDatabaseTouched=false`.
+- Rehearsal receipts are now written with mode `0600`, matching the private-evidence contract.
+
+This closes the 2026-10-13 historical upgrade/rollback engineering gap. It does not replace the
+operator-visible [first-use validation](first-use-validation.md), provide an independent review, or
+advance Issue #24 beyond 0/15.

@@ -66,6 +66,75 @@ class MenuIsolationTests(unittest.TestCase):
             self.assertIn("EnvironmentVariables", menu.read_text())
             self.assertEqual(rehearsal.lifecycle_environment(layout)["BORON_TOKEN_FILE"], str(layout.token_file))
 
+    def test_disposable_previous_menu_build_shim_is_exact_and_bounded(self):
+        rehearsal = load_script("rehearse_macos_lifecycle")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            layout = rehearsal.RehearsalLayout.create(root, root / "current", "previous")
+            source = layout.previous / "apps/BoronMenuBar/Sources/BoronMenuBar"
+            source.mkdir(parents=True)
+            panel = source / "MeterPanel.swift"
+            store = source / "MeterStore.swift"
+            panel.write_text(
+                "struct MeterPanel: View {\n"
+                "    private static let defaultPanelHeight: CGFloat = 607\n"
+                "    @State private var basePanelHeight = Self.defaultPanelHeight\n"
+                "            height: basePanelHeight * effectiveZoom,\n"
+                "            basePanelHeight = height\n"
+                "            contentHeight: basePanelHeight\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            store.write_text(
+                "final class MeterStore: ObservableObject {\n"
+                "    func start() {\n"
+                "    }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+
+            rehearsal.apply_previous_release_menu_build_shim(layout)
+
+            patched_panel = panel.read_text()
+            patched_store = store.read_text()
+            self.assertNotIn("@State private var basePanelHeight", patched_panel)
+            self.assertEqual(patched_panel.count("store.panelContentHeight"), 2)
+            self.assertIn("store.updatePanelContentHeight(height)", patched_panel)
+            self.assertIn("@Published private(set) var panelContentHeight: CGFloat = 607", patched_store)
+            self.assertIn("func updatePanelContentHeight(_ height: CGFloat)", patched_store)
+
+            with self.assertRaisesRegex(RuntimeError, "no longer matches"):
+                rehearsal.apply_previous_release_menu_build_shim(layout)
+
+    def test_rehearsal_receipt_is_private_and_records_build_shim(self):
+        rehearsal = load_script("rehearse_macos_lifecycle")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            layout = rehearsal.RehearsalLayout.create(root, root / "current", "previous")
+            steps = rehearsal.StepLog(
+                steps=[
+                    {
+                        "name": "apply previous menu build compatibility shim",
+                        "status": "passed",
+                    }
+                ]
+            )
+            receipt = root / "receipt.json"
+
+            rehearsal.write_final_receipt(
+                receipt,
+                status="passed",
+                layout=layout,
+                previous_ref="previous",
+                previous_version="0.7.8",
+                current_version="0.9.0",
+                steps=steps,
+            )
+
+            payload = json.loads(receipt.read_text())
+            self.assertTrue(payload["isolation"]["previousMenuBuildCompatibilityShim"])
+            self.assertEqual(receipt.stat().st_mode & 0o777, 0o600)
+
 
 class MacosLifecycleTests(unittest.TestCase):
     def test_backup_is_non_overwriting_and_uses_a_private_receipt(self) -> None:

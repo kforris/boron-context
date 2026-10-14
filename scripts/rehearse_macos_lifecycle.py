@@ -218,6 +218,54 @@ def apply_previous_release_isolation_shim(layout: RehearsalLayout) -> None:
     client.write_text(client_text, encoding="utf-8")
 
 
+def apply_previous_release_menu_build_shim(layout: RehearsalLayout) -> None:
+    """Make the disposable v0.7.8 menu source build on supported newer Swift toolchains."""
+    panel = (
+        layout.previous
+        / "apps"
+        / "BoronMenuBar"
+        / "Sources"
+        / "BoronMenuBar"
+        / "MeterPanel.swift"
+    )
+    store = panel.with_name("MeterStore.swift")
+    panel_text = panel.read_text(encoding="utf-8")
+    store_text = store.read_text(encoding="utf-8")
+
+    panel_replacements = (
+        ("    private static let defaultPanelHeight: CGFloat = 607\n", ""),
+        ("    @State private var basePanelHeight = Self.defaultPanelHeight\n", ""),
+        ("            height: basePanelHeight * effectiveZoom,", "            height: store.panelContentHeight * effectiveZoom,"),
+        ("            basePanelHeight = height", "            store.updatePanelContentHeight(height)"),
+        ("            contentHeight: basePanelHeight", "            contentHeight: store.panelContentHeight"),
+    )
+    for old, new in panel_replacements:
+        if panel_text.count(old) != 1:
+            raise RuntimeError("previous menu panel no longer matches the Swift build shim")
+        panel_text = panel_text.replace(old, new, 1)
+
+    store_anchor = "final class MeterStore: ObservableObject {\n"
+    method_anchor = "    func start() {\n"
+    if store_text.count(store_anchor) != 1 or store_text.count(method_anchor) != 1:
+        raise RuntimeError("previous menu store no longer matches the Swift build shim")
+    store_text = store_text.replace(
+        store_anchor,
+        store_anchor + "    @Published private(set) var panelContentHeight: CGFloat = 607\n",
+        1,
+    )
+    store_text = store_text.replace(
+        method_anchor,
+        "    func updatePanelContentHeight(_ height: CGFloat) {\n"
+        "        guard height > 0 else { return }\n"
+        "        panelContentHeight = height\n"
+        "    }\n\n"
+        + method_anchor,
+        1,
+    )
+    panel.write_text(panel_text, encoding="utf-8")
+    store.write_text(store_text, encoding="utf-8")
+
+
 def prepare_source(source: Path) -> None:
     run([command("npm"), "ci"], cwd=source)
     run([command("npm"), "run", "build"], cwd=source)
@@ -622,6 +670,11 @@ def write_final_receipt(
                 step["name"] == "isolate previous fixed service labels" and step["status"] == "passed"
                 for step in steps.steps
             ),
+            "previousMenuBuildCompatibilityShim": any(
+                step["name"] == "apply previous menu build compatibility shim"
+                and step["status"] == "passed"
+                for step in steps.steps
+            ),
             "productionDatabaseTouched": False,
         },
         "steps": steps.steps,
@@ -630,6 +683,7 @@ def write_final_receipt(
         payload["error"] = error.splitlines()[0]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    path.chmod(0o600)
 
 
 def rehearse(layout: RehearsalLayout, previous_ref: str, steps: StepLog) -> tuple[str, str]:
@@ -640,6 +694,10 @@ def rehearse(layout: RehearsalLayout, previous_ref: str, steps: StepLog) -> tupl
     steps.execute(
         "isolate previous fixed service labels",
         lambda: apply_previous_release_isolation_shim(layout),
+    )
+    steps.execute(
+        "apply previous menu build compatibility shim",
+        lambda: apply_previous_release_menu_build_shim(layout),
     )
     previous_version = source_version(layout.previous)
     current_version = source_version(layout.current)
