@@ -59,8 +59,11 @@ npm run lifecycle:rehearse -- \
 - [ ] final receipt says `status=passed` and `productionDatabaseTouched=false`
 - [ ] no rehearsal launchd labels, processes, or PostgreSQL instance remain
 
-The script never uses the default Boron labels or production database. It applies a disposable label
-shim only to the extracted previous release because versions before 0.8 used fixed labels.
+The script never uses the default Boron labels or production database. It applies disposable,
+exact-match shims only to the extracted previous release: one isolates the fixed pre-0.8 service
+labels and endpoints, and one moves the v0.7.8 menu's measured panel height out of SwiftUI `@State`
+so that release can still be built by supported newer Apple Swift toolchains. A source mismatch
+fails closed instead of broadening either shim.
 
 ## Privacy, security, retention, and recovery
 
