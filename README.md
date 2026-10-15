@@ -205,6 +205,7 @@ configurable inference/confirmation rules remain roadmap work.
 | Repair project identity safely                | [Project identity repair](docs/project-identity-repair.md)                                                         |
 | Run the held-out continuity evaluation        | [Evaluation contract](docs/continuity-evaluation.md)                                                               |
 | Validate clean install and task continuation  | [First-use validation](docs/first-use-validation.md)                                                               |
+| Prepare a bounded volunteer trial             | [Volunteer trial kit](docs/volunteer-trial-kit.md)                                                                 |
 | Review release-candidate gates                | [Release checklist](docs/release-checklist.md)                                                                     |
 | Follow validation progress                    | [Validation status](docs/validation-status.md)                                                                     |
 | See what changed in v0.9.0                    | [Release notes](docs/releases/v0.9.0.md) · [Changelog](CHANGELOG.md)                                               |
