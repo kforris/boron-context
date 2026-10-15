@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-10-14. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-15. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-10-14 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-10-15 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -75,3 +75,17 @@ continuation and reviewer decision.
 This closes the 2026-10-13 historical upgrade/rollback engineering gap. It does not replace the
 operator-visible [first-use validation](first-use-validation.md), provide an independent review, or
 advance Issue #24 beyond 0/15.
+
+## 2026-10-15 progress
+
+- Prepared a bounded [volunteer trial kit](volunteer-trial-kit.md) for 3–5 opt-in participants. It
+  keeps installation, first Capsule, and second-task reuse as separate conversion checkpoints and
+  preserves `unknown` rather than treating missing evidence as zero.
+- Added a disposable public fixture, a redaction-first support diagnostic checklist, and an
+  [anonymous feedback template](trial-feedback-template.md). The form requests no identity,
+  repository, prompt, or source content.
+- The material is preparation only. No participant was contacted, invited, counted, or inferred
+  from GitHub traffic, and no public release or Marketplace action was authorized.
+
+Issue #24 therefore remains 0/15 with 0 independent reviews. The next evidence-bearing step is an
+opt-in operator-visible first-use run with a separate reviewer, not another synthetic task.

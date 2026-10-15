@@ -5,6 +5,9 @@ task accurate, source-backed project continuity. It is intended for an isolated 
 environment and produces a private, reviewable receipt. A passed lifecycle rehearsal is useful
 supporting evidence, but it is not a substitute for this operator-visible first-use path.
 
+For a bounded 3–5-person trial, use the [volunteer trial kit](volunteer-trial-kit.md) and its
+repository-provided disposable fixture. This protocol remains the acceptance contract.
+
 ## Scope and cost boundary
 
 - Supported host: Apple Silicon macOS 14+, Node.js 20.19+, PostgreSQL 15+, and a current Codex CLI
@@ -93,8 +96,9 @@ failed install. Do not repair the receipt to make the run pass.
 
 ## 3. Create a bounded test project
 
-Use a new disposable Git repository in the test account. Add a short `PROJECT-CONTEXT.md` with these
-three facts, then commit it:
+Use a new disposable Git repository in the test account. You may copy
+[`examples/first-use-project`](../examples/first-use-project/) or create an equivalent
+`PROJECT-CONTEXT.md` with these three facts, then commit it:
 
 1. Decision: JSON is the first export format.
 2. Constraint: generated exports are never committed.
