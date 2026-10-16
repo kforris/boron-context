@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-10-15. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-16. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -89,3 +89,22 @@ advance Issue #24 beyond 0/15.
 
 Issue #24 therefore remains 0/15 with 0 independent reviews. The next evidence-bearing step is an
 opt-in operator-visible first-use run with a separate reviewer, not another synthetic task.
+
+## 2026-10-16 progress
+
+- Audited the retrieval-latency samples behind the current release-candidate gate instead of
+  generating repeated queries to improve the window. The 7-day window contains 10 natural samples
+  with average / linear p95 / maximum latency of `145.50 / 409.85 / 566 ms`. The `566 ms` sample
+  occurred on 2026-10-11 and comprised `200 ms` in Ontology plus `351 ms` in the live Markdown
+  stage. The following nine samples are `33–219 ms`; the newest sample is `95 ms`.
+- The 30-day window contains 43 samples at `178.02 / 251.40 / 2,843 ms`. Its three observations
+  above `250 ms` are `2,843`, `566`, and `255 ms`; the oldest and largest occurred on 2026-09-24,
+  including `2,202 ms` in the live Codebase Memory stage.
+- These retained observations keep both rolling p95 gates above the `<=250 ms` threshold. Current
+  behavior did not reproduce a material defect, so no code change, sample deletion, synthetic
+  query, or historical rewrite was made. The release candidate remains `NO-GO` while the windows
+  mature or a reproducible defect is found.
+
+Issue #24 remains 0/15 with 0 independent reviews. The dedicated-account first-use run still needs
+an opt-in operator and a separate reviewer; local engineering rehearsal cannot substitute for that
+evidence.
