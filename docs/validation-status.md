@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-10-16. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-17. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -108,3 +108,21 @@ opt-in operator-visible first-use run with a separate reviewer, not another synt
 Issue #24 remains 0/15 with 0 independent reviews. The dedicated-account first-use run still needs
 an opt-in operator and a separate reviewer; local engineering rehearsal cannot substitute for that
 evidence.
+
+## 2026-10-17 progress
+
+- Intake found one naturally occurring content-production task with a concrete verified output and
+  private source-linked receipts. It is retained as a candidate, not a qualifying case.
+- The retained task receipt does not independently bind the task thread to the nearby project
+  Capsule, no task-specific context-use disposition was recorded, and per-task omission, stale-fact,
+  repeated-retrieval, correction, and signed source-window observations remain unknown.
+- No separate reviewer decision exists. Issue #24 therefore remains **0/15** with **0 independent
+  reviews**; missing evidence was not converted into a pass or failure.
+- The 2026-10-17 rolling readback is still `NO-GO`: 7-day eligible adoption is `126/147 = 85.71%`
+  and eligible selected-source coverage is `22/22 = 100%`, while retrieval p95 remains
+  `399 ms` over 11 samples. The 30-day values are `576/663 = 86.88%`, `68/68 = 100%`, and
+  `255 ms` over 41 samples. Boron-owned LLM calls remain zero.
+
+The next evidence-bearing step is to retain an exact task-to-Capsule binding and task-specific
+context disposition as part of the task receipt, then obtain a separate reviewer decision. The
+private task evidence and GitHub Traffic snapshot remain outside the repository.
