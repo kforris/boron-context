@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-10-17. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-18. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -126,3 +126,16 @@ evidence.
 The next evidence-bearing step is to retain an exact task-to-Capsule binding and task-specific
 context disposition as part of the task receipt, then obtain a separate reviewer decision. The
 private task evidence and GitHub Traffic snapshot remain outside the repository.
+
+## 2026-10-18 weekly review
+
+The [2026-10-18 weekly review](weekly-review-2026-10-18.md) records one pending natural-task
+candidate, 0/15 qualifying Issue #24 cases, 0 independent reviews, the completed isolated lifecycle
+rehearsal, trial-material readiness, current release gates, and the GitHub Traffic interpretation
+boundary. It keeps automated engineering rehearsal separate from operator-visible first-use and
+second-task evidence.
+
+Current eligible adoption and source-coverage gates pass, while retrieval p95 remains above 250 ms
+over both the 7-day and 30-day windows. The release candidate therefore remains `NO-GO`. Next week's
+single priority is one complete natural-task evidence bundle with exact task-to-Capsule binding,
+task-specific context disposition, required quality observations, and a separate reviewer decision.
