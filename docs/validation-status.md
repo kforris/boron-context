@@ -139,3 +139,20 @@ Current eligible adoption and source-coverage gates pass, while retrieval p95 re
 over both the 7-day and 30-day windows. The release candidate therefore remains `NO-GO`. Next week's
 single priority is one complete natural-task evidence bundle with exact task-to-Capsule binding,
 task-specific context disposition, required quality observations, and a separate reviewer decision.
+
+## 2026-10-19 progress
+
+- Retained a second natural-task candidate from a software-contribution audit. Its exact Codex task,
+  Boron session, and Capsule are now bound in the private evidence register, and its material
+  `RISK_STOP` output is independently reproducible from retained receipts.
+- The task did not record a task-specific context-use disposition, its selected eligible file
+  sources lacked measured source-window size, and no separate reviewer decision exists. Critical
+  omissions and stale-fact use therefore remain unknown; the candidate is `pending` and does not
+  advance Issue #24 beyond **0/15** or **0 independent reviews**.
+- The 7-day retrieval window now passes at `201.55 ms` linear p95 over 8 natural samples. The
+  30-day window remains above the gate at `317.20 ms` over 37 samples, including retained historical
+  tails; no sample was deleted or manufactured.
+
+The next qualifying step remains a natural task that records exact Capsule selection and a
+task-specific applied/rejected/stale disposition, followed by a separate reviewer decision. Public
+release, Marketplace submission, outreach, and marketing remain unauthorized.
