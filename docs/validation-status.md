@@ -156,3 +156,23 @@ task-specific context disposition, required quality observations, and a separate
 The next qualifying step remains a natural task that records exact Capsule selection and a
 task-specific applied/rejected/stale disposition, followed by a separate reviewer decision. Public
 release, Marketplace submission, outreach, and marketing remain unauthorized.
+
+## 2026-10-20 progress
+
+- Retained a third naturally occurring candidate from a product/inventory operation. Its exact task
+  thread, Boron session, Capsule, five selected historical receipts, terminal output, and safety
+  result are bound in the private case register.
+- A separate controller review compared the task output with the complete terminal history and exit
+  receipt. The task-output review passed: the controller ran once, preserved five blocked sources,
+  completed independently safe synchronization, deleted no local files, and kept logical transfer
+  separate from the observed filesystem free-space delta. No critical omission, stale-fact use,
+  repeated Capsule retrieval, or human correction was observed.
+- The originating task still has no task-specific applied/rejected/stale context-use disposition.
+  Its five eligible selected sources also lack measured source-window size, so signed source-window
+  tokens remain unknown.
+
+The private register now contains three natural candidates and one independently reviewed
+candidate. None qualifies, so Issue #24 remains **0/15**. The next evidence-bearing task must record
+an exact task-to-Capsule binding and context-use disposition during the task, preserve measured
+source-window coverage, and then receive a separate review. Public release, Marketplace submission,
+outreach, and marketing remain unauthorized.
