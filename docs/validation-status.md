@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-10-18. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-21. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-10-15 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-10-21 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -176,3 +176,24 @@ candidate. None qualifies, so Issue #24 remains **0/15**. The next evidence-bear
 an exact task-to-Capsule binding and context-use disposition during the task, preserve measured
 source-window coverage, and then receive a separate review. Public release, Marketplace submission,
 outreach, and marketing remain unauthorized.
+
+## 2026-10-21 progress
+
+- Retained a fourth naturally occurring candidate from a content-production task. Its exact task
+  thread, Boron session, Capsule, five selected historical/ontology facts, three draft receipts,
+  validator result, and writer-lease release are bound in the private case register.
+- A separate controller review passed the task output: three distinct videos passed local QA and
+  platform readback; the exact account's live draft count moved from 76 to 79; every item remained
+  unpublished and unscheduled; and the exact writer lease was released. The task treated the
+  selected 2026-10-18 upload blocker as historical and rechecked live state instead of reusing it as
+  current.
+- The originating task still has no task-specific applied/rejected/stale context-use disposition.
+  Four eligible selected file sources also lack measured source-window size; one selected ontology
+  relation is excluded by the source-window contract. Signed source-window tokens therefore remain
+  unknown for this task.
+
+The private register now contains four natural candidates and two independently reviewed
+candidates. None qualifies, so Issue #24 remains **0/15**. The next evidence-bearing task must record
+the task-specific context-use disposition and measured source-window coverage at task time, then
+receive a separate review. Public release, Marketplace submission, outreach, and marketing remain
+unauthorized.
