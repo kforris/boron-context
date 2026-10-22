@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-10-21. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-22. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -197,3 +197,24 @@ candidates. None qualifies, so Issue #24 remains **0/15**. The next evidence-bea
 the task-specific context-use disposition and measured source-window coverage at task time, then
 receive a separate review. Public release, Marketplace submission, outreach, and marketing remain
 unauthorized.
+
+## 2026-10-22 progress
+
+- Retained a fifth naturally occurring candidate from a software-contribution audit. Its exact task
+  thread, Boron session, Capsule, selected facts, material `RISK_STOP` receipt, and lease release are
+  bound in the private case register.
+- The originating task reported a validated `applied` disposition for two prior observations, used
+  them only as historical baselines, and refreshed mutable GitHub and coordinator state before
+  deciding. A separate controller review passed the task output: six bounded candidate audits found
+  no item clearing ownership, contract, provenance, overlap, and risk gates; no candidate,
+  reservation, implementation, or public write was created.
+- The context-use receipt remains client-reported evidence, not independent proof of benefit. The
+  selected Capsule has `0/2` measured eligible source-window coverage; six ontology-derived
+  selections are excluded and two legacy activity selections are unobservable. Signed task-level
+  source-window tokens therefore remain unknown.
+
+The private register now contains five natural candidates and three independently reviewed
+candidates. None qualifies, so Issue #24 remains **0/15**. The next qualifying task still needs
+exact task-to-Capsule binding, a task-specific context disposition, measured eligible source-window
+coverage, and a separate review. Public release, Marketplace submission, outreach, and marketing
+remain unauthorized.
