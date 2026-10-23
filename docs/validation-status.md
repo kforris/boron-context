@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-10-22. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-23. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -218,3 +218,27 @@ candidates. None qualifies, so Issue #24 remains **0/15**. The next qualifying t
 exact task-to-Capsule binding, a task-specific context disposition, measured eligible source-window
 coverage, and a separate review. Public release, Marketplace submission, outreach, and marketing
 remain unauthorized.
+
+## 2026-10-23 progress
+
+- Retained a sixth naturally occurring candidate from a content-production task. Its exact task,
+  Boron session, four same-trace Capsule samples, batch receipts, three per-item platform receipts,
+  validator result, and writer-lease release are bound in the private case register.
+- A separate controller review passed the task output: three distinct first-attempt items passed
+  local QA and exact-account platform readback; the draft count moved from 81 to 84; every item
+  remained unpublished and unscheduled; the task stopped at three within the five-attempt ceiling;
+  a read-only validator rerun exited 0; and the exact writer lease read back `locked=false`.
+- The selected historical receipts were not treated as current account state. The task required a
+  current-date decision and refreshed the live draft baseline before acting. No critical omission,
+  stale-fact use, human correction, publication, scheduling, extra attempt, or lease discrepancy
+  was observed.
+- The originating task still has no task-specific applied/rejected/stale context-use disposition.
+  Four eligible selected file sources also lack measured source-window size, while one ontology
+  relation is excluded. Conversation compaction emitted four equivalent Capsule samples under one
+  trace; this repeated retrieval is retained as an observation rather than silently collapsed.
+
+The private register now contains six natural candidates and four independently reviewed
+candidates. None qualifies, so Issue #24 remains **0/15**. The next qualifying task still needs a
+single auditable task-to-Capsule path, a task-specific context disposition, measured eligible
+source-window coverage, and a separate review. Public release, Marketplace submission, outreach,
+and marketing remain unauthorized.
