@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-10-23. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-24. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-10-21 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-10-24 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -242,3 +242,32 @@ candidates. None qualifies, so Issue #24 remains **0/15**. The next qualifying t
 single auditable task-to-Capsule path, a task-specific context disposition, measured eligible
 source-window coverage, and a separate review. Public release, Marketplace submission, outreach,
 and marketing remain unauthorized.
+
+## 2026-10-24 progress
+
+- Retained a seventh naturally occurring candidate from a software-contribution audit. Its exact
+  task thread, Boron session, Capsule, selected facts, material `RISK_STOP` receipt, and lease
+  release are bound in the private case register.
+- A separate controller review passed the task output: the run retained positive no-change feedback
+  on the active pilot, audited three issue-fix candidates and one enhancement candidate, and
+  correctly stopped when none cleared the reproduction, ownership, related-work, or overlap gates.
+  The publication gap and active pilot independently blocked another PR; no candidate, reservation,
+  worktree, code change, public comment, commit, or PR was created.
+- The originating task treated selected lifecycle and coordinator records as historical inputs and
+  refreshed mutable GitHub, publication, overlap, and control-plane state. No critical omission,
+  stale-fact use, repeated Capsule retrieval, human correction, public mutation, or lease-release
+  discrepancy was observed.
+- The originating task did not record a task-specific applied/rejected/stale context-use
+  disposition. Both eligible selected file sources also lack measured source-window size, while
+  four ontology-derived selections are excluded. Signed source-window tokens therefore remain
+  unknown for this task.
+- The same exact-head verification found the newly published high-severity Zod resource-exhaustion
+  advisory in the locked production dependency (`4.4.3`). The minimum bounded repair updates Zod
+  to `4.6.7`; the production dependency audit then reports zero known high/critical findings, and
+  the full deterministic test and evaluation suite remains green.
+
+The private register now contains seven natural candidates and five independently reviewed
+candidates. None qualifies, so Issue #24 remains **0/15**. The next qualifying task still needs
+exact task-to-Capsule binding, a task-specific context disposition, measured eligible source-window
+coverage, and a separate review. Public release, Marketplace submission, outreach, and marketing
+remain unauthorized.
