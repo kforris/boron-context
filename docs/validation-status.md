@@ -271,3 +271,35 @@ candidates. None qualifies, so Issue #24 remains **0/15**. The next qualifying t
 exact task-to-Capsule binding, a task-specific context disposition, measured eligible source-window
 coverage, and a separate review. Public release, Marketplace submission, outreach, and marketing
 remain unauthorized.
+
+## 2026-10-25 progress
+
+- Retained an eighth naturally occurring candidate from a software-contribution audit. Its exact
+  task thread, Boron session, single Capsule, six selected facts, material `RISK_STOP` receipt, and
+  exact lease release are bound in the private case register.
+- A separate controller review passed the task output: three changed-evidence issue-fix candidates
+  were rejected because an existing collaborator implementation had unsettled API semantics, an
+  active PR exactly occupied the requested regression, or an older bug still lacked new owner
+  clearance and overlapped active work. Saturday publication and the existing pilot independently
+  blocked another PR. No candidate, reservation, clone, worktree, code change, public comment,
+  commit, or PR was created.
+- The originating task treated the selected lifecycle and coordinator records as historical inputs
+  and refreshed mutable GitHub, ownership, overlap, publication, and control-plane state. No
+  critical omission, stale-fact use, repeated Capsule retrieval, human correction, public mutation,
+  or lease-release discrepancy was observed. A reviewer replay passed all 27 coordinator tests;
+  `validate.py` remained healthy with nine modules and zero errors, and the exact lease read back
+  `locked=false`.
+- The originating task did not record a task-specific applied/rejected/stale context-use
+  disposition. All three eligible selected file sources lack measured source-window size, while
+  three ontology-derived selections are excluded. Signed task-level source-window tokens therefore
+  remain unknown.
+- The rolling latency windows now both pass without deleting history or manufacturing retrievals:
+  the 7-day average / linear p95 / maximum is `100.56 / 144.60 / 145 ms` over 9 samples, and the
+  30-day result is `110.45 / 224.20 / 566 ms` over 33 samples. The 30-day gate improved naturally
+  as older tail samples left the window.
+
+The private register now contains eight natural candidates and six independently reviewed
+candidates. None qualifies, so Issue #24 remains **0/15** and the release candidate remains
+`NO-GO`. The next qualifying task still needs exact task-to-Capsule binding, a task-specific context
+disposition, measured eligible source-window coverage, and a separate review. Public release,
+Marketplace submission, outreach, and marketing remain unauthorized.
