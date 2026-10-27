@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-10-26. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-27. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-10-24 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-10-27 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -326,4 +326,35 @@ The private register now contains nine natural candidates and seven independentl
 candidates. None qualifies, so Issue #24 remains **0/15** and the release candidate remains
 `NO-GO`. The next qualifying task still needs one auditable task-to-Capsule path, a task-specific
 context disposition, measured eligible source-window coverage, and a separate review. Public
+release, Marketplace submission, outreach, and marketing remain unauthorized.
+
+## 2026-10-27 progress
+
+- Retained a tenth naturally occurring candidate from a content-production task. Its exact task,
+  Boron session, three same-trace Capsule samples, batch receipts, three per-item platform receipts,
+  validator result, and writer-lease release are bound in the private case register.
+- A separate controller review passed the task output: three distinct first-attempt items passed
+  local QA and exact-account platform readback; the draft count moved from 91 to 94; every item
+  remained unpublished and unscheduled; the task stopped at three within the five-attempt ceiling;
+  a read-only validator rerun exited 0; and the exact writer lease read back `locked=false`.
+- The selected 2026-10-22 through 2026-10-24 receipts were treated as historical inputs. The task
+  required a current-date decision and refreshed the live draft baseline before acting. No critical
+  omission, stale-fact use, human correction, publication, scheduling, extra attempt, or lease
+  discrepancy was observed.
+- The originating task did not record a task-specific applied/rejected/stale context-use
+  disposition. One of four eligible selected file sources had measured source-window size; the
+  other three reported `registered_project_root_unavailable`, while one ontology relation was
+  excluded. For the primary Capsule, the measured source window was 24 original tokens versus 330
+  Capsule tokens, a signed net of `-306`; this partial measurement is not a savings claim.
+  Conversation compaction emitted three equivalent Capsule samples under one trace, and this
+  repeated retrieval remains an explicit observation.
+- Both rolling latency gates remain below the release threshold without deleting history or
+  manufacturing retrievals: the 7-day average / linear p95 / maximum is
+  `88.50 / 110.90 / 120 ms` over 8 samples, and the 30-day result is
+  `111.55 / 224.20 / 566 ms` over 33 samples.
+
+The private register now contains ten natural candidates and eight independently reviewed
+candidates. None qualifies, so Issue #24 remains **0/15** and the release candidate remains
+`NO-GO`. The next qualifying task still needs one auditable task-to-Capsule path, a task-specific
+context disposition, sufficiently measured eligible source windows, and a separate review. Public
 release, Marketplace submission, outreach, and marketing remain unauthorized.
