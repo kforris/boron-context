@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-10-27. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-28. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-10-27 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-10-28 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -358,3 +358,26 @@ candidates. None qualifies, so Issue #24 remains **0/15** and the release candid
 `NO-GO`. The next qualifying task still needs one auditable task-to-Capsule path, a task-specific
 context disposition, sufficiently measured eligible source windows, and a separate review. Public
 release, Marketplace submission, outreach, and marketing remain unauthorized.
+
+## 2026-10-28 progress
+
+- Reconciled the private register to include the previously retained 2026-10-26 content candidate
+  and a new naturally occurring software-contribution candidate. The register now contains eleven
+  candidates, nine with separate passing task-output reviews; none qualifies.
+- The new candidate exactly binds one task, one Boron session, and one Capsule. A separate review
+  passed its output: three materially changed build123d issues correctly failed classification,
+  contract, clarification, compatibility, or overlap gates; no candidate, implementation, or
+  public mutation was created; 27/27 coordinator tests passed; and the exact lease read back
+  `locked=false`.
+- The task recorded no task-specific applied/rejected/stale context-use disposition. Its six
+  selected observations yield no eligible measured source window: five ontology-derived selections
+  are ineligible and one legacy observation is unobservable. Signed task-level source-window tokens
+  therefore remain `unknown`.
+- The private rolling Traffic snapshot reports 1 view / 1 unique view and 420 clones / 113 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+
+Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The next qualifying task still
+needs exact binding, a task-specific context disposition, sufficiently measured eligible source
+windows, and a separate review. Public release, Marketplace submission, outreach, and marketing
+remain unauthorized.
