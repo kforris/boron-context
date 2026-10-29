@@ -381,3 +381,31 @@ Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The next q
 needs exact binding, a task-specific context disposition, sufficiently measured eligible source
 windows, and a separate review. Public release, Marketplace submission, outreach, and marketing
 remain unauthorized.
+
+## 2026-10-29 progress
+
+- Retained a twelfth naturally occurring candidate from a software-contribution audit. Its exact
+  task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release are
+  bound in the private case register.
+- A separate review passed the task output: new Issue #1554 was correctly rejected as explicit OCCT
+  enhancement scope without an eligible label or settled build123d contract; new contributor PR
+  #1555 was treated as occupied work; the existing pilot independently blocked another pilot; no
+  candidate, reservation, clone, implementation, or public mutation was created. A current replay
+  passed 27/27 coordinator tests, validation remained healthy with nine modules, and the exact lease
+  read back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed. The originating task refreshed mutable
+  GitHub, ownership, overlap, publication, and control-plane facts before deciding `RISK_STOP`.
+- The task recorded no task-specific applied/rejected/stale context-use disposition. Its six
+  selected observations yield no eligible measured source window: five ontology-derived selections
+  are ineligible and one legacy observation is unobservable. Signed task-level source-window tokens
+  therefore remain `unknown`.
+- The private rolling Traffic snapshot reports 1 view / 1 unique view and 408 clones / 102 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+
+The private register now contains twelve natural candidates and ten independently reviewed
+candidates. None qualifies, so Issue #24 remains **0/15** and the release candidate remains
+`NO-GO`. The next qualifying task still needs exact binding, a task-specific context disposition,
+sufficiently measured eligible source windows, and a separate review. Public release, Marketplace
+submission, outreach, and marketing remain unauthorized.
