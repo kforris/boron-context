@@ -409,3 +409,34 @@ candidates. None qualifies, so Issue #24 remains **0/15** and the release candid
 `NO-GO`. The next qualifying task still needs exact binding, a task-specific context disposition,
 sufficiently measured eligible source windows, and a separate review. Public release, Marketplace
 submission, outreach, and marketing remain unauthorized.
+
+## 2026-10-30 progress
+
+- Reconciled the private register by restoring its omitted entry for the previously retained
+  twelfth candidate, then retained a thirteenth naturally occurring candidate from a
+  software-contribution audit. The register now contains thirteen candidates, twelve with exact
+  task-to-Capsule binding and eleven with separate passing task-output reviews; none qualifies.
+- The new candidate exactly binds one task, one Boron session, and one Capsule. A separate review
+  passed its output: three materially changed build123d issues were correctly rejected because two
+  exact contributor PRs occupied the work and the third still required an OWNER compatibility
+  decision with active-file overlap. No candidate, reservation, clone, implementation, public
+  comment, commit, or PR was created; 27/27 coordinator tests passed; validation remained healthy
+  with nine modules; and the exact lease read back `locked=false`.
+- Two read-only GitHub GraphQL queries initially failed because of query syntax. The task disclosed
+  and corrected them without an external write; no critical omission, stale-fact use, repeated
+  Capsule retrieval, human correction, public mutation, or lease-release discrepancy was observed.
+- The task recorded no task-specific applied/rejected/stale context-use disposition. Its six
+  selected observations yield no eligible measured source window: five ontology-derived selections
+  are ineligible and one historical activity is unobservable. Signed task-level source-window
+  tokens therefore remain `unknown`.
+- The private rolling Traffic snapshot reports 1 view / 1 unique view and 401 clones / 98 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+- The 2026-10-29 final-main workflow remains a failed receipt: five jobs passed, while one macOS job
+  received no runner steps and was cancelled. No rerun was manufactured; a later successful main
+  workflow can establish current-head evidence but cannot rewrite that historical result.
+
+Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The next qualifying task still
+needs exact binding, a task-specific context disposition, sufficiently measured eligible source
+windows, and a separate review. Public release, Marketplace submission, outreach, and marketing
+remain unauthorized.
