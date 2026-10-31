@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-10-28. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-10-31. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -440,3 +440,32 @@ Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The next q
 needs exact binding, a task-specific context disposition, sufficiently measured eligible source
 windows, and a separate review. Public release, Marketplace submission, outreach, and marketing
 remain unauthorized.
+
+## 2026-10-31 progress
+
+- Retained a fourteenth naturally occurring candidate from a software-contribution audit. Its exact
+  task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release are
+  bound in the private case register.
+- A separate review passed the task output: active pilot PR #1539 had become Ready for review before
+  the run and remained on its unchanged validated head; all issue-fix and enhancement records were
+  screened; no candidate evidence had changed; and the active pilot independently blocked a new
+  reservation. No candidate, reservation, clone, implementation, public comment, commit, or PR was
+  created. A current replay passed 27/27 coordinator tests, validation remained healthy with nine
+  modules, and the exact lease read back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed. The originating task refreshed mutable
+  GitHub, ownership, overlap, publication, and control-plane facts before deciding `RISK_STOP`.
+- The task recorded no task-specific applied/rejected/stale context-use disposition. Its six
+  selected observations yield no eligible measured source window: five ontology-derived selections
+  are ineligible and one historical activity is unobservable. Signed task-level source-window
+  tokens therefore remain `unknown`.
+- The private rolling Traffic snapshot reports 1 view / 1 unique view and 408 clones / 103 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+
+The private register now contains fourteen natural candidates, thirteen with exact task-to-Capsule
+binding and twelve with separate passing task-output reviews. None qualifies, so Issue #24 remains
+**0/15** and the release candidate remains `NO-GO`. The next qualifying task still needs exact
+binding, a task-specific context disposition, sufficiently measured eligible source windows, and a
+separate review. Public release, Marketplace submission, outreach, and marketing remain
+unauthorized.
