@@ -483,6 +483,10 @@ unauthorized.
   No candidate, reservation, clone, implementation, public comment, commit, or PR was created. A
   current replay passed 27/27 coordinator tests, validation remained healthy with nine modules,
   and the exact lease read back `locked=false`.
+- The first exact-head workflow exposed GitHub's scheduled `macos-14` runner brownout: both matrix
+  jobs were cancelled before receiving any steps, while the other four jobs passed. GitHub retires
+  that image on 2026-11-02, so the matrix now uses `macos-15`, matching the existing native-menu
+  job while the application continues to build for its macOS 14 deployment target.
 - No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
   mutation, or lease-release discrepancy was observed. The originating task refreshed mutable
   GitHub, ownership, overlap, publication, and control-plane facts before deciding `RISK_STOP`.
