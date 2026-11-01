@@ -12,7 +12,7 @@ jobs:
   check:
     strategy:
       matrix:
-        os: [macos-14, ubuntu-latest]
+        os: [macos-15, ubuntu-latest]
         node: [20.19.0, 22]
     runs-on: ${{ matrix.os }}
     steps:
