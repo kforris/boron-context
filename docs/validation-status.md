@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-10-31. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-11-01. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-10-28 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-11-01 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -465,6 +465,37 @@ remain unauthorized.
 
 The private register now contains fourteen natural candidates, thirteen with exact task-to-Capsule
 binding and twelve with separate passing task-output reviews. None qualifies, so Issue #24 remains
+**0/15** and the release candidate remains `NO-GO`. The next qualifying task still needs exact
+binding, a task-specific context disposition, sufficiently measured eligible source windows, and a
+separate review. Public release, Marketplace submission, outreach, and marketing remain
+unauthorized.
+
+## 2026-11-01 progress
+
+- Retained a fifteenth naturally occurring candidate from a software-contribution audit. Its exact
+  task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release are
+  bound in the private case register.
+- A separate review passed the task output: upstream changed only by one tests-only commit, and an
+  OWNER pull request's file set grew from 51 to 52. The task correctly re-audited one Issue on that
+  changed overlap evidence and retained its rejection because exact and shared-file pull requests
+  occupied the work. No enhancement-labelled candidate changed; Saturday publication was
+  unscheduled, and the existing Ready-for-review pilot independently blocked another reservation.
+  No candidate, reservation, clone, implementation, public comment, commit, or PR was created. A
+  current replay passed 27/27 coordinator tests, validation remained healthy with nine modules,
+  and the exact lease read back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed. The originating task refreshed mutable
+  GitHub, ownership, overlap, publication, and control-plane facts before deciding `RISK_STOP`.
+- The task recorded no task-specific applied/rejected/stale context-use disposition. Its six
+  selected observations yield no eligible measured source window: five ontology-derived selections
+  are ineligible and one historical activity is unobservable. Signed task-level source-window
+  tokens therefore remain `unknown`.
+- The private rolling Traffic snapshot reports 1 view / 1 unique view and 393 clones / 96 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+
+The private register now contains fifteen natural candidates, fourteen with exact task-to-Capsule
+binding and thirteen with separate passing task-output reviews. None qualifies, so Issue #24 remains
 **0/15** and the release candidate remains `NO-GO`. The next qualifying task still needs exact
 binding, a task-specific context disposition, sufficiently measured eligible source windows, and a
 separate review. Public release, Marketplace submission, outreach, and marketing remain
