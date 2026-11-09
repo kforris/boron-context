@@ -717,3 +717,39 @@ binding and nineteen with separate passing task-output reviews. None qualifies, 
 binding, a task-specific context disposition, sufficiently measured eligible source windows, and a
 separate review. Public release, Marketplace submission, outreach, and marketing remain
 unauthorized.
+
+## 2026-11-09 progress
+
+- Retained a twenty-second naturally occurring candidate from a software-contribution audit. Its
+  exact task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release
+  are bound in the private case register.
+- A separate review passed the task output. Publication was calendar-permitted, but six first-time
+  candidate audits correctly stopped: one request was already documented and touched active
+  import/export work; two retained unsettled or platform-sensitive behavior contracts; one was
+  explicitly deferred by the OWNER until after 1.0; one interacted with related OWNER joint work;
+  and one was already implemented on current `dev`. A previously tracked enhancement was also
+  confirmed complete by an OWNER commit. No candidate, reservation, clone, implementation, public
+  comment, commit, or pull request was created. A current replay passed 28/28 coordinator tests,
+  validation remained healthy with nine modules, and the exact lease read back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed. The originating task refreshed mutable
+  GitHub, contract, related-work, publication, and control-plane facts before deciding `RISK_STOP`.
+- The task recorded no task-specific applied/rejected/stale context-use disposition. One selected
+  historical manifest is eligible but unmeasured because the registered project root was
+  unavailable to source-size telemetry; five ontology-derived selections are ineligible. Task-level
+  eligible source coverage is therefore 0/1 and signed source-window tokens remain `unknown`.
+- The private rolling Traffic snapshot reports 0 views / 0 unique views and 361 clones / 84 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+- Current eligible observable adoption is `113/126 = 89.68%` over 7 days and
+  `499/544 = 91.73%` over 30 days; semantic writeback is `63/63` and `458/458`. Eligible selected-
+  source coverage is `18/18 = 100%` and `77/77 = 100%`; retrieval average / linear p95 / maximum is
+  `104.44 / 141.80 / 149 ms` and `116.15 / 220.30 / 566 ms`. Task-specific context-use reports are
+  `6/0/0` and `25/0/0` applied/rejected/stale, while missing reports remain unknown.
+
+The private register now contains twenty-two natural candidates, twenty-one with exact
+task-to-Capsule binding and twenty with separate passing task-output reviews. None qualifies, so
+Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The next qualifying task still
+needs exact binding, a task-specific context disposition, sufficiently measured eligible source
+windows, and a separate review. Public release, Marketplace submission, outreach, and marketing
+remain unauthorized.
