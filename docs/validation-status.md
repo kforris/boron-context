@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-11-06. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-11-11. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -788,4 +788,42 @@ task-to-Capsule binding and twenty-one with separate passing task-output reviews
 Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The next qualifying task still
 needs exact binding, a task-specific context disposition, sufficiently measured eligible source
 windows, and a separate review. Public release, Marketplace submission, outreach, and marketing
+remain unauthorized.
+
+## 2026-11-11 progress
+
+- Retained a twenty-fourth naturally occurring candidate from a software-contribution audit. Its
+  exact task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release
+  are bound in the private case register.
+- A separate review passed the task output. Tuesday publication was not scheduled. One Issue was
+  exactly occupied by an open pull request; a second retained collaborator-owned implementation,
+  unsettled API semantics, and active overlap; and one enhancement was already authored with a
+  complete collaborator implementation, unsettled numerical/API acceptance, and seven active
+  same-file overlaps at task time. Existing PR #1430 had no new feedback and remained conflicting
+  on the same head. No candidate, reservation, clone, implementation, public comment, commit, or
+  pull request was created. A current replay passed 28/28 coordinator tests, validation remained
+  healthy with nine modules, and the exact lease read back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed. The task refreshed mutable GitHub,
+  ownership, contract, overlap, publication, and control-plane facts before deciding `RISK_STOP`.
+  Later overlap growth is retained as newer state rather than substituted into the task-time count.
+- The task recorded no task-specific applied/rejected/stale context-use disposition. Five selected
+  ontology-derived observations are ineligible and one legacy activity is unobservable. Because no
+  eligible source was selected, measured task-level source-window evidence and signed tokens remain
+  `unknown`; a 0/0 denominator is not treated as passing.
+- The private rolling Traffic snapshot reports 1 view / 1 unique view and 382 clones / 89 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+- Current eligible observable adoption is `162/170 = 95.29%` over 7 days and
+  `537/576 = 93.23%` over 30 days; semantic writeback is `58/58` and `402/402`. Eligible selected-
+  source coverage is `20/20 = 100%` and `74/74 = 100%`; retrieval average / linear p95 / maximum is
+  `92.78 / 102.20 / 103 ms` over 9 samples and `103.51 / 155.60 / 232 ms` over 37 samples.
+  Task-specific context-use reports are `5/0/0` and `25/0/0` applied/rejected/stale, while missing
+  reports remain unknown. Boron-owned online model calls remain zero.
+
+The private register now contains twenty-four natural candidates, twenty-three with exact
+task-to-Capsule binding and twenty-two with separate passing task-output reviews. None qualifies,
+so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The next qualifying task
+still needs exact binding, a task-specific context disposition, measured eligible source-window
+evidence, and a separate review. Public release, Marketplace submission, outreach, and marketing
 remain unauthorized.
