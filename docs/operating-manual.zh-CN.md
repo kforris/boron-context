@@ -102,6 +102,28 @@ rg --files "${CODEX_HOME:-$HOME/.codex}/plugins/cache/boron-context" \
 只有 registry 选中的已安装 artifact 与当前 marketplace payload 不一致时，才应报告
 source/cache 漂移。手工拼接路径时漏掉 marketplace 或 plugin 任一层，不是 Boron 健康故障。
 
+如果 macOS 重启后 `/health` 报告 `connect ECONNREFUSED 127.0.0.1:5432`，应先检查 PostgreSQL，
+不要先重启 Boron。Homebrew PostgreSQL 可能保留重启前的 `postmaster.pid`；PID 被系统复用后，
+`pg_ctl status` 可能把无关进程误判为数据库，不能单独作为判断依据。存在 PostgreSQL 监听或
+匹配的 postmaster 时绝不能移动锁文件：
+
+```bash
+pg_isready --host 127.0.0.1 --port 5432
+lsof -nP -iTCP:5432 -sTCP:LISTEN
+sed -n '1,8p' /opt/homebrew/var/postgresql@17/postmaster.pid
+ps -p "$(sed -n '1p' /opt/homebrew/var/postgresql@17/postmaster.pid)" \
+  -o pid=,lstart=,command=
+sysctl -n kern.boottime
+launchctl print "gui/$(id -u)/homebrew.mxcl.postgresql@17"
+```
+
+若安装的 Homebrew PostgreSQL 主版本不同，请把 `postgresql@17` 替换为实际版本。
+
+只有端口无监听、PID 属于非 PostgreSQL 进程且锁文件早于本次开机时，operator 才可把这个精确
+锁文件移动为带时间戳的同目录归档。任一判断不明确就停止并保留文件供审阅。恢复后必须同时验证
+`pg_isready` 接受连接，并重新读取 Boron `/health`，确认数据库及全部已配置 adapters 健康。
+移动锁文件不等于数据库恢复，也不授权删除 cluster、WAL、备份或已归档锁文件。
+
 ### 恢复与回滚
 
 只恢复到新建空库。工具会拒绝含用户对象的目标库，并可核对 receipt 中的 SHA-256：

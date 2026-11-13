@@ -110,6 +110,31 @@ Only report source/cache drift when the registry-selected installed artifact dif
 current marketplace payload. A manually shortened path that omits either the marketplace or plugin
 segment is not a Boron health failure.
 
+If `/health` reports `connect ECONNREFUSED 127.0.0.1:5432` after a macOS restart, inspect the
+PostgreSQL service before restarting Boron. Homebrew PostgreSQL can retain a pre-reboot
+`postmaster.pid`; after PID reuse, `pg_ctl status` may incorrectly identify an unrelated process as
+the database. Do not trust that check alone, and never remove the lock while a PostgreSQL listener
+or matching postmaster exists:
+
+```bash
+pg_isready --host 127.0.0.1 --port 5432
+lsof -nP -iTCP:5432 -sTCP:LISTEN
+sed -n '1,8p' /opt/homebrew/var/postgresql@17/postmaster.pid
+ps -p "$(sed -n '1p' /opt/homebrew/var/postgresql@17/postmaster.pid)" \
+  -o pid=,lstart=,command=
+sysctl -n kern.boottime
+launchctl print "gui/$(id -u)/homebrew.mxcl.postgresql@17"
+```
+
+Replace `postgresql@17` with the installed Homebrew major version when it differs.
+
+Only when the port has no listener, the PID belongs to a non-PostgreSQL process, and the lock
+predates the current boot should an operator move that exact lock to a timestamped sibling archive.
+If any check is ambiguous, stop and preserve the file for review. After recovery, require
+`pg_isready` to accept connections and re-read Boron `/health`; the database plus all configured
+adapters must be healthy. Moving the lock is not a database restore or permission to delete the
+cluster, WAL, backups, or the archived lock.
+
 ### Restore and rollback
 
 Restore only into a newly created, empty database. The helper rejects a target containing user
