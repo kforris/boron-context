@@ -108,6 +108,8 @@ curl -sS http://127.0.0.1:41635/health
 codex plugin list --marketplace boron-context --json
 rg --files "${CODEX_HOME:-$HOME/.codex}/plugins/cache/boron-context" \
   | rg '/context-continuity/SKILL\.md$'
+pg_isready --host 127.0.0.1 --port 5432
+lsof -nP -iTCP:5432 -sTCP:LISTEN
 ```
 
 Also include the failed step, UTC timestamp, expected result, redacted error class, and relevant
@@ -116,6 +118,12 @@ tokens, private project names, source excerpts, prompts, transcripts, and task t
 the token file, `.env`, database dump, complete log directory, `.codex` directory, or private
 receipt. When redaction would make the report ambiguous, keep the bundle local and arrange a
 screen-shared review instead.
+
+For a post-reboot `ECONNREFUSED` failure, follow the fail-closed PostgreSQL PID-reuse procedure in
+the [operating manual](operating-manual.md). A `pg_ctl status` result alone is insufficient: do not
+move `postmaster.pid` unless the configured port has no listener, the recorded PID belongs to a
+non-PostgreSQL process, and the lock predates the current boot. Preserve an ambiguous lock for
+operator review, then require both `pg_isready` and Boron `/health` readback after any recovery.
 
 ## 6. Recovery, uninstall, and final classification
 

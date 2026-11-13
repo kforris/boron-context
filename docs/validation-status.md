@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-11-12. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-11-13. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -867,3 +867,43 @@ so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The nex
 still needs exact binding, a task-specific context disposition, measured eligible source-window
 evidence, and a separate review. Public release, Marketplace submission, outreach, and marketing
 remain unauthorized.
+
+## 2026-11-13 progress
+
+- Retained a twenty-sixth naturally occurring candidate from a software-contribution audit. Its
+  exact task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release
+  are bound in the private register.
+- A separate review passed the task output. Thursday publication was correctly unscheduled. One
+  issue was exactly occupied by a contributor pull request, an OWNER draft occupied a second issue,
+  and the enhancement candidate retained an explicit contributor claim, unsettled API questions,
+  and active file overlap. The existing authored pull request remained conflicting without newer
+  human feedback. No candidate, reservation, clone, implementation, public comment, commit, or
+  pull request was created. A current replay passed 28/28 coordinator tests, validation remained
+  healthy with nine modules, and the exact lease read back `locked=false`.
+- The originating task recorded no task-specific applied/rejected/stale context-use disposition.
+  One selected coordinator-state source is eligible but unmeasured because its registered project
+  root was unavailable to source-size telemetry; five ontology-derived observations are
+  ineligible. Task-level eligible source coverage is therefore 0/1 and signed source-window tokens
+  remain `unknown`.
+- The private rolling Traffic snapshot reports 2 views / 2 unique views and 372 clones / 84 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+- Current eligible observable adoption is `165/173 = 95.38%` over 7 days and
+  `529/562 = 94.13%` over 30 days; semantic writeback is `58/58` and `351/351`. Eligible selected-
+  source coverage is `28/28 = 100%` and `79/79 = 100%`; signed measured source-window tokens are
+  `+100,073` and `+306,758`. Retrieval average / linear p95 / maximum is
+  `115.25 / 221.35 / 366 ms` over 12 samples and `110.42 / 189.50 / 366 ms` over 38 samples.
+  Task-specific context-use reports are `4/0/0` and `25/0/0` applied/rejected/stale, while missing
+  reports remain unknown. Boron-owned online model calls remain zero.
+- A live restart check found PostgreSQL blocked by a pre-reboot `postmaster.pid` whose numeric PID
+  had been reused by an unrelated macOS process. Port 5432 had no listener even though
+  `pg_ctl status` reported running. The exact stale lock was retained as a timestamped sibling;
+  the existing Homebrew LaunchAgent recovered without a database restore or configuration change,
+  and Boron read back PostgreSQL plus all six adapters healthy. The support checklist now requires
+  listener, process-identity, boot-time, `pg_isready`, and final `/health` evidence before and after
+  this bounded recovery.
+
+The private register now contains twenty-six natural candidates, twenty-five with exact
+task-to-Capsule binding and twenty-four with separate passing task-output reviews. None qualifies,
+so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. Public release,
+Marketplace submission, outreach, and marketing remain unauthorized.
