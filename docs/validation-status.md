@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-11-13. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-11-14. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-11-01 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-11-14 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -907,3 +907,42 @@ The private register now contains twenty-six natural candidates, twenty-five wit
 task-to-Capsule binding and twenty-four with separate passing task-output reviews. None qualifies,
 so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. Public release,
 Marketplace submission, outreach, and marketing remain unauthorized.
+
+## 2026-11-14 progress
+
+- Retained a twenty-seventh naturally occurring candidate from a software-contribution audit. Its
+  exact task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release
+  are bound in the private register.
+- A separate review passed the task output. Friday publication was permitted, but six previously
+  unaudited candidates correctly stopped on newer OWNER-clearance, explicit defer, related-work,
+  already-implemented, contract, or open-pull-request overlap gates. Existing PR #1430 had no new
+  human feedback and remained conflicting on the same head. No candidate, reservation, clone,
+  implementation, public comment, commit, or pull request was created. A current replay passed
+  28/28 coordinator tests, validation remained healthy with nine modules, and the exact lease read
+  back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed. Upstream `dev` and one overlap count changed
+  after the task; both are retained as newer state rather than substituted into the task-time
+  decision, and the hard admission blockers remain current.
+- The originating task recorded no task-specific applied/rejected/stale context-use disposition.
+  One selected coordinator-state source is eligible but unmeasured because its registered project
+  root was unavailable to source-size telemetry; five ontology-derived observations are
+  ineligible. Task-level eligible source coverage is therefore 0/1 and signed source-window tokens
+  remain `unknown`.
+- The private rolling Traffic snapshot reports 2 views / 2 unique views and 376 clones / 83 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+- Current eligible observable adoption is `162/171 = 94.74%` over 7 days and
+  `522/556 = 93.88%` over 30 days; semantic writeback is `55/55` and `326/326`. Eligible selected-
+  source coverage is `26/26 = 100%` and `81/81 = 100%`; signed measured source-window tokens are
+  `+91,970` and `+315,577`. Retrieval average / linear p95 / maximum is
+  `114.00 / 233.50 / 366 ms` over 11 samples and `108.62 / 187.00 / 366 ms` over 39 samples.
+  Task-specific context-use reports are `3/0/0` and `25/0/0` applied/rejected/stale, while missing
+  reports remain unknown. Boron-owned online model calls remain zero.
+
+The private register now contains twenty-seven natural candidates, twenty-six with exact
+task-to-Capsule binding and twenty-five with separate passing task-output reviews. None qualifies,
+so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The technical adoption,
+eligible source-coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently
+pass, but the real-task evidence gate and public 0.9.0 release-chain decision remain open. Public
+release, Marketplace submission, outreach, and marketing remain unauthorized.
