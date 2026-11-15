@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-11-14. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-11-15. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-11-14 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-11-15 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -942,6 +942,44 @@ Marketplace submission, outreach, and marketing remain unauthorized.
 
 The private register now contains twenty-seven natural candidates, twenty-six with exact
 task-to-Capsule binding and twenty-five with separate passing task-output reviews. None qualifies,
+so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The technical adoption,
+eligible source-coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently
+pass, but the real-task evidence gate and public 0.9.0 release-chain decision remain open. Public
+release, Marketplace submission, outreach, and marketing remain unauthorized.
+
+## 2026-11-15 progress
+
+- Retained a twenty-eighth naturally occurring candidate from a software-contribution audit. Its
+  exact task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release
+  are bound in the private register.
+- A separate review passed the task output. Saturday publication was correctly unscheduled, and six
+  bounded candidates correctly stopped on OWNER implementation, duplicate work, unsettled contract,
+  or active-overlap gates. Existing PR #1430 had no new human feedback and remained conflicting on
+  the same head. No candidate, reservation, clone, implementation, public comment, commit, or pull
+  request was created. Current upstream `dev` remains at the task-time head; some overlap counts
+  decreased after the task without clearing its hard admission blockers. A current replay passed
+  28/28 coordinator tests, validation remained healthy with nine modules, and the exact lease read
+  back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed.
+- The originating task recorded no task-specific applied/rejected/stale context-use disposition.
+  One selected coordinator-state source is eligible but unmeasured because its registered project
+  root was unavailable to source-size telemetry; five ontology-derived observations are ineligible.
+  Task-level eligible source coverage is therefore 0/1 and signed source-window tokens remain
+  `unknown`.
+- The private rolling Traffic snapshot reports 2 views / 2 unique views and 373 clones / 83 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+- Current eligible observable adoption is `152/161 = 94.41%` over 7 days and
+  `517/550 = 94.00%` over 30 days; semantic writeback is `57/57` and `299/299`. Eligible selected-
+  source coverage is `26/26 = 100%` and `81/81 = 100%`; signed measured source-window tokens are
+  `+92,307` and `+315,914`. Retrieval average / linear p95 / maximum is
+  `112.73 / 233.50 / 366 ms` over 11 samples and `108.13 / 187.00 / 366 ms` over 39 samples.
+  Task-specific context-use reports are `4/0/0` and `26/0/0` applied/rejected/stale, while missing
+  reports remain unknown. Boron-owned online model calls remain zero.
+
+The private register now contains twenty-eight natural candidates, twenty-seven with exact
+task-to-Capsule binding and twenty-six with separate passing task-output reviews. None qualifies,
 so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The technical adoption,
 eligible source-coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently
 pass, but the real-task evidence gate and public 0.9.0 release-chain decision remain open. Public
