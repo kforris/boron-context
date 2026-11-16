@@ -1009,17 +1009,20 @@ release, Marketplace submission, outreach, and marketing remain unauthorized.
 - The private rolling Traffic snapshot reports 2 views / 2 unique views and 373 clones / 83 unique
   clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
   installations, first Capsules, second-task reuse, or product adoption.
-- Current eligible observable adoption is `143/151 = 94.70%` over 7 days and
-  `515/547 = 94.15%` over 30 days; semantic writeback is `57/57` and `300/300`. Eligible selected-
-  source coverage is `26/26 = 100%` and `81/81 = 100%`; signed measured source-window tokens are
-  `+92,644` and `+316,251`. Retrieval average / linear p95 / maximum is
-  `114.36 / 241.00 / 366 ms` over 11 samples and `105.15 / 152.30 / 366 ms` over 39 samples.
-  Task-specific context-use reports are `4/0/0` and `26/0/0` applied/rejected/stale, while missing
-  reports remain unknown. Boron-owned online model calls remain zero.
+- Final readback eligible observable adoption is `145/153 = 94.77%` over 7 days and
+  `517/549 = 94.17%` over 30 days; semantic writeback is `58/58` and `300/300`. Eligible selected-
+  source coverage is `24/24 = 100%` and `81/81 = 100%`; signed measured source-window tokens are
+  `+84,204` and `+316,251`. Retrieval average / linear p95 / maximum is
+  `118.30 / 253.50 / 366 ms` over 10 samples and `105.15 / 152.30 / 366 ms` over 39 samples.
+  The 7-day window crossed a sample-expiry boundary while final-main CI waited for macOS runners;
+  the retained `366 ms` tail therefore lifts p95 back above the `250 ms` gate without a new query,
+  deletion, or historical rewrite. Task-specific context-use reports are `5/0/0` and `26/0/0`
+  applied/rejected/stale. Missing reports remain unknown, and Boron-owned online model calls remain
+  zero.
 
 The private register now contains twenty-nine natural candidates, twenty-eight with exact
 task-to-Capsule binding and twenty-seven with separate passing task-output reviews. None qualifies,
-so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The technical adoption,
-eligible source-coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently
-pass, but the real-task evidence gate and public 0.9.0 release-chain decision remain open. Public
-release, Marketplace submission, outreach, and marketing remain unauthorized.
+so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. Eligible adoption,
+eligible source coverage, held-out recall, and wrong-project gates currently pass, but 7-day
+retrieval p95 is `253.50 ms`, Issue #24 remains open, and the public 0.9.0 release-chain decision is
+unresolved. Public release, Marketplace submission, outreach, and marketing remain unauthorized.
