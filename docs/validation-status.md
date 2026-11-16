@@ -984,3 +984,42 @@ so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The tec
 eligible source-coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently
 pass, but the real-task evidence gate and public 0.9.0 release-chain decision remain open. Public
 release, Marketplace submission, outreach, and marketing remain unauthorized.
+
+## 2026-11-16 progress
+
+- Retained a twenty-ninth naturally occurring candidate from a software-contribution audit. Its
+  exact task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release
+  are bound in the private register.
+- A separate review passed the task output. Sunday publication was permitted, but six bounded
+  candidates correctly stopped on exact related work, unsettled API contracts, kernel provenance,
+  partially replaced behavior, or active file-overlap gates. Existing PR #1430 had no new human
+  feedback and remained conflicting on the same head. No candidate, reservation, clone,
+  implementation, public comment, commit, or pull request was created. Current upstream `dev`
+  remains at the task-time head; a broad OWNER draft has since expanded from 738 to 834 files,
+  strengthening rather than replacing the task-time overlap blocker. A current replay passed
+  28/28 coordinator tests, validation remained healthy with nine modules, and the exact lease read
+  back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed.
+- The originating task recorded no task-specific applied/rejected/stale context-use disposition.
+  One selected lifecycle-state source is eligible but unmeasured because its registered project
+  root was unavailable to source-size telemetry; five ontology-derived observations are
+  ineligible. Task-level eligible source coverage is therefore 0/1 and signed source-window tokens
+  remain `unknown`.
+- The private rolling Traffic snapshot reports 2 views / 2 unique views and 373 clones / 83 unique
+  clones for GitHub's current 14-day window. These are repository traffic measurements, not people,
+  installations, first Capsules, second-task reuse, or product adoption.
+- Current eligible observable adoption is `143/151 = 94.70%` over 7 days and
+  `515/547 = 94.15%` over 30 days; semantic writeback is `57/57` and `300/300`. Eligible selected-
+  source coverage is `26/26 = 100%` and `81/81 = 100%`; signed measured source-window tokens are
+  `+92,644` and `+316,251`. Retrieval average / linear p95 / maximum is
+  `114.36 / 241.00 / 366 ms` over 11 samples and `105.15 / 152.30 / 366 ms` over 39 samples.
+  Task-specific context-use reports are `4/0/0` and `26/0/0` applied/rejected/stale, while missing
+  reports remain unknown. Boron-owned online model calls remain zero.
+
+The private register now contains twenty-nine natural candidates, twenty-eight with exact
+task-to-Capsule binding and twenty-seven with separate passing task-output reviews. None qualifies,
+so Issue #24 remains **0/15** and the release candidate remains `NO-GO`. The technical adoption,
+eligible source-coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently
+pass, but the real-task evidence gate and public 0.9.0 release-chain decision remain open. Public
+release, Marketplace submission, outreach, and marketing remain unauthorized.
