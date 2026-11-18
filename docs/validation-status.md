@@ -1,6 +1,6 @@
 # Validation status
 
-Last updated: 2026-11-17. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-11-18. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
@@ -1064,6 +1064,48 @@ unresolved. Public release, Marketplace submission, outreach, and marketing rema
 
 The private register now contains thirty natural candidates, twenty-nine with exact task-to-Capsule
 binding and twenty-eight with separate passing task-output reviews. None qualifies, so Issue #24
+remains **0/15** and the release candidate remains `NO-GO`. Eligible adoption, eligible source
+coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently pass, but Issue
+#24 remains open and the public 0.9.0 release-chain decision is unresolved. Public release,
+Marketplace submission, outreach, and marketing remain unauthorized.
+
+## 2026-11-18 progress
+
+- Retained a thirty-first naturally occurring candidate from a software-contribution audit. Its
+  exact task, Boron session, single Capsule, material `RISK_STOP` receipt, and exact lease release
+  are bound in the private register.
+- A separate review passed the task output. Tuesday publication was correctly unscheduled, and six
+  bounded candidates correctly stopped on exact active work, existing implementation, explicit
+  OWNER design rejection, unsettled contracts, or active overlap. Existing PR #1430 had no new
+  human feedback and remained conflicting on the same head. No candidate, reservation, clone,
+  implementation, public comment, commit, or pull request was created. Current upstream `dev`
+  advanced after the task; PRs #1589 and #1588 remain open, while OWNER draft PR #1585 advanced
+  again and retains 991 changed files. These newer facts preserve or strengthen the task-time
+  blockers. A current replay passed 28/28 coordinator tests, validation remained healthy with nine
+  modules, and the exact lease read back `locked=false`.
+- No critical omission, stale-fact use, repeated Capsule retrieval, human correction, public
+  mutation, or lease-release discrepancy was observed.
+- The originating task recorded no task-specific applied/rejected/stale context-use disposition.
+  One selected coordinator-state source is eligible but unmeasured because its registered project
+  root was unavailable to source-size telemetry; five ontology-derived observations are
+  ineligible. Task-level eligible source coverage is therefore 0/1 and signed source-window tokens
+  remain `unknown`.
+- The private rolling Traffic snapshot reports 2 views / 2 unique views and 382 clones / 73 unique
+  clones for GitHub's current 14-day window; stars and forks are separately 0/0. These are
+  repository traffic measurements, not people, installations, first Capsules, second-task reuse,
+  or product adoption.
+- Current eligible observable adoption is `87/93 = 93.55%` over 7 days and
+  `506/535 = 94.58%` over 30 days; semantic writeback is `64/64` and `302/302`. Eligible selected-
+  source coverage is `26/26 = 100%` and `83/83 = 100%`; signed measured source-window tokens are
+  `+93,655` and `+325,702`. Retrieval average / linear p95 / maximum is
+  `114.18 / 241.00 / 366 ms` over 11 samples and `102.10 / 150.65 / 366 ms` over 40 samples. The
+  7-day p95 remains inside the `<=250 ms` checklist gate through natural traffic only; no synthetic
+  query, deletion, or historical rewrite was used. Task-specific context-use reports are `6/0/0`
+  and `26/0/0` applied/rejected/stale. Missing reports remain unknown, and Boron-owned online model
+  calls remain zero.
+
+The private register now contains thirty-one natural candidates, thirty with exact task-to-Capsule
+binding and twenty-nine with separate passing task-output reviews. None qualifies, so Issue #24
 remains **0/15** and the release candidate remains `NO-GO`. Eligible adoption, eligible source
 coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently pass, but Issue
 #24 remains open and the public 0.9.0 release-chain decision is unresolved. Public release,
