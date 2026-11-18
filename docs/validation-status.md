@@ -1094,19 +1094,20 @@ Marketplace submission, outreach, and marketing remain unauthorized.
   clones for GitHub's current 14-day window; stars and forks are separately 0/0. These are
   repository traffic measurements, not people, installations, first Capsules, second-task reuse,
   or product adoption.
-- Current eligible observable adoption is `87/93 = 93.55%` over 7 days and
-  `506/535 = 94.58%` over 30 days; semantic writeback is `64/64` and `302/302`. Eligible selected-
-  source coverage is `26/26 = 100%` and `83/83 = 100%`; signed measured source-window tokens are
-  `+93,655` and `+325,702`. Retrieval average / linear p95 / maximum is
-  `114.18 / 241.00 / 366 ms` over 11 samples and `102.10 / 150.65 / 366 ms` over 40 samples. The
-  7-day p95 remains inside the `<=250 ms` checklist gate through natural traffic only; no synthetic
-  query, deletion, or historical rewrite was used. Task-specific context-use reports are `6/0/0`
-  and `26/0/0` applied/rejected/stale. Missing reports remain unknown, and Boron-owned online model
-  calls remain zero.
+- Final eligible observable adoption is `89/95 = 93.68%` over 7 days and
+  `508/536 = 94.78%` over 30 days; semantic writeback is `63/63` and `302/302`. Eligible selected-
+  source coverage is `24/24 = 100%` and `83/83 = 100%`; signed measured source-window tokens are
+  `+85,215` and `+325,702`. Retrieval average / linear p95 / maximum is
+  `116.40 / 253.50 / 366 ms` over 10 samples and `102.10 / 150.65 / 366 ms` over 40 samples. The
+  7-day window crossed a natural sample-expiry boundary while CI waited for macOS runners, so p95
+  is again above the `250 ms` checklist gate without a synthetic query, deletion, or historical
+  rewrite. Task-specific context-use reports are `6/0/0` and `26/0/0` applied/rejected/stale.
+  Missing reports remain unknown, and Boron-owned online model calls remain zero.
 
 The private register now contains thirty-one natural candidates, thirty with exact task-to-Capsule
 binding and twenty-nine with separate passing task-output reviews. None qualifies, so Issue #24
 remains **0/15** and the release candidate remains `NO-GO`. Eligible adoption, eligible source
-coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates currently pass, but Issue
-#24 remains open and the public 0.9.0 release-chain decision is unresolved. Public release,
-Marketplace submission, outreach, and marketing remain unauthorized.
+coverage, held-out recall, and wrong-project gates pass, but 7-day retrieval p95 is `253.50 ms`,
+Issue #24 remains open, the public 0.9.0 release-chain decision is unresolved, and final-main macOS
+CI was cancelled in queue. Public release, Marketplace submission, outreach, and marketing remain
+unauthorized.
