@@ -1136,19 +1136,20 @@ unauthorized.
   clones for GitHub's current 14-day window; stars and forks are separately 0/0. These are
   repository traffic measurements, not people, installations, first Capsules, second-task reuse,
   or product adoption.
-- Current eligible observable adoption is `81/86 = 94.19%` over 7 days and
-  `504/531 = 94.92%` over 30 days; semantic writeback is `62/62` and `299/299`. Eligible selected-
-  source coverage is `24/24 = 100%` and `83/83 = 100%`; signed measured source-window tokens are
-  `+85,552` and `+326,039`. Retrieval average / linear p95 / maximum is
-  `117.00 / 253.50 / 366 ms` over 10 samples and `102.48 / 150.65 / 366 ms` over 40 samples. The
+- Final readback after explicit session closure reports eligible observable adoption of
+  `83/88 = 94.32%` over 7 days and `506/533 = 94.93%` over 30 days; semantic writeback is `62/62`
+  and `301/301`. Eligible selected-source coverage is `22/22 = 100%` and `83/83 = 100%`; signed
+  measured source-window tokens are `+77,112` and `+326,039`. Retrieval average / linear p95 /
+  maximum is `120.44 / 266.00 / 366 ms` over 9 samples and `102.48 / 150.65 / 366 ms` over 40
+  samples. The
   7-day p95 is above the `<=250 ms` checklist gate after natural window movement; no synthetic
-  query, deletion, or historical rewrite was used. Task-specific context-use reports are `6/0/0`
-  and `25/0/0` applied/rejected/stale. Missing reports remain unknown, and Boron-owned online model
+  query, deletion, or historical rewrite was used. Task-specific context-use reports are `7/0/0`
+  and `26/0/0` applied/rejected/stale. Missing reports remain unknown, and Boron-owned online model
   calls remain zero.
 
 The private register now contains thirty-two natural candidates, thirty-one with exact task-to-
 Capsule binding and thirty with separate passing task-output reviews. None qualifies, so Issue #24
 remains **0/15** and the release candidate remains `NO-GO`. Eligible adoption, eligible source
-coverage, held-out recall, and wrong-project gates pass, but 7-day retrieval p95 is `253.50 ms`,
+coverage, held-out recall, and wrong-project gates pass, but 7-day retrieval p95 is `266.00 ms`,
 Issue #24 remains open, and the public 0.9.0 release-chain decision is unresolved. Public release,
 Marketplace submission, outreach, and marketing remain unauthorized.
