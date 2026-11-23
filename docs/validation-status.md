@@ -1,13 +1,13 @@
 # Validation status
 
-Last updated: 2026-11-22. This page tracks evidence for the product goal: a new task accurately
+Last updated: 2026-11-23. This page tracks evidence for the product goal: a new task accurately
 continues a real project using source-backed context. It is a progress record, not a release
 announcement.
 
 ## Current boundary
 
 - The repository contains the v0.9.0 trusted-continuity implementation. The latest public GitHub
-  release checked on 2026-11-17 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
+  release checked on 2026-11-23 is [v0.7.1](https://github.com/kforris/boron-context/releases/tag/v0.7.1).
 - [Issue #24](https://github.com/kforris/boron-context/issues/24) requires 15 naturally occurring
   task resumptions across software contribution, content production, and product/inventory work.
   Each qualifying case needs a private source-linked receipt and a separate reviewer decision. The
@@ -1224,4 +1224,41 @@ Capsule binding and thirty-two with separate passing task-output reviews. None q
 #24 remains **0/15** and the release candidate remains `NO-GO`. Eligible adoption, eligible source
 coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates pass, but Issue #24
 remains open and the public 0.9.0 release-chain decision is unresolved. Public release,
+Marketplace submission, outreach, and marketing remain unauthorized.
+
+## 2026-11-23 progress
+
+- Retained a thirty-fifth naturally occurring candidate from a content-production continuation.
+  Its exact task, Boron session, single Capsule, Toronto-date decision, production brief, live
+  capacity receipt, and terminal task trace are bound in the private register.
+- A separate review passed the task output as a correct fail-closed result, not completed
+  production. A live reload verified the exact account at 98/100 drafts, leaving two slots for the
+  required three-draft batch. The task stopped before candidate selection, item-level Humanizer
+  work, TTS, rendering, upload, deletion, writer-lock acquisition, publication, scheduling, or
+  final validation. No critical omission, stale-fact use, repeated Capsule retrieval, human
+  correction, partial production, publication, scheduling, deletion, or lock discrepancy was
+  observed.
+- The originating task recorded no task-specific applied/rejected/stale context-use disposition.
+  One of four eligible selected sources was measured: 70 original tokens versus 345 selected
+  Capsule tokens, for signed net `-275`. Three eligible file selections were unmeasured because
+  their registered project root was unavailable to source-size telemetry; one ontology selection
+  was ineligible. The `-275` value therefore covers only the measured 1/4 subset and is not a full-
+  task or billing-savings claim.
+- The private rolling Traffic snapshot reports 3 views / 3 unique views and 386 clones / 83 unique
+  clones for GitHub's current 14-day window; stars and forks remain separately 0/0. These are
+  repository traffic measurements, not people, installations, first Capsules, second-task reuse,
+  or product adoption.
+- Current eligible observable adoption is `85/90 = 94.44%` over 7 days and
+  `482/511 = 94.32%` over 30 days; semantic writeback is `69/69` and `298/298`. Eligible selected-
+  source coverage is `18/18 = 100%` and `82/82 = 100%`; signed measured source-window tokens are
+  `+78,993` and `+331,997`. Retrieval average / linear p95 / maximum is
+  `110.89 / 160.20 / 181 ms` over 9 samples and `106.93 / 181.05 / 366 ms` over 40 samples. Task-
+  specific context-use reports are `8/0/0` and `26/0/0` applied/rejected/stale. Missing reports
+  remain unknown, and Boron-owned online model calls remain zero.
+
+The private register now contains thirty-five natural candidates, thirty-four with exact task-to-
+Capsule binding and thirty-three with separate passing task-output reviews. None qualifies, so
+Issue #24 remains **0/15** and the release candidate remains `NO-GO`. Eligible adoption, eligible
+source coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates pass, but Issue
+#24 remains open and the public 0.9.0 release-chain decision is unresolved. Public release,
 Marketplace submission, outreach, and marketing remain unauthorized.
