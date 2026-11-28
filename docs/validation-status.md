@@ -410,6 +410,51 @@ candidates. None qualifies, so Issue #24 remains **0/15** and the release candid
 sufficiently measured eligible source windows, and a separate review. Public release, Marketplace
 submission, outreach, and marketing remain unauthorized.
 
+## 2026-11-28 progress
+
+- Retained a thirty-seventh naturally occurring candidate from a software-contribution lifecycle
+  continuation. Its exact task, Boron session, single Capsule, task-specific context-use report,
+  final manifest, thirty-one receipts, coordinator state, and exact lease release are bound in the
+  private register.
+- A separate review confirmed the control outcome was safe and substantially correct: the live
+  authored-PR inventory remains 31, sole open PR #1430 remains on the same head and reads back
+  `DIRTY/CONFLICTING`, all manifest receipt hashes match, the coordinator remains healthy with
+  nine modules, no owned residue or cleanup request exists, and the lease reads `locked=false`.
+  No GitHub mutation, filesystem cleanup, index deletion, NAS controller action, or archive marker
+  occurred.
+- The independent output review failed because canonical receipts place explicitly passing
+  commands in `validation.failing` when command option names contain `--cov-fail-under` or
+  `--fail-on`. The top-level remote-check counts and final control decision remain correct, so the
+  error did not cause cleanup or a public action, but the retained output bundle is semantically
+  inconsistent. The task used one Capsule and performed one justified same-lease snapshot refresh
+  after the first live merge-state read returned `UNKNOWN`.
+- The originating task recorded a validated task-specific `applied` context-use disposition. Five
+  eligible selected file observations were unmeasured because the registered project root was
+  unavailable, seven ontology-derived selections were ineligible, and two legacy observations were
+  unobservable. Task-level eligible source coverage is therefore 0/5 and signed source-window
+  tokens remain `unknown`; the client report is supporting evidence, not independent proof of
+  benefit.
+- The private rolling Traffic snapshot reports 2 views / 2 unique views and 298 clones / 75 unique
+  clones for GitHub's current 14-day window; stars and forks remain separately 0/0. No referrer row
+  was returned; the overview and issues paths each report 1/1. These are repository traffic
+  measurements, not people, installations, first Capsules, second-task reuse, or product adoption.
+- Current eligible observable adoption is `66/94 = 70.21%` over 7 days and
+  `445/500 = 89.00%` over 30 days; semantic writeback is `55/55` and `280/280`. Eligible selected-
+  source coverage is `21/21 = 100%` and `87/87 = 100%`; signed measured source-window tokens are
+  `+94,521` and `+358,324`. Retrieval average / linear p95 / maximum is
+  `151.00 / 206.50 / 215 ms` over 6 samples and `113.11 / 186.95 / 366 ms` over 38 samples.
+  Task-specific context-use reports are `14/0/4` and `45/2/27` applied/rejected/stale. Missing
+  reports remain unknown, and Boron-owned online model calls remain zero.
+
+The private register now contains thirty-seven natural candidates, thirty-six with exact task-to-
+Capsule binding, thirty-four with separate passing task-output reviews, and one with a separate
+failing review. None qualifies, so Issue #24 remains **0/15** and the release candidate remains
+`NO-GO`. Eligible source coverage, held-out recall, wrong-project, and rolling retrieval-p95 gates
+pass, but 7-day eligible observable adoption is below the `80%` checklist gate, Issue #24 remains
+open, the final-main CI row is incomplete on an external macOS runner queue, and the public 0.9.0
+release-chain decision is unresolved. Public release, Marketplace submission, outreach, and
+marketing remain unauthorized.
+
 ## 2026-10-30 progress
 
 - Reconciled the private register by restoring its omitted entry for the previously retained
